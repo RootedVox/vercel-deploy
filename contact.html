@@ -1,0 +1,164 @@
+<!--
+Copyright (c) 2026 RootedVox
+Copyright (c) 2026 沧海四象
+Licensed under the MIT License.
+-->
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>联系我们与意见反馈｜RootedVox</title>
+  <meta name="description" content="查看 RootedVox的联系与反馈渠道，向开发团队提出平台使用问题、建议和合作意向。">
+  <link rel="canonical" href="https://rv.celestivast.com/contact">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="RootedVox">
+  <meta property="og:locale" content="zh_CN">
+  <meta property="og:title" content="联系我们与意见反馈｜RootedVox">
+  <meta property="og:description" content="查看 RootedVox的联系与反馈渠道，向开发团队提出平台使用问题、建议和合作意向。">
+  <meta property="og:url" content="https://rv.celestivast.com/contact">
+  <meta property="og:image" content="https://rv.celestivast.com/images/logo.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="联系我们与意见反馈｜RootedVox">
+  <meta name="twitter:description" content="查看 RootedVox的联系与反馈渠道，向开发团队提出平台使用问题、建议和合作意向。">
+  <meta name="twitter:image" content="https://rv.celestivast.com/images/logo.png">
+
+    <link rel="stylesheet" href="./common.css">
+    <style>
+        /* 仅保留页面独有样式，导航、页脚、全局样式移入common.css */
+        .main-content {
+            max-width: 1200px;
+            margin: 80px auto;
+            padding: 0 20px;
+        }
+
+        .contact-title {
+            text-align: center;
+            font-size: 36px;
+            color: var(--theme-color);
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .contact-subtitle {
+            text-align: center;
+            color: var(--text-gray);
+            font-size: 14px;
+            margin-bottom: 50px;
+        }
+
+        .contact-content {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 50px;
+            margin-bottom: 40px;
+            background: var(--card-bg, #171717);
+            padding: 50px 30px;
+            border-radius: 16px;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.07);
+        }
+
+        .contact-image {
+            flex: 1;
+            min-width: 300px;
+            text-align: center;
+        }
+
+        .contact-image img {
+            max-width: 250px;
+            height: auto;
+        }
+
+        .contact-info {
+            flex: 1;
+            min-width: 300px;
+            font-size: 16px;
+            line-height: 2.2;
+        }
+
+        .contact-info p {
+            margin-bottom: 12px;
+            color: #aeb5ae;
+        }
+
+        .contact-info strong {
+            color: var(--theme-color);
+        }
+
+        /* 升级按钮样式，和全站下载页按钮统一 */
+        .contact-button {
+            display: inline-block;
+            padding: 14px 42px;
+            background: var(--theme-color);
+            color: #fff;
+            text-decoration: none;
+            border-radius: 30px;
+            font-size: 17px;
+            transition: 0.25s;
+            margin-top: 25px;
+            border: none;
+            cursor: pointer;color:#071109}
+
+        .contact-button:hover {
+            background: #15408f;
+            color: #fff;
+        }
+
+        .contact-note {
+            text-align: center;
+            font-size: 16px;
+            color: #aeb5ae;
+            max-width: 800px;
+            margin: 0 auto 40px;
+            line-height: 1.8;
+        }
+
+        .backup-tip {
+            font-size: 14px;
+            color: #aeb5ae;
+            margin-top: 15px;
+        }
+    </style>
+    <link rel="icon" type="image/png" href="/images/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+    <link rel="shortcut icon" href="/images/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="RootedVox" />
+    <link rel="manifest" href="/images/site.webmanifest" />
+</head>
+<body>
+    <!-- 公共头部挂载 -->
+    <div id="headerBox"></div>
+
+    <!-- 主要内容 -->
+    <main class="main-content">
+        <h1 class="contact-title">CONTACT US</h1>
+        <p class="contact-subtitle">联系我们</p>
+        <p class="contact-note">如果发现问题、想加入我们、提供建议、举报违规行为或有其他相关需要，欢迎联系我们，我们会尽力为大家服务，请通过以下方式联系我们：</p>
+
+        <div class="contact-content">
+            <div class="contact-image">
+                <img src="./images/logo.png" alt="联系我们装饰图">
+            </div>
+
+            <div class="contact-info">
+                <p><strong>Mobile:</strong> 16602707968</p>
+                <p><strong>QQ:</strong> 12158168</p>
+                <p><strong>Email:</strong> contact@celestivast.com</p>
+
+                <!-- 标准 mailto 链接，保留预设主题与正文 -->
+                <a href="mailto:contact@celestivast.com?subject=给RootedVox%20官方的一封信&body=您好，我在使用RootedVox时获得了一些灵感/发现了一些问题：%0A%0A" class="contact-button">CONTACT US</a>
+                <p class="backup-tip">若邮件按钮无法唤起邮箱客户端，可手动复制上方邮箱地址发送邮件</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- 公共页脚挂载 -->
+    <div id="footerBox"></div>
+
+    <!-- 全局公共JS（导航+页脚渲染） -->
+    <script src="./common.js"></script>
+</body>
+</html>

@@ -1,0 +1,105 @@
+<!--
+Copyright (c) 2026 RootedVox
+Copyright (c) 2026 沧海四象
+Licensed under the MIT License.
+-->
+<!DOCTYPE html>
+<html lang="zh-CN" style="color-scheme: dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>平台公告与更新通知｜RootedVox</title>
+  <meta name="description" content="查看 RootedVox的最新平台公告、功能更新、维护安排与社区相关通知。">
+  <link rel="canonical" href="https://rv.celestivast.com/notice">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="RootedVox">
+  <meta property="og:locale" content="zh_CN">
+  <meta property="og:title" content="平台公告与更新通知｜RootedVox">
+  <meta property="og:description" content="查看 RootedVox的最新平台公告、功能更新、维护安排与社区相关通知。">
+  <meta property="og:url" content="https://rv.celestivast.com/notice">
+  <meta property="og:image" content="https://rv.celestivast.com/images/logo.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="平台公告与更新通知｜RootedVox">
+  <meta name="twitter:description" content="查看 RootedVox的最新平台公告、功能更新、维护安排与社区相关通知。">
+  <meta name="twitter:image" content="https://rv.celestivast.com/images/logo.png">
+
+    <!-- 引入全局公共样式 -->
+    <link rel="stylesheet" href="./common.css">
+    <style>
+        /* 只保留本页面独有：公告列表CSS，导航、全局、页脚样式全部删去 */
+        .notice-container {
+            max-width: 1200px;
+            margin: 80px auto 3rem;
+            padding: 0 5%;
+        }
+
+        .notice-title {
+            font-size: 2rem;
+            color: #aeb5ae;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 0.5rem;
+        }
+
+        .notice-list {
+            list-style: none;
+        }
+
+        .notice-item {
+            background-color: #171717;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            transition: transform 0.3s;
+        }
+
+        .notice-item:hover {
+            transform: translateY(-5px);
+        }
+
+        .notice-item h3 {
+            color: #aeb5ae;
+            font-size: 1.3rem;
+            margin-bottom: 1rem;
+        }
+
+        .notice-item p {
+            color: #aeb5ae;
+            line-height: 1.6;
+            font-size: 1rem;
+        }
+        .notice-container{width:min(920px,calc(100% - 32px));margin:0 auto;padding:112px 0 0}.notice-title{margin:0;color:var(--ink);border:0;font-size:clamp(38px,7vw,64px);line-height:1;letter-spacing:-.05em}.notice-lead{margin:14px 0 28px;color:var(--muted);font-size:16px}.notice-search{width:100%;min-height:50px;margin-bottom:18px;padding:12px 16px;border:1px solid var(--line);border-radius:14px;background:#171717;box-shadow:var(--shadow-sm)}.notice-search:focus{border-color:var(--theme-color);outline:3px solid rgba(18,101,42,.13)}.notice-list{display:grid;gap:12px;margin:0;padding:0}.notice-item{margin:0;padding:0;border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow-sm);transform:none!important}.notice-toggle{display:flex;width:100%;align-items:center;justify-content:space-between;gap:20px;padding:20px 22px;border:0;color:var(--ink);background:transparent;text-align:left;font-weight:750;cursor:pointer}.notice-toggle span:last-child{display:grid;flex:0 0 30px;width:30px;height:30px;place-items:center;border-radius:50%;background:var(--theme-soft);color:var(--theme-color);transition:transform .2s}.notice-toggle[aria-expanded="true"] span:last-child{transform:rotate(45deg)}.notice-item p{display:none;margin:0;padding:0 22px 22px;color:#aeb5ae;line-height:1.8}.notice-item.open p{display:block}.notice-empty{padding:40px;text-align:center;color:var(--muted)}
+    </style>
+    <!-- favicon图标固定保留不动 -->
+    <link rel="icon" type="image/png" href="/images/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+    <link rel="shortcut icon" href="/images/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="RootedVox" />
+    <link rel="manifest" href="/images/site.webmanifest" />
+</head>
+<body>
+    <!-- 公共头部容器，JS自动加载header.html -->
+    <div id="headerBox"></div>
+
+    <!-- 公告核心区域（页面独有正文原样保留） -->
+    <div class="notice-container">
+        <h1 class="notice-title">站内公告</h1><p class="notice-lead">版本变化、使用说明与社区规则，都在这里。</p><input class="notice-search" id="noticeSearch" type="search" placeholder="搜索公告" aria-label="搜索公告">
+        <ul class="notice-list" id="noticeList">
+            <li class="notice-item open">
+                <h3>RootedVox 4.1.0 · 新版上线</h3>
+                <p>社区现以 RootedVox 的名称提供服务。新版换上了黑底终端绿界面和新的声纹标志，社区广场、公告和内容审核继续开放。<br><br>
+                原有账号和社区内容沿用，进入新版后请使用原账号重新登录。欢迎收藏新地址 <a href="https://rv.celestivast.com/">rv.celestivast.com</a>，也可以直接<a href="/messages">前往社区广场</a>。</p>
+            </li>
+        </ul>
+    </div>
+
+    <!-- 公共页脚容器 -->
+    <div id="footerBox"></div>
+
+    <!-- 全局JS：自动加载头尾+汉堡+导航高亮，本页汉堡JS删掉 -->
+    <script src="./common.js"></script><script src="./notice.js"></script>
+    <!-- 本页面无独有JS，script空着就行，有公告动态再写 -->
+</body>
+</html>

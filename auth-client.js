@@ -1,0 +1,70 @@
+// Business-site session helper. Authentication tokens never enter browser JavaScript.
+(function () {
+  'use strict';
+
+  const SAFE_PAGES = new Set([
+    '/main', '/messages', '/meal-rating', '/details',
+    '/checker-pending', '/checker-approved', '/checker-deleted'
+  ]);
+
+  const PRIMARY_DOMAIN = 'https://rv.celestivast.com';
+  const VERCEL_DOMAIN = 'https://rv-vc.celestivast.com';
+  const BACKUP_DOMAIN = location.origin === PRIMARY_DOMAIN ? VERCEL_DOMAIN
+    : location.origin === VERCEL_DOMAIN ? PRIMARY_DOMAIN : '';
+
+  // ✅ 自动剥离 .html 后缀的终极清洗器
+  function safeReturnTo(value, fallback = '/main') {
+    try {
+      const candidate = value?.startsWith('/') ? value : `/${value || ''}`;
+      const url = new URL(candidate, location.origin);
+      let cleanPath = url.pathname.replace(/\.html$/, '');
+      if (cleanPath === '') cleanPath = '/';
+
+      return url.origin === location.origin && SAFE_PAGES.has(cleanPath)
+        ? `${cleanPath}${url.search}${url.hash}`
+        : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  // Probe a side-effect-free endpoint; fetching login/logout would create or
+  // revoke sessions twice, and manual redirects are opaque in browsers.
+  async function authOrigin() {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    try {
+      const res = await fetch('/auth/session', { credentials: 'include', cache: 'no-store', signal: controller.signal });
+      return res.status === 429 || res.status >= 500 ? BACKUP_DOMAIN : '';
+    } catch { return BACKUP_DOMAIN; }
+    finally { clearTimeout(timer); }
+  }
+  async function handleLogin(returnTo = location.pathname + location.search) {
+    const origin = await authOrigin();
+    window.location.href = `${origin}/auth/login?return_to=${encodeURIComponent(safeReturnTo(returnTo))}`;
+  }
+  async function getSession() {
+    const response = await window.request('/auth/session', {
+      headers: { Accept: 'application/json' }, cache: 'no-store'
+    });
+    if (response.status === 401) return null;
+    if (!response.ok) throw new Error('session_unavailable');
+    return response.json();
+  }
+
+  async function requireSession(returnTo = location.pathname + location.search) {
+    const session = await getSession();
+    if (!session?.authenticated) {
+      await handleLogin(returnTo);
+      return null;
+    }
+    return session;
+  }
+
+  async function logout(returnTo = '/main') {
+    const origin = await authOrigin();
+    window.location.href = `${origin}/auth/logout?return_to=${encodeURIComponent(safeReturnTo(returnTo))}`;
+  }
+
+  window.RootedVoxAuth = { getSession, requireSession, handleLogin, logout, safeReturnTo };
+})();

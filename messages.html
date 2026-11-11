@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>社区广场与社区广场留言｜RootedVox</title>
+  <meta name="description" content="在 RootedVox 社区广场浏览社区日常和话题留言，按分区查找动态。登录后可发布内容，所有留言经审核后公开。">
+  <link rel="canonical" href="https://rv.celestivast.com/messages">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="RootedVox">
+  <meta property="og:locale" content="zh_CN">
+  <meta property="og:title" content="社区广场与社区广场留言｜RootedVox">
+  <meta property="og:description" content="在 RootedVox 社区广场浏览社区日常和话题留言，按分区查找动态。登录后可发布内容，所有留言经审核后公开。">
+  <meta property="og:url" content="https://rv.celestivast.com/messages">
+  <meta property="og:image" content="https://rv.celestivast.com/images/logo.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="社区广场与社区广场留言｜RootedVox">
+  <meta name="twitter:description" content="在 RootedVox 社区广场浏览社区日常和话题留言，按分区查找动态。登录后可发布内容，所有留言经审核后公开。">
+  <meta name="twitter:image" content="https://rv.celestivast.com/images/logo.png">
+
+    <script src="./request.js?v=20261101"></script>
+    <script src="./auth-client.js"></script>
+    <script src="./public-data.js"></script>
+    <link rel="stylesheet" href="./common.css">
+    <style>
+        :root {
+            --card-bg: #f9f9f9;
+        }
+        .main-content {
+            max-width: 1200px;
+            margin: 80px auto 60px;
+            padding: 0 20px;
+        }
+        .page-title {
+            text-align: center;
+            font-size: 32px;
+            color: var(--theme-color);
+            margin-bottom: 40px;
+            position: relative;
+        }
+        .page-title::after {
+            content: "";
+            display: block;
+            width: 60px;
+            height: 3px;
+            background-color: var(--theme-color);
+            margin: 15px auto 0;color:#071109}
+        .message-form-section {
+            background-color: var(--card-bg);
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 40px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+        .form-title {
+            font-size: 20px;
+            color: var(--theme-color);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #aeb5ae;
+            font-size: 14px;
+        }
+        .form-control {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 15px;
+            font-family: inherit;
+            transition: border-color 0.3s ease;
+        }
+        .form-control:focus {
+            outline: none;
+            border-color: var(--theme-color);
+            box-shadow: 0 0 0 2px rgba(30, 80, 174, 0.1);
+        }
+        textarea.form-control {
+            min-height: 120px;
+            resize: vertical;
+            line-height: 1.6;
+        }
+        .submit-btn {
+            display: block;
+            width: 200px;
+            height: 45px;
+            line-height: 45px;
+            text-align: center;
+            background-color: var(--theme-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 0 auto;
+            transition: background-color 0.3s ease;color:#071109}
+        .submit-btn:hover {
+            background-color: #15408f;
+        }
+        .submit-btn:disabled {
+            background-color: #999;
+            cursor: not-allowed;
+        }
+        .form-note {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-gray);
+            margin-top: 15px;
+        }
+        .file-upload {
+            padding: 15px;
+            border: 1px dashed #ddd;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: border-color 0.3s ease;
+            text-align: center;
+            color: #aeb5ae;
+        }
+        .file-upload:hover {
+            border-color: var(--theme-color);
+        }
+        .file-upload input {
+            display: none;
+        }
+        .preview-container {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .file-preview {
+            width: 100px;
+            height: 100px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid #eee;
+        }
+        .upload-progress {
+            margin-top: 10px;
+            height: 6px;
+            background-color: #eee;
+            border-radius: 3px;
+            overflow: hidden;
+            display: none;
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: var(--theme-color);
+            width: 0%;
+            transition: width 0.3s ease;color:#071109}
+        .message-list-section {
+            background-color: var(--card-bg);
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+        .message-item {
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 15px;
+            scroll-margin-top: 80px;
+            text-align: left !important;
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+        }
+        .message-avatar-box {
+            flex-shrink: 0;
+        }
+        .message-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .message-author {
+            font-weight: bold;
+            color: var(--theme-color);
+            font-size: 16px;
+        }
+        .message-time {
+            font-size: 12px;
+            color: var(--text-gray);
+        }
+        .message-content {
+            color: #aeb5ae;
+            line-height: 1.8;
+            margin-bottom: 15px;
+            white-space: pre-line;
+            text-align: left !important;
+        }
+        .message-zone {
+            display: inline-flex;
+            align-items: center;
+            margin: 0 0 10px;
+            padding: 5px 9px;
+            border-radius: 999px;
+            color: var(--theme-color);
+            background: var(--theme-soft);
+            font-size: 12px;
+            font-weight: 750;
+        }
+        .message-images {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .message-image {
+            width: 150px;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .detail-btn {
+            background: none;
+            border: none;
+            color: var(--theme-color);
+            cursor: pointer;
+            font-size: 13px;
+            margin-top: 10px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            transition: background 0.2s;
+            display: inline-block;
+        }
+        .detail-btn:hover {
+            background: #171717;
+        }
+        .empty-message {
+            text-align: center;
+            padding: 40px 0;
+            color: var(--text-gray);
+            font-size: 16px;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px 0;
+            color: var(--text-gray);
+            font-size: 16px;
+        }
+        .logout-bar {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            margin-bottom: 20px;
+            gap: 12px;
+        }
+        .user-menu {
+            position: relative;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .avatar-btn {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: #171717;
+            cursor: pointer;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            padding: 0;
+        }
+        .avatar-btn[hidden] {
+            display: none;
+        }
+        .avatar-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+            display: none;
+        }
+        .avatar-placeholder {
+            font-size: 18px;
+            color: #aeb5ae;
+        }
+        .notification-dot {
+            width: 10px;
+            height: 10px;
+            background: red;
+            border-radius: 50%;
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            display: none;
+        }
+        .avatar-dropdown {
+            position: absolute;
+            top: 45px;
+            right: 0;
+            background: #171717;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            width: 150px;
+            z-index: 9999;
+            display: none;
+            overflow: hidden;
+        }
+        .avatar-dropdown > div {
+            padding: 10px 14px;
+            cursor: pointer;
+        }
+        .avatar-dropdown > div:hover {
+            background: #171717;
+        }
+        .notification-modal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 99999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-box {
+            background: #171717;
+            width: 90%;
+            max-width: 500px;
+            border-radius: 12px;
+            max-height: 80vh;
+        }
+        .modal-header {
+            padding: 16px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-body {
+            padding: 16px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        .notification-item {
+            padding: 12px;
+            border-left: 4px solid #2196F3;
+            background: #171717;
+            margin-bottom: 8px;
+            border-radius: 6px;
+        }
+        .notification-item.rejected {
+            border-left-color: #f44336;
+        }
+        .profile-avatar-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 22px;
+        }
+        .profile-avatar-preview {
+            width: 72px;
+            height: 72px;
+            flex: 0 0 72px;
+            border: 1px solid var(--line);
+            border-radius: 50%;
+            object-fit: cover;
+            background: var(--surface-alt);
+        }
+        .profile-avatar-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted);
+            font-size: 24px;
+            font-weight: 800;
+        }
+        .profile-avatar-action,.profile-save-btn,.profile-cancel-btn {
+            min-height: 42px;
+            padding: 9px 16px;
+            border-radius: 11px;
+            cursor: pointer;
+            font-weight: 700;
+        }
+        .profile-avatar-action,.profile-cancel-btn {
+            border: 1px solid var(--line);
+            color: var(--theme-color);
+            background: #171717;
+        }
+        .profile-save-btn {
+            border: 1px solid var(--theme-color);
+            color: #fff;
+            background: var(--theme-color);color:#071109}
+        .profile-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .profile-status {
+            min-height: 20px;
+            margin: 8px 0 0;
+            color: var(--muted);
+            font-size: 13px;
+        }
+        .profile-status.error { color: #ffa1a1; }
+        .profile-status.success { color: #5cff8a; }
+        .dropdown-dot {
+            width: 8px;
+            height: 8px;
+            background: red;
+            border-radius: 50%;
+            display: inline-block;
+            margin-left: 8px;
+        }
+        #closeModal,#closeProfileModal {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0 8px;
+        }
+        .message-avatar-box img:hover {
+            box-shadow: 0 0 5px rgba(0,0,0,0.2);
+            transform: scale(1.05);
+            transition: all 0.2s ease;
+        }
+        .list-loading-tip {
+            padding: 20px 0;
+            color: #aeb5ae;
+            text-align: center;
+        }
+        .no-more-tip {
+            color: #aeb5ae;
+        }
+        .main-content { max-width: 1180px; margin: 0 auto 70px; padding: 112px 20px 0; }
+        .community-heading { display:flex; align-items:end; justify-content:space-between; gap:24px; margin-bottom:24px; }
+        .community-heading .page-title { margin:0; color:var(--ink); text-align:left; font-size:clamp(36px,6vw,62px); line-height:1; letter-spacing:-.05em; }
+        .community-heading .page-title::after { display:none; }
+        .community-heading p { max-width:440px; margin:10px 0 0; color:var(--muted); }
+        .logout-bar { margin:0; }
+        .logout-btn { color:#ffa1aa !important; border:1px solid #ffd4dc !important; border-radius:12px !important; background:#2c161a !important; font-weight:700; }
+        .community-layout { display:grid; grid-template-columns:minmax(300px,.8fr) minmax(0,1.35fr); gap:20px; align-items:stretch; }
+        .message-form-section,.message-list-section { margin:0; border:1px solid var(--line); border-radius:22px; background:#171717; box-shadow:var(--shadow-sm); }
+        .message-form-section { padding:26px; }
+        /* The form determines the grid row height; the feed never stretches the page. */
+        .message-list-section { position:relative; min-height:0; padding:0; }
+        .message-list-inner { position:absolute; inset:26px; display:flex; flex-direction:column; min-height:0; }
+        .feed-controls { flex:none; }
+        .message-feed { flex:1; min-height:0; overflow-y:auto; overscroll-behavior-y:contain; scrollbar-gutter:stable; padding:4px 4px 0; }
+        .message-feed:focus-visible { outline:2px solid var(--theme-color); outline-offset:4px; border-radius:12px; }
+        .form-title { margin:0; color:var(--ink); text-align:left; font-size:20px; }
+        .section-copy { margin:4px 0 22px; color:var(--muted); font-size:14px; }
+        .form-control { min-height:46px; padding:11px 13px; border-color:var(--line); border-radius:12px; background:#171717; font-size:15px; }
+        .form-control:focus { border-color:var(--theme-color); box-shadow:0 0 0 4px rgba(18,101,42,.1); }
+        .form-group { margin-bottom:16px; }
+        .form-group label { color:#aeb5ae; font-weight:700; }
+        .form-note { color:var(--muted); text-align:left; font-size:12px; }
+        .textarea-meta { display:flex; justify-content:flex-end; margin-top:5px; color:var(--muted); font-size:12px; }
+        .file-upload { border-color:#c9d1e5; border-radius:14px; background:#171717; }
+        .file-upload:hover { background:var(--theme-soft); }
+        .submit-btn { width:100%; height:48px; line-height:normal; border-radius:13px; background:var(--theme-color); box-shadow:0 10px 22px rgba(18,101,42,.22);color:#071109}
+        .submit-btn:hover { background:#83ff9f; transform:translateY(-1px);color:#071109}
+        .form-status { min-height:24px; margin:10px 0 0; color:var(--muted); text-align:center; font-size:13px; }
+        .form-status.success { color:#5cff8a; }
+        .form-status.error { color:#ffa1a1; }
+        .feed-toolbar { display:grid; grid-template-columns:1fr 140px 140px; gap:10px; margin:18px 0; }
+        .feed-toolbar input,.feed-toolbar select { width:100%; min-height:44px; padding:9px 12px; border:1px solid var(--line); border-radius:12px; color:var(--ink); background:#171717; }
+        .message-item { margin:0 0 12px; padding:20px; border:1px solid var(--line); border-radius:17px; background:#171717; transition:transform .2s,box-shadow .2s,border-color .2s; }
+        .message-item:hover { transform:translateY(-2px); border-color:#535b54; box-shadow:0 12px 28px rgba(10,37,17,.08); }
+        .message-content { color:#aeb5ae; }
+        .detail-btn { padding:7px 12px; border-radius:10px; background:var(--theme-soft); font-weight:700; }
+        .modal-box { overflow:hidden; border:1px solid var(--line); border-radius:20px; box-shadow:var(--shadow-lg); }
+        .notification-modal { backdrop-filter:blur(6px); }
+        .avatar-btn { border:1px solid var(--line); background:#171717; }
+        @media (max-width: 768px) {
+            .page-title {
+                font-size: 24px;
+            }
+            .main-content {
+                margin: 0 auto 40px;
+                padding: 92px 15px 0;
+            }
+            .community-heading { display:block; }
+            .logout-bar { margin-top:18px; justify-content:flex-start; }
+            .community-layout { grid-template-columns:1fr; }
+            .message-list-section { height:80vh; height:80svh; min-height:560px; }
+            .message-list-inner { inset:20px; }
+            .feed-toolbar { grid-template-columns:1fr; }
+            .message-form-section { padding:20px; }
+            .submit-btn {
+                width: 100%;
+            }
+            .message-image {
+                width: 100px;
+                height: 100px;
+            }
+            .file-preview {
+                width: 80px;
+                height: 80px;
+            }
+        }
+    </style>
+    <link rel="icon" type="image/png" href="./images/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="./images/favicon.svg" />
+    <link rel="shortcut icon" href="./images/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./images/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="RootedVox" />
+    <link rel="manifest" href="./images/site.webmanifest" />
+</head>
+<body>
+    <div id="headerBox"></div>
+    <main class="main-content">
+        <div class="community-heading">
+            <div>
+                <h1 class="page-title">社区广场</h1>
+                <p>分享此刻，也认真听见每一种声音。所有内容将在审核后公开。</p>
+            </div>
+            <div class="logout-bar">
+                <div class="user-menu">
+                    <button class="avatar-btn" id="avatarBtn" aria-label="打开个人菜单" aria-expanded="false">
+                        <img id="avatarImg" class="avatar-img" alt="我的头像" />
+                        <div class="avatar-placeholder" id="avatarPlaceholder">+</div>
+                        <div class="notification-dot" id="notificationDot"></div>
+                    </button>
+                    <div class="avatar-dropdown" id="avatarDropdown">
+                        <div id="openProfile">个人资料</div>
+                        <div id="openNotifications">通知中心 <span class="dropdown-dot" id="dropdownDot" style="display:none"></span></div>
+                    </div>
+                    <input type="file" id="avatarInput" accept="image/*" hidden>
+                </div>
+                <button id="logoutBtn" class="logout-btn" style="background: #dc3545; color: white; border: none; padding: 8px 18px; border-radius: 8px; cursor: pointer;">退出登录</button>
+            </div>
+        </div>
+        <div class="community-layout">
+            <section class="message-form-section">
+                <h2 class="form-title">发表新动态</h2>
+                <p class="section-copy">写下此刻想和社区分享的内容。</p>
+                <div class="form-group">
+                    <label for="nicknameSelect">显示昵称</label>
+                    <select id="nicknameSelect" class="form-control">
+                        <option value="real">加载中...</option>
+                    </select>
+                    <p class="form-note" style="margin-top: 5px;">选择“匿名用户”将不显示您的真实昵称。</p>
+                </div>
+                <div class="form-group">
+                    <label for="zoneSelect">发布到分区</label>
+                    <select id="zoneSelect" class="form-control">
+                        <option value="校园生活">日常分享</option>
+                        <option value="学习互助">学习互助</option>
+                        <option value="活动社团">活动社团</option>
+                        <option value="失物招领">失物招领</option>
+                    </select>
+                    <p class="form-note" style="margin-top: 5px;">选对分区，大家能更快找到这条留言。</p>
+                </div>
+                <div class="form-group">
+                    <label for="contactEmail">联系邮箱</label>
+                    <input type="email" id="contactEmail" class="form-control" readonly disabled style="background-color: #171717; cursor: not-allowed;">
+                    <p class="form-note" style="margin-top: 5px;">站内通知将直接发送到您的账号</p>
+                </div>
+                <div class="form-group">
+                    <label for="messageContent">留言内容 <span style="color: red;">*</span></label>
+                    <textarea id="messageContent" class="form-control" maxlength="1000" placeholder="分享日常趣事、心情或疑问……"></textarea>
+                    <div class="textarea-meta"><span id="contentCount">0 / 1000</span></div>
+                </div>
+                <div class="form-group">
+                    <label>上传图片（可选）</label>
+                    <label class="file-upload" id="fileUploadContainer" for="messagePicFile">
+                        <span>点击选择图片</span>
+                        <input type="file" id="messagePicFile" accept="image/*" multiple onchange="previewImages(this)">
+                    </label>
+                    <div class="preview-container" id="previewContainer"></div>
+                    <div class="upload-progress" id="uploadProgress">
+                        <div class="progress-bar" id="progressBar"></div>
+                    </div>
+                </div>
+                <button class="submit-btn" onclick="postMessage()" id="submitBtn">发布留言</button>
+                <p class="form-status" id="formStatus" role="status" aria-live="polite"></p>
+                <p class="form-note" style="margin:10px 0 0 0;">发布留言时请遵守<a href="/community-rules" style="color:var(--theme-color);text-decoration:underline;font-weight:500;">《RootedVox社区公约》</a></p>
+                <p class="form-note">留言审核结果将通过站内通知告知您</p>
+            </section>
+            <section class="message-list-section" aria-labelledby="feedTitle">
+                <div class="message-list-inner">
+                    <div class="feed-controls">
+                        <h2 class="form-title" id="feedTitle">最新动态</h2>
+                        <p class="section-copy">按时间浏览，或直接寻找你关心的话题。</p>
+                        <div class="feed-toolbar">
+                            <input id="messageSearch" type="search" placeholder="搜索留言内容" aria-label="搜索留言内容">
+                            <select id="messageZoneFilter" aria-label="按分区筛选">
+                                <option value="all">全部分区</option>
+                                <option value="校园生活">日常分享</option>
+                                <option value="学习互助">学习互助</option>
+                                <option value="活动社团">活动社团</option>
+                                <option value="失物招领">失物招领</option>
+                            </select>
+                            <select id="messageSort" aria-label="留言排序">
+                                <option value="newest">最新发布</option>
+                                <option value="oldest">最早发布</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="messageFeed" class="message-feed" role="region" aria-label="留言列表" tabindex="0">
+                        <div id="messageContainer" class="loading">加载留言中...</div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+    <div class="notification-modal" id="profileModal" role="dialog" aria-modal="true" aria-labelledby="profileTitle">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3 id="profileTitle">个人资料</h3>
+                <button id="closeProfileModal" aria-label="关闭个人资料">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="profile-avatar-row">
+                    <img id="profileAvatarPreview" class="profile-avatar-preview" alt="当前头像" hidden>
+                    <div id="profileAvatarFallback" class="profile-avatar-preview profile-avatar-placeholder" aria-hidden="true">+</div>
+                    <div>
+                        <button type="button" id="profileAvatarButton" class="profile-avatar-action">更换头像</button>
+                        <p class="form-note">支持 JPG、PNG、WebP 或 GIF，最大 5MB。</p>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="profileNickname">昵称</label>
+                    <input id="profileNickname" class="form-control" maxlength="40" autocomplete="nickname" placeholder="请输入昵称">
+                    <p class="form-note">昵称会用于今后发布的非匿名留言；1–40 个字符。</p>
+                </div>
+                <p id="profileStatus" class="profile-status" role="status" aria-live="polite"></p>
+                <div class="profile-actions">
+                    <button type="button" id="cancelProfile" class="profile-cancel-btn">取消</button>
+                    <button type="button" id="saveProfile" class="profile-save-btn">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="notification-modal" id="notificationModal" role="dialog" aria-modal="true" aria-labelledby="notificationTitle">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3 id="notificationTitle">通知中心</h3>
+                <button id="closeModal" aria-label="关闭通知中心">×</button>
+            </div>
+            <div class="modal-body" id="notificationList"></div>
+        </div>
+    </div>
+    <div id="footerBox"></div>
+    <script src="./common.js"></script>
+    <script>
+        const DEVELOPER_NICKNAMES = [
+            "Sam.Li",
+            "RootedVox官方",
+            "Jerry",
+            "Maod1e",
+            "bYcHhh",
+            "曹颢喆 Jerry"
+        ];
+
+        let currentPage = 0;
+        const PAGE_SIZE = 20;
+        let hasMore = true;
+        let isLoadingMore = false;
+        let scrollTimeout = null;
+        let abortController = null;
+        let activeSearch = '';
+        let activeSort = 'newest';
+        let activeZone = 'all';
+        let searchTimer = null;
+        const MESSAGE_ZONES = [
+            { label: '学习互助', keywords: ['学习', '作业', '考试', '课程', '笔记', '竞赛', '选课', '大学'] },
+            { label: '活动社团', keywords: ['活动', '社团', '比赛', '演出', '运动', '招新', '音乐', '篮球', '足球'] },
+            { label: '失物招领', keywords: ['失物', '招领', '丢了', '捡到', '寻找', '遗失', '找到'] }
+        ];
+
+        function parseMessageContent(content = '', storedZone = '') {
+            const marker = content.match(/^【([^】]+)】\s*/);
+            const validZones = ['校园生活', ...MESSAGE_ZONES.map(zone => zone.label)];
+            const explicitZone = validZones.includes(marker?.[1]) ? marker[1] : '';
+            const text = explicitZone ? content.replace(/^【[^】]+】\s*/, '') : content;
+            const inferredZone = MESSAGE_ZONES.find(zone => zone.keywords.some(word => text.includes(word)))?.label;
+            return { zone: validZones.includes(storedZone) ? storedZone : (explicitZone || inferredZone || '校园生活'), text };
+        }
+
+        let notifyPage = 0;
+        const NOTIFY_PAGE_SIZE = 10;
+        let notifyHasMore = true;
+        let notifyLoading = false;
+        const MAX_IMAGES = 5;
+        const MAX_SIZE = 5 * 1024 * 1024;
+        const SCROLL_THRESHOLD = 350;
+        let userMap = {};
+        let currentUser = null;
+        let currentUserEmail = '';
+        let currentUserRealName = '';
+        let userId = '';
+
+        function getFreshAvatar(src) {
+            if (!src) return "";
+            const sp = src.includes('?') ? '&t=' : '?t=';
+            return src + sp + Date.now();
+        }
+
+        async function refreshNotificationDot() {
+            if (!userId) return;
+            const response = await request('/api/notifications?unread=1&limit=1', { credentials: 'include', cache: 'no-store' });
+            const data = response.ok ? await response.json() : { notifications: [] };
+            const hasUnread = data.notifications?.length > 0;
+            notificationDot.style.display = hasUnread ? "block" : "none";
+            dropdownDot.style.display = hasUnread ? "inline-block" : "none";
+        }
+
+        async function openNotifications(append = false) {
+            const modal = document.getElementById("notificationModal");
+            modal.style.display = "flex";
+            const listEl = document.getElementById("notificationList");
+            if (notifyLoading) return;
+            notifyLoading = true;
+
+            if (!append) {
+                notifyPage = 0;
+                notifyHasMore = true;
+                listEl.innerHTML = '<div style="text-align:center;padding:20px 0;color:#aeb5ae;">加载通知中...</div>';
+            }
+
+            try {
+                const response = await request(`/api/notifications?page=${notifyPage}&limit=${NOTIFY_PAGE_SIZE}`, { credentials: 'include', cache: 'no-store' });
+                if (!response.ok) throw new Error('通知服务暂时不可用');
+                const result = await response.json();
+                const notes = result.notifications || [];
+
+                const loadingTip = listEl.querySelector('div[style*="text-align:center;padding:20px 0"]');
+                if (loadingTip && !append) loadingTip.remove();
+
+                if (!notes || notes.length === 0) {
+                    notifyHasMore = false;
+                    if (!append) {
+                        listEl.innerHTML = `<div style='text-align:center;padding:30px;color:#999;'>暂无通知</div>`;
+                    } else {
+                        listEl.insertAdjacentHTML('beforeend', `<div style="text-align:center;padding:15px 0;color:#aaa;font-size:13px;">没有更多通知了</div>`);
+                    }
+                    notifyLoading = false;
+                    return;
+                }
+
+                const htmlFragment = document.createDocumentFragment();
+                notes.forEach(n => {
+                    const itemDiv = document.createElement("div");
+                    itemDiv.className = `notification-item ${n.type === 'rejected' ? 'rejected' : ''}`;
+                    itemDiv.innerHTML = `
+                      <h4>${escapeHtml(n.title)}</h4>
+                      <p>${escapeHtml(n.content)}</p>
+                      <p style='font-size:12px;color:#999;margin:5px 0 0 0;'>${new Date(n.created_at).toLocaleString()}</p>
+                    `;
+                    htmlFragment.appendChild(itemDiv);
+                });
+
+                if (!append) listEl.innerHTML = "";
+                listEl.appendChild(htmlFragment);
+
+                notifyHasMore = result.hasMore === true;
+
+                if (!append) {
+                    await request('/api/notifications', { method: 'PATCH', credentials: 'include' });
+                    refreshNotificationDot();
+                }
+
+                notifyPage++;
+            } catch (err) {
+                listEl.innerHTML = `<div style="color:red;text-align:center;padding:20px;">加载失败：${err.message}</div>`;
+            } finally {
+                notifyLoading = false;
+            }
+        }
+
+        async function initUserExtra() {
+            const response = await request('/api/profile', { credentials: 'include', cache: 'no-store' });
+            const data = response.ok ? await response.json() : {};
+            const url = data.avatarUrl;
+
+            if (data.nickname) {
+                currentUserRealName = data.nickname;
+                initNicknameSelect();
+                document.getElementById('profileNickname').value = data.nickname;
+            }
+
+            if (url) {
+                document.getElementById("avatarImg").src = getFreshAvatar(url);
+                document.getElementById("avatarImg").style.display = "block";
+                document.getElementById("avatarPlaceholder").style.display = "none";
+                document.getElementById('profileAvatarPreview').src = getFreshAvatar(url);
+                document.getElementById('profileAvatarPreview').hidden = false;
+                document.getElementById('profileAvatarFallback').hidden = true;
+            } else {
+                document.getElementById("avatarImg").style.display = "none";
+                document.getElementById("avatarPlaceholder").style.display = "block";
+                document.getElementById('profileAvatarPreview').hidden = true;
+                document.getElementById('profileAvatarFallback').hidden = false;
+            }
+
+            refreshNotificationDot();
+        }
+
+        function compressImage(file, options = {}) {
+            return new Promise((resolve, reject) => {
+                if (!file.type.startsWith('image/')) {
+                    return resolve(file);
+                }
+                const defaultOpts = {
+                    maxWidth: 1920,
+                    maxHeight: 1080,
+                    quality: 0.6,
+                    mimeType: "image/webp"
+                };
+                const opts = { ...defaultOpts, ...options };
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = e => {
+                    const img = new Image();
+                    img.src = e.target.result;
+                    img.onload = () => {
+                        let width = img.width;
+                        let height = img.height;
+                        const scaleRatio = Math.min(opts.maxWidth / width, opts.maxHeight / height);
+                        if (scaleRatio < 1) {
+                            width = width * scaleRatio;
+                            height = height * scaleRatio;
+                        }
+                        const canvas = document.createElement("canvas");
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext("2d");
+                        ctx.drawImage(img, 0, 0, width, height);
+                        canvas.toBlob(blob => {
+                            if (!blob) return reject("图片压缩失败");
+                            const suffix = opts.mimeType === "image/webp" ? ".webp" : ".jpg";
+                            const newFileName = file.name.replace(/(\.\w+)$/, suffix);
+                            const compressedFile = new File([blob], newFileName, { type: opts.mimeType });
+                            resolve(compressedFile);
+                        }, opts.mimeType, opts.quality);
+                    };
+                    img.onerror = () => reject("图片加载失败");
+                };
+                reader.onerror = () => reject("文件读取失败");
+            });
+        }
+
+        async function uploadAvatar(file) {
+            try {
+                const compressedFile = await compressImage(file, {
+                    maxWidth: 200,
+                    maxHeight: 200,
+                    quality: 0.5,
+                    mimeType: "image/webp"
+                });
+                const form = new FormData();
+                form.append('kind', 'avatar');
+                form.append('files', compressedFile, 'avatar.webp');
+                const upload = await request('/api/uploads', { method: 'POST', credentials: 'include', body: form });
+                if (!upload.ok) throw new Error('上传失败');
+                const publicUrl = (await upload.json()).urls[0];
+                const saved = await request('/api/profile', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ avatarUrl: publicUrl }) });
+                if (!saved.ok) throw new Error('头像保存失败');
+                avatarImg.src = getFreshAvatar(publicUrl);
+                avatarImg.style.display = "block";
+                avatarPlaceholder.style.display = "none";
+                const profilePreview = document.getElementById('profileAvatarPreview');
+                profilePreview.src = getFreshAvatar(publicUrl);
+                profilePreview.hidden = false;
+                document.getElementById('profileAvatarFallback').hidden = true;
+                showProfileStatus('头像更新成功。', 'success');
+            } catch (err) {
+                showProfileStatus('头像更新失败：' + err.message, 'error');
+            }
+        }
+
+        function showProfileStatus(message, type = '') {
+            const node = document.getElementById('profileStatus');
+            node.textContent = message;
+            node.className = `profile-status ${type}`.trim();
+        }
+
+        function closeProfileModal() {
+            document.getElementById('profileModal').style.display = 'none';
+            showProfileStatus('');
+        }
+
+        async function saveProfileNickname() {
+            const input = document.getElementById('profileNickname');
+            const nickname = input.value.normalize('NFKC').replace(/\s+/g, ' ').trim();
+            if (!nickname || nickname.length > 40) {
+                showProfileStatus('昵称应为 1–40 个字符。', 'error');
+                input.focus();
+                return;
+            }
+            const button = document.getElementById('saveProfile');
+            button.disabled = true;
+            showProfileStatus('正在保存…');
+            try {
+                const response = await request('/api/profile', {
+                    method: 'PUT', credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nickname })
+                });
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(result.error === 'invalid_nickname' ? '该昵称不可使用，请换一个' : '保存失败');
+                }
+                currentUserRealName = result.nickname || nickname;
+                input.value = currentUserRealName;
+                initNicknameSelect();
+                showProfileStatus('昵称已更新，之后发布的留言会使用新昵称。', 'success');
+            } catch (error) {
+                showProfileStatus(error.message || '保存失败', 'error');
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        async function renderMessageAvatars() {
+            const items = document.querySelectorAll(".message-item");
+            items.forEach(el => {
+                const avatarUrl = el.dataset.avatarUrl;
+                const anonymous = el.dataset.anonymous === "true";
+                const box = el.querySelector(".message-avatar-box");
+                const username = el.querySelector(".message-author")?.textContent || "";
+                const firstChar = username.charAt(0) || "?";
+
+                const isDeveloper = DEVELOPER_NICKNAMES.includes(username);
+
+                const devWrapStyle = isDeveloper
+                    ? `position:relative;padding:2px;border-radius:50%;background:linear-gradient(135deg,#ffd700,#ff9500);`
+                    : ``;
+                const devInnerStyle = isDeveloper
+                    ? `border-radius:50%;background:#fff;padding:1px;`
+                    : ``;
+
+                box.style.removeProperty("display");
+                box.style.removeProperty("flex-direction");
+                box.style.removeProperty("align-items");
+                box.style.removeProperty("gap");
+
+                if (anonymous) {
+                    box.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#000;"></div>`;
+                    return;
+                }
+
+                let avatarCore = "";
+
+                if (avatarUrl) {
+                    if (isDeveloper) {
+                        avatarCore = `
+                        <div style="${devWrapStyle}">
+                            <div style="${devInnerStyle}">
+                                <img src="${getFreshAvatar(avatarUrl)}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:block;">
+                            </div>
+                            <span style="position:absolute;right:-6px;bottom:-2px;font-size:9px;font-weight:bold;color:#fff;background:#c28c00;padding:1px 4px;border-radius:6px;white-space:nowrap;z-index:2;">Dev</span>
+                        </div>`;
+                    } else {
+                        avatarCore = `<img src="${getFreshAvatar(avatarUrl)}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">`;
+                    }
+                } else {
+                    if (isDeveloper) {
+                        avatarCore = `
+                        <div style="${devWrapStyle}">
+                            <div style="${devInnerStyle}">
+                                <div style="width:38px;height:38px;border-radius:50%;background:#ccc;display:flex;align-items:center;justify-content:center;color:#aeb5ae;">${escapeHtml(firstChar)}</div>
+                            </div>
+                            <span style="position:absolute;right:-6px;bottom:-2px;font-size:9px;font-weight:bold;color:#fff;background:#c28c00;padding:1px 4px;border-radius:6px;white-space:nowrap;z-index:2;">Dev</span>
+                        </div>`;
+                    } else {
+                        avatarCore = `<div style="width:38px;height:38px;border-radius:50%;background:#ccc;display:flex;align-items:center;justify-content:center;color:#aeb5ae;">${escapeHtml(firstChar)}</div>`;
+                    }
+                }
+
+                box.innerHTML = avatarCore;
+            });
+        }
+
+        async function initAuth() {
+            try {
+                const session = await RootedVoxAuth.getSession();
+                if (!session?.authenticated) return false;
+                currentUser = session.user;
+                userId = session.user.id;
+                currentUserEmail = session.user.email || '';
+                currentUserRealName = session.user.name || session.user.email?.split('@')[0] || '用户';
+                return true;
+            } catch {
+                return false;
+            }
+        }
+
+        function initGuestMode() {
+            const nickname = document.getElementById('nicknameSelect');
+            nickname.innerHTML = '<option>登录后可发布</option>';
+            nickname.disabled = true;
+            document.getElementById('zoneSelect').disabled = true;
+            const email = document.getElementById('contactEmail');
+            email.value = '';
+            email.placeholder = '登录后与账号绑定';
+            document.getElementById('messageContent').disabled = true;
+            document.getElementById('messagePicFile').disabled = true;
+            document.getElementById('fileUploadContainer').style.opacity = '.55';
+            const submit = document.getElementById('submitBtn');
+            submit.textContent = '登录后发布';
+            submit.onclick = () => RootedVoxAuth.handleLogin();
+            document.getElementById('avatarBtn').hidden = true;
+            const login = document.getElementById('logoutBtn');
+            login.textContent = '登录';
+            showFormStatus('已审核留言可直接浏览；发布、回复和通知需要登录。');
+        }
+
+        function initNicknameSelect() {
+            const select = document.getElementById('nicknameSelect');
+            select.innerHTML = '';
+            const optionReal = document.createElement('option');
+            optionReal.value = currentUserRealName;
+            optionReal.textContent = currentUserRealName;
+            const optionAnon = document.createElement('option');
+            optionAnon.value = '匿名用户';
+            optionAnon.textContent = '匿名用户';
+            select.appendChild(optionReal);
+            select.appendChild(optionAnon);
+            select.value = currentUserRealName;
+        }
+
+        function previewImages(input) {
+            const container = document.getElementById('previewContainer');
+            container.innerHTML = '';
+            const files = Array.from(input.files);
+            if (files.length > MAX_IMAGES) {
+                alert(`最多只能上传${MAX_IMAGES}张图片！`);
+                input.value = '';
+                return;
+            }
+            for (let file of files) {
+                if (!file.type.startsWith('image/')) {
+                    alert(`仅支持图片文件！`);
+                    input.value = '';
+                    container.innerHTML = '';
+                    return;
+                }
+                if (file.size > MAX_SIZE) {
+                    showFormStatus(`“${file.name}”超过 5MB，请压缩后重试。`, 'error');
+                    input.value = '';
+                    container.innerHTML = '';
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.className = 'file-preview';
+                    container.appendChild(img);
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        async function uploadImages(files) {
+            if (!files || files.length === 0) return [];
+            const progressBar = document.getElementById('progressBar');
+            const uploadProgress = document.getElementById('uploadProgress');
+            uploadProgress.style.display = 'block';
+            progressBar.style.width = '0%';
+            try {
+                const compressedFiles = [];
+                for (const file of files) {
+                    if (file.size < 100 * 1024) {
+                        compressedFiles.push(file);
+                    } else {
+                        const compressFile = await compressImage(file, {
+                            maxWidth: 1920,
+                            maxHeight: 1080,
+                            quality: 0.6,
+                            mimeType: "image/webp"
+                        });
+                        compressedFiles.push(compressFile);
+                    }
+                }
+                const form = new FormData();
+                form.append('kind', 'message');
+                compressedFiles.forEach(file => form.append('files', file, file.name));
+                progressBar.style.width = '45%';
+                const response = await request('/api/uploads', { method: 'POST', credentials: 'include', body: form });
+                if (!response.ok) throw new Error('图片上传失败');
+                progressBar.style.width = '100%';
+                return (await response.json()).urls || [];
+            } catch (error) {
+                throw error;
+            } finally {
+                uploadProgress.style.display = 'none';
+            }
+        }
+
+        async function postMessage() {
+            const anonymous = document.getElementById('nicknameSelect').value === '匿名用户';
+            const content = document.getElementById('messageContent').value.trim();
+            const zone = document.getElementById('zoneSelect').value;
+            const files = document.getElementById('messagePicFile').files;
+            const submitBtn = document.getElementById('submitBtn');
+            if (!content) {
+                showFormStatus('请先写下留言内容。', 'error');
+                document.getElementById('messageContent').focus();
+                return;
+            }
+            submitBtn.disabled = true;
+            submitBtn.textContent = '发布中...';
+            try {
+                const picUrls = await uploadImages(Array.from(files));
+                showFormStatus('正在上传并提交…');
+                const response = await request('/api/messages', {
+                    method: 'POST', credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content, zone, anonymous, imageUrls: picUrls })
+                });
+                if (response.status === 401) return RootedVoxAuth.handleLogin('/messages');
+                if (!response.ok) throw new Error('留言服务暂时不可用');
+                showFormStatus('发布成功，审核结果会通过站内通知告知你。', 'success');
+                document.getElementById('messageContent').value = '';
+                document.getElementById('contentCount').textContent = '0 / 1000';
+                document.getElementById('messagePicFile').value = '';
+                document.getElementById('previewContainer').innerHTML = '';
+                loadMainMessages(false);
+            } catch (error) {
+                showFormStatus('发布失败：' + (error.message || error), 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '发布留言';
+            }
+        }
+
+        function showFormStatus(message, type = '') {
+            const node = document.getElementById('formStatus');
+            if (!node) return;
+            node.textContent = message;
+            node.className = `form-status${type ? ` ${type}` : ''}`;
+        }
+
+        function goToDetails(msgId) {
+            location.href = `details.html?id=${msgId}`;
+        }
+
+        async function loadMainMessages(isLoadMore = false) {
+            if (isLoadMore && (!hasMore || isLoadingMore)) return;
+            isLoadingMore = true;
+            if (abortController) abortController.abort();
+            abortController = new AbortController();
+            const signal = abortController.signal;
+            const container = document.getElementById('messageContainer');
+            const loadMoreWrap = document.getElementById('loadMoreWrapper');
+
+            if (!isLoadMore) {
+                container.innerHTML = '<div class="loading">加载留言中...</div>';
+                document.getElementById('messageFeed').scrollTop = 0;
+                currentPage = 0;
+                hasMore = true;
+                if (loadMoreWrap) loadMoreWrap.remove();
+                document.querySelector('.no-more-tip')?.remove();
+            } else {
+                if (!document.querySelector('.list-loading-tip')) {
+                    container.insertAdjacentHTML('beforeend', '<div class="loading list-loading-tip">加载更多...</div>');
+                }
+            }
+
+            try {
+                if (!window.RootedVoxPublicData) throw new Error('留言服务暂时不可用');
+                const result = await RootedVoxPublicData.listMessages({
+                    page: currentPage,
+                    limit: PAGE_SIZE,
+                    sort: activeSort,
+                    search: activeSearch,
+                    zone: activeZone,
+                    signal
+                });
+                const data = result.messages || [];
+                if (signal.aborted) return;
+                hasMore = result.hasMore === true;
+
+                const loadingTip = document.querySelector('.list-loading-tip');
+                if (loadingTip) loadingTip.remove();
+
+                if (!data || data.length === 0) {
+                    if (!isLoadMore) {
+                        container.innerHTML = `<div class="empty-message">${activeSearch ? '没有找到相关留言，试试其他关键词。' : '暂无留言，快来发布第一条留言吧！'}</div>`;
+                    }
+                    hasMore = false;
+                    showNoMoreTip();
+                    userMap = {};
+                    return;
+                }
+
+                data.forEach(msg => { userMap[msg.id] = msg.username; });
+
+                let html = '';
+                for (let msg of data) {
+                    const parsedContent = parseMessageContent(msg.content, msg.zone);
+                    const time = new Date(msg.created_at).toLocaleString('zh-CN');
+                    let imageHtml = '';
+                    if (msg.pic_url && msg.pic_url.length > 0) {
+                        imageHtml = '<div class="message-images">';
+                        for (let url of msg.pic_url) {
+                            imageHtml += `<img src="${escapeHtml(url)}" class="message-image" alt="${escapeHtml(msg.username)} 发布的图片" loading="lazy" onclick="window.open(this.src)">`;
+                        }
+                        imageHtml += '</div>';
+                    }
+
+                    html += `
+                    <div class="message-item" id="message-${msg.id}" data-avatar-url="${escapeHtml(msg.avatar_url || '')}" data-anonymous="${msg.username === '匿名用户' ? 'true' : 'false'}">
+                        <div class="message-avatar-box"></div>
+                        <div style="flex:1">
+                            <div class="message-header">
+                                <span class="message-author">${escapeHtml(msg.username)}</span>
+                                <span class="message-time">${time}</span>
+                            </div>
+                            <span class="message-zone">${escapeHtml(parsedContent.zone)}</span>
+                            <div class="message-content">${escapeHtml(parsedContent.text).replace(/\n/g, '<br>')}</div>
+                            ${imageHtml}
+                            <button class="detail-btn" onclick="goToDetails('${msg.id}')">🔍 查看详情</button>
+                        </div>
+                    </div>`;
+                }
+
+                if (!html && !isLoadMore) {
+                    container.innerHTML = '<div class="empty-message">这个分区暂时没有留言，来发布第一条吧！</div>';
+                    showNoMoreTip();
+                    return;
+                }
+
+                if (isLoadMore) {
+                    container.insertAdjacentHTML('beforeend', html);
+                    currentPage++;
+                } else {
+                    container.innerHTML = html;
+                    currentPage++;
+                }
+
+                if (!hasMore) {
+                    showNoMoreTip();
+                }
+
+                renderMessageAvatars();
+                // A tall form can leave the first page shorter than the feed viewport.
+                requestAnimationFrame(() => {
+                    const feed = document.getElementById('messageFeed');
+                    if (!signal.aborted && hasMore && feed.clientHeight > 0 && feed.scrollHeight <= feed.clientHeight) {
+                        loadMainMessages(true);
+                    }
+                });
+            } catch (err) {
+                if (signal.aborted) return;
+                if (!isLoadMore) {
+                    container.innerHTML = `<div class="empty-message">加载失败：${err.message}</div>`;
+                }
+            } finally {
+                if (!signal.aborted) isLoadingMore = false;
+            }
+        }
+
+        function showNoMoreTip() {
+            const wrap = document.getElementById('loadMoreWrapper');
+            if (wrap) wrap.remove();
+            const container = document.getElementById('messageContainer');
+            if (!document.querySelector('.no-more-tip')) {
+                container.insertAdjacentHTML('afterend', `
+                    <div class="empty-message no-more-tip" style="padding:20px 0;">— 已经到底啦，没有更多留言 —</div>
+                `);
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text || '';
+            return div.innerHTML;
+        }
+
+        window.onload = async function () {
+            const loggedIn = await initAuth();
+            if (loggedIn) {
+                document.getElementById('contactEmail').value = currentUserEmail;
+                initNicknameSelect();
+            } else {
+                initGuestMode();
+            }
+
+            const contentInput = document.getElementById('messageContent');
+            contentInput.addEventListener('input', () => {
+                document.getElementById('contentCount').textContent = `${contentInput.value.length} / 1000`;
+                if (document.getElementById('formStatus').classList.contains('error')) showFormStatus('');
+            });
+
+            document.getElementById('messageSearch').addEventListener('input', (event) => {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(() => { activeSearch = event.target.value.trim(); loadMainMessages(false); }, 280);
+            });
+
+            document.getElementById('messageSort').addEventListener('change', (event) => {
+                activeSort = event.target.value;
+                loadMainMessages(false);
+            });
+
+            const zoneFilter = document.getElementById('messageZoneFilter');
+            const requestedZone = new URLSearchParams(location.search).get('zone');
+            if ([...zoneFilter.options].some(option => option.value === requestedZone)) {
+                activeZone = requestedZone;
+                zoneFilter.value = requestedZone;
+            }
+            zoneFilter.addEventListener('change', (event) => {
+                activeZone = event.target.value;
+                const url = new URL(location.href);
+                if (activeZone === 'all') url.searchParams.delete('zone'); else url.searchParams.set('zone', activeZone);
+                history.replaceState(null, '', url);
+                loadMainMessages(false);
+            });
+
+            await loadMainMessages(false);
+
+            if (loggedIn) await initUserExtra();
+
+            document.getElementById('logoutBtn').onclick = loggedIn
+            ? async () => {
+                const ok = confirm("确定要退出登录吗？");
+                if(!ok) return;
+                await RootedVoxAuth.logout('/main');
+            }
+            : () => RootedVoxAuth.handleLogin();
+
+            const avatarBtn = document.getElementById('avatarBtn');
+            const avatarDropdown = document.getElementById('avatarDropdown');
+            avatarBtn.onclick = (e) => {
+                e.stopPropagation();
+                const open = avatarDropdown.style.display !== "block";
+                avatarDropdown.style.display = open ? "block" : "none";
+                avatarBtn.setAttribute('aria-expanded', String(open));
+            };
+
+            document.addEventListener('click', (e) => {
+                if (!avatarBtn.contains(e.target) && !avatarDropdown.contains(e.target)) {
+                    avatarDropdown.style.display = "none";
+                    avatarBtn.setAttribute('aria-expanded', 'false');
+                }
+            });
+
+            document.getElementById('openProfile').onclick = () => {
+                document.getElementById('profileModal').style.display = 'flex';
+                avatarDropdown.style.display = "none";
+                document.getElementById('profileNickname').focus();
+            };
+
+            document.getElementById('profileAvatarButton').onclick = () => document.getElementById('avatarInput').click();
+            document.getElementById('saveProfile').onclick = saveProfileNickname;
+            document.getElementById('closeProfileModal').onclick = closeProfileModal;
+            document.getElementById('cancelProfile').onclick = closeProfileModal;
+            document.getElementById('profileModal').onclick = (e) => {
+                if (e.target === document.getElementById('profileModal')) closeProfileModal();
+            };
+
+            document.getElementById('avatarInput').onchange = async (e) => {
+                const file = e.target.files[0];
+                if (file) await uploadAvatar(file);
+            };
+
+            document.getElementById('openNotifications').onclick = async () => {
+                await openNotifications(false);
+                avatarDropdown.style.display = "none";
+            };
+
+            document.getElementById('closeModal').onclick = () => {
+                document.getElementById('notificationModal').style.display = "none";
+            };
+
+            document.getElementById('notificationModal').onclick = (e) => {
+                if (e.target === document.getElementById('notificationModal')) {
+                    document.getElementById('notificationModal').style.display = "none";
+                }
+            };
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') {
+                    document.getElementById('notificationModal').style.display = "none";
+                    closeProfileModal();
+                }
+            });
+
+            const notifyModalBody = document.getElementById("notificationList");
+            notifyModalBody.addEventListener("scroll", async () => {
+                if (!notifyHasMore || notifyLoading) return;
+                const scrollTop = notifyModalBody.scrollTop;
+                const viewHeight = notifyModalBody.clientHeight;
+                const totalHeight = notifyModalBody.scrollHeight;
+                if (scrollTop + viewHeight >= totalHeight - 80) {
+                    await openNotifications(true);
+                }
+            });
+
+            const messageFeed = document.getElementById('messageFeed');
+            messageFeed.addEventListener('scroll', () => {
+                if (isLoadingMore || !hasMore) return;
+                clearTimeout(scrollTimeout);
+                scrollTimeout = setTimeout(() => {
+                    if (messageFeed.scrollTop + messageFeed.clientHeight >= messageFeed.scrollHeight - SCROLL_THRESHOLD) {
+                        loadMainMessages(true);
+                    }
+                }, 120);
+            });
+        };
+
+        window.addEventListener('beforeunload', () => {
+            if (abortController) abortController.abort();
+            if (scrollTimeout) clearTimeout(scrollTimeout);
+        });
+    </script>
+</body>
+</html>

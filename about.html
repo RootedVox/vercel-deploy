@@ -1,0 +1,145 @@
+<!--
+Copyright (c) 2026 RootedVox
+Copyright (c) 2026 沧海四象
+Licensed under the MIT License.
+-->
+<!DOCTYPE html>
+<html lang="zh-CN" style="color-scheme: dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>关于平台与开发团队｜RootedVox</title>
+  <meta name="description" content="了解 RootedVox社区平台的项目介绍、开发团队与更新信息，以及开源项目的参与方式。">
+  <link rel="canonical" href="https://rv.celestivast.com/about">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="RootedVox">
+  <meta property="og:locale" content="zh_CN">
+  <meta property="og:title" content="关于平台与开发团队｜RootedVox">
+  <meta property="og:description" content="了解 RootedVox社区平台的项目介绍、开发团队与更新信息，以及开源项目的参与方式。">
+  <meta property="og:url" content="https://rv.celestivast.com/about">
+  <meta property="og:image" content="https://rv.celestivast.com/images/logo.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="关于平台与开发团队｜RootedVox">
+  <meta name="twitter:description" content="了解 RootedVox社区平台的项目介绍、开发团队与更新信息，以及开源项目的参与方式。">
+  <meta name="twitter:image" content="https://rv.celestivast.com/images/logo.png">
+
+    <!-- 引入公共全局样式 -->
+    <link rel="stylesheet" href="./common.css">
+    <style>
+        /* 只保留页面独有样式，删除全局、导航、页脚通用CSS */
+        .main-content {
+            max-width: 1200px;
+            margin: 60px auto;
+            padding: 0 20px;
+        }
+
+        .page-title {
+            text-align: center;
+            font-size: 32px;
+            color: var(--theme-color);
+            margin-bottom: 40px;
+        }
+
+        .content-section {
+            margin-bottom: 40px;
+            line-height: 1.8;
+            color: #aeb5ae;
+            font-size: 16px;
+            text-align: center;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .shuier-button {
+            display: inline-block;
+            background-color: var(--theme-color);
+            color: white;
+            padding: 10px 30px;
+            border-radius: 25px;
+            text-decoration: none;
+            margin-top: 20px;
+            font-size: 16px;
+            transition: background-color 0.3s ease;color:#071109}
+
+        .shuier-button:hover {
+            background-color: #15408f;
+        }
+
+        /* Banner专属样式改造为img布局 */
+        .about-banner {
+            margin-top: 60px;
+            width: 100%;
+            height: 350px;
+            overflow: hidden;
+        }
+        .about-banner img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        @media (max-width: 768px) {
+            .about-banner {
+                height: 100px;
+            }
+        }
+    </style>
+    <link rel="icon" type="image/png" href="/images/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="/images/favicon.svg" />
+    <link rel="shortcut icon" href="/images/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="RootedVox" />
+    <link rel="manifest" href="/images/site.webmanifest" />
+</head>
+<body>
+    <!-- 公共头部挂载容器 -->
+    <div id="headerBox"></div>
+
+    <div class="about-banner">
+        <picture>
+            <source srcset="./images/about-banner.webp" type="image/webp">
+            <img src="./images/about-banner.png" alt="关于页头图" loading="lazy" fetchpriority="high">
+        </picture>
+    </div>
+
+    <main class="main-content">
+        <div class="content-section">
+            <p>当前版本：v4.1.0</p>
+            <p>RootedVox 是一个交流社区。这里可以分享见闻、交流想法，并一起维护一个尊重彼此的公共空间。<a href="https://github.com/RootedVox">查看开源项目</a>。</p>
+            <div style="margin-top:50px;padding:24px 16px;background:#d3d4d6;border-radius:14px;">
+                <h3 style="font-size:20px;color:#5cff8a;margin-bottom:22px;font-weight:bold;text-align:center;">项目开发团队</h3>
+                <div style="display:flex;flex-direction:column;align-items:center;gap:10px;">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:420px;width:100%;">
+                        <div style="text-align:right;">
+                            <a href="https://celestivast.com" target="_blank" style="color:var(--theme-color);">
+                                <strong>沧海四象Celestivast</strong>
+                            </a>
+                        </div>
+                        <div style="text-align:left;">｜总工程师</div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:420px;width:100%;">
+                        <div style="text-align:right;"><strong>ChEeZ</strong></div>
+                        <div style="text-align:left;">｜执行官</div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:420px;width:100%;">
+                        <div style="text-align:right;"><strong>baoyuechi</strong></div>
+                        <div style="text-align:left;">｜安全顾问</div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:420px;width:100%;">
+                        <div style="text-align:right;"><strong>Maod1e</strong></div>
+                        <div style="text-align:left;">｜UI设计师</div>
+                    </div>
+                </div>
+                <p>（按加入项目的时间次序排名）</p>
+            </div>
+            <p>同时，也欢迎更多有兴趣的开发者加入我们！</p>
+        </div>
+    </main>
+
+    <!-- 公共页脚挂载容器 -->
+    <div id="footerBox"></div>
+
+    <!-- 全局导航JS统一引入 -->
+    <script src="./common.js"></script>
+</body>
+</html>

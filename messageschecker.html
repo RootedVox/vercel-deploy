@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN" style="color-scheme: dark">
+<head>
+<meta name="robots" content="noindex">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>RootedVox 审核端</title>
+  <script src="./request.js?v=20261101"></script>
+  <link rel="icon" type="image/svg+xml" href="./images/favicon.svg">
+  <script src="./auth-client.js"></script>
+  <style>*{box-sizing:border-box}body{display:grid;min-height:100vh;margin:0;place-items:center;background:#171717;font-family:system-ui}.splash{text-align:center}.logo{width:150px}.title{margin-top:18px;color:#5cff8a;font-size:30px;font-weight:700}.domain{margin-top:8px;color:#aeb5ae}</style>
+</head>
+<body><main class="splash">
+  <img src="./images/logo.png" class="logo" alt="RootedVox">
+  <div class="title">RootedVox 审核端</div>
+  <div class="domain">正在验证登录状态和审核员权限…</div>
+</main><script>
+  (async()=>{
+    const session=await RootedVoxAuth.getSession().catch(()=>null);
+    if(session?.authenticated){
+      location.replace(session.user?.checker?'/checker-pending.html':'/login-messageschecker.html?error=forbidden');
+      return;
+    }
+    location.replace('/auth/login?return_to=%2Fchecker-pending.html');
+  })();
+</script></body>
+</html>
