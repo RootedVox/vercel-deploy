@@ -9,4 +9,4 @@ Both deployments reuse the existing Keycloak realm and Supabase project. Use the
 
 Run `npm run check` and `npm test` for both repositories. Run `npm run build:vercel` in the Vercel repository.
 
-RootedVox uses Apache-2.0. Inherited and third-party notices are in `NOTICE` and `LICENSE-MIT-LEGACY`.
+RootedVox uses Apache-2.0. Inherited and third-party notices are in `NOTICE`.

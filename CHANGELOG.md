@@ -4,7 +4,7 @@
 - 更新项目名称、声纹标志与黑底终端绿界面。
 - Cloudflare 和 Vercel 分别服务 `rv.celestivast.com` 与 `rv-vc.celestivast.com`。
 - 继续使用原有 Keycloak、Supabase 业务数据与共享会话存储，沿用社区内容和账号映射。
-- 使用 Apache-2.0 发布 RootedVox，继承代码的许可和署名见 NOTICE 与 LICENSE-MIT-LEGACY。
+- 使用 Apache-2.0 发布 RootedVox，继承代码的许可和署名见 NOTICE。
 
 ## v4.0.0
 - 全新统一认证：密码、Passkey、验证码、找回密码与二次验证全部交由独立认证中心处理（OAuth 2.0 / OIDC 授权码 + PKCE），本站只保存自己的业务会话，浏览器不接触任何认证令牌

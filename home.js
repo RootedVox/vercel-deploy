@@ -139,7 +139,26 @@
     }
   }
 
+  function protectHomeBack() {
+    const navigation = performance.getEntriesByType('navigation')[0];
+    if (navigation && navigation.type !== 'navigate') return;
+    if (history.length < 2 || history.state?.rootedVoxHomeBuffer) return;
+    if (document.referrer && new URL(document.referrer).origin === location.origin) return;
+
+    const listeners = new AbortController();
+    function arm(event) {
+      if (!event.isTrusted || navigator.userActivation?.isActive === false) return;
+      listeners.abort();
+      // One extra entry allows a second Back to follow the original history.
+      history.pushState({ ...history.state, rootedVoxHomeBuffer: true }, '', location.href);
+    }
+    const options = { capture: true, signal: listeners.signal };
+    window.addEventListener('click', arm, options);
+    window.addEventListener('keydown', arm, options);
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
+    protectHomeBack();
     initGreeting();
     initCarousel();
     initMealEntry();

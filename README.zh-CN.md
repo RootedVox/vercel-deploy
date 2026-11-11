@@ -6,4 +6,4 @@ Cloudflare 主站为 `rv.celestivast.com`，Vercel 站点为 `rv-vc.celestivast.
 
 运行 `npm run check` 和 `npm test`。Vercel 另运行 `npm run build:vercel`。
 
-项目使用 Apache-2.0，继承代码和第三方组件的许可见 `LICENSE-MIT-LEGACY` 与 `NOTICE`。
+项目使用 Apache-2.0，继承代码和第三方组件的许可见 `NOTICE`。
