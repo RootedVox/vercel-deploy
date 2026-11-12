@@ -27,17 +27,14 @@ Licensed under the MIT License.
     <link rel="stylesheet" href="./common.css">
     <style>
         /* 本页面独有样式 */
-        :root {
-            --card-bg: #f9f9f9;
-        }
         .main-content {
             max-width: 900px;
-            margin: 80px auto 60px;
+            margin: 96px auto 60px;
             padding: 0 20px;
         }
         .page-title {
             text-align: center;
-            font-size: 32px;
+            font-size: clamp(26px, 5vw, 36px);
             color: var(--theme-color);
             margin-bottom: 40px;
             position: relative;
@@ -48,14 +45,15 @@ Licensed under the MIT License.
             width: 60px;
             height: 3px;
             background-color: var(--theme-color);
-            margin: 15px auto 0;color:#071109}
+            margin: 15px auto 0;
+        }
         .rules-card {
-            background-color: var(--card-bg);
-            border-radius: 10px;
-            padding: 35px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            background-color: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            padding: clamp(20px, 4vw, 36px);
             line-height: 1.8;
-            color: #aeb5ae;
+            color: var(--ink);
         }
         .rules-section-title {
             font-size: 20px;
@@ -63,9 +61,16 @@ Licensed under the MIT License.
             margin: 24px 0 12px;
             font-weight: bold;
         }
+        .rules-section-title:first-child {
+            margin-top: 0;
+        }
         .rules-text {
-            margin-bottom: 12px;
-            font-size: 15px;
+            margin: 0;
+            font-size: 16px;
+        }
+        .rules-text + .rules-section-title {
+            padding-top: 20px;
+            border-top: 1px solid var(--line);
         }
         .back-btn-wrap {
             text-align: center;
@@ -75,21 +80,17 @@ Licensed under the MIT License.
             display: inline-block;
             padding: 10px 30px;
             background-color: var(--theme-color);
-            color: white;
+            color: #071109;
             border-radius: 8px;
             text-decoration: none;
-            font-weight: bold;color:#071109}
-        .back-btn:hover {
-            background-color: #15408f;
+            font-weight: bold;
         }
-        /* 移动端适配 */
-        @media (max-width:768px){
-            .page-title {
-                font-size: 24px;
-            }
-            .rules-card {
-                padding: 20px;
-            }
+        .back-btn:hover {
+            background-color: #83ff9f;
+        }
+        .back-btn:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 4px;
         }
     </style>
     <!-- 网站图标统一配置 -->
@@ -107,32 +108,32 @@ Licensed under the MIT License.
     <main class="main-content">
         <h1 class="page-title">RootedVox 社区公约</h1>
         <div class="rules-card">
-            <div class="rules-section-title">一、平台宗旨</div>
+            <h2 class="rules-section-title">一、平台宗旨</h2>
             <p class="rules-text">
                 RootedVox官方致力于为ISA Wuhan School师生提供一个快捷、方便、有趣、安全的线上交流平台，有任何问题都欢迎通过顶部导航栏（手机端右上角汉堡按钮点开）中的“联系我们”页面反馈。
             </p>
 
-            <div class="rules-section-title">二、发言规范</div>
+            <h2 class="rules-section-title">二、发言规范</h2>
             <p class="rules-text">
                 1.发言须遵守国家法律法规，严禁散播违法内容。<br>2.严禁在留言中辱骂挑衅他人、侵害集体利益或损害他人合法权利。
             </p>
 
-            <div class="rules-section-title">三、内容审核规则</div>
+            <h2 class="rules-section-title">三、内容审核规则</h2>
             <p class="rules-text">
                 1.不符合上述发言规范的内容一律不予过审，多次违反发言规范则参照违规处罚说明处理。<br>2.审核员账号在操作时虽是匿名但会在后台留下实名操作日志。如遇审核误拒可向官方申请核实，作者在核实后若确认为误拒会对留言予以恢复，若发现审核员恶意审核也会采取撤销其审核权限等措施。
             </p>
 
-            <div class="rules-section-title">四、用户行为约束</div>
+            <h2 class="rules-section-title">四、用户行为约束</h2>
             <p class="rules-text">
                 1.除须遵守发言规范外，严禁在社区广场上大量或频繁刷相同信息。<br>2.严禁在社区广场上恶意引战、煽风点火。
             </p>
 
-            <div class="rules-section-title">五、违规处罚说明</div>
+            <h2 class="rules-section-title">五、违规处罚说明</h2>
             <p class="rules-text">
                 1.若您的留言违反了以上规定，将会被删除并记入日志。<br>2.若您在知晓规则的情况下依然违规，官方会予以点对点邮件警告。<br>3.若您在接收警告邮件后依然多次、反复违规，官方将在后台对您的账号进行封禁，届时您的账号将无法登录社区广场、发布信息或使用相关功能，且您的注册邮箱将不能再注册新账号。<br>4.封号时间依违规严重程度和频次而定，分为3日、5日、7日、30日和永久封号。
             </p>
 
-            <div class="rules-section-title">六、补充说明</div>
+            <h2 class="rules-section-title">六、补充说明</h2>
             <p class="rules-text">
                 1.本公约可能会不定期更新完善，一切以最新版公约为准。<br>2.本公约最终解释权归沧海四象所有。
             </p>
