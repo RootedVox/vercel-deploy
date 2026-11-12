@@ -1,4 +1,4 @@
-export const OFFICIAL_USER_ID = '2da104a0-6662-4cb8-ac95-7781383c98f2';
+export const OFFICIAL_USER_ID = '3ec4494f-05a7-5033-809a-ba9a66ee6383';
 export const OFFICIAL_NICKNAME = 'RootedVox官方';
 
 const OFFICIAL_ALIASES = new Set([OFFICIAL_NICKNAME.toLowerCase(), 'isa spectrum官方']);
