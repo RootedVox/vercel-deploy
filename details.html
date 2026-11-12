@@ -328,7 +328,6 @@
 // ===================== 开发者昵称白名单，与messages.html保持同步 =====================
 const DEVELOPER_NICKNAMES = [
     "Sam.Li",
-    "RootedVox官方",
     "Jerry",
     "Maod1e",
     "bYcHhh",
@@ -480,7 +479,7 @@ async function renderMessageAvatars() {
         const name = el.querySelector('.message-author')?.textContent || '';
         const c = name.charAt(0) || '?';
 
-        const isDeveloper = DEVELOPER_NICKNAMES.includes(name);
+        const isDeveloper = el.dataset.official === "true" || DEVELOPER_NICKNAMES.includes(name);
 
         const devWrapStyle = isDeveloper
             ? `position:relative;padding:2px;border-radius:50%;background:linear-gradient(135deg,#ffd700,#ff9500);`
@@ -542,7 +541,7 @@ function renderMainMessage(msg) {
     const t = new Date(msg.created_at).toLocaleString();
     const imgs = msg.pic_url ? msg.pic_url.map(u => `<img src="${escapeHtml(u)}" class="message-image" onclick="window.open(this.src)">`).join('') : '';
     document.getElementById('mainMessageCard').innerHTML = `
-    <div class="message-item" id="msg-${msg.id}" data-avatar-url="${escapeHtml(msg.avatar_url || '')}">
+    <div class="message-item" id="msg-${msg.id}" data-avatar-url="${escapeHtml(msg.avatar_url || '')}" data-official="${msg.is_official === true}">
         <div class="message-avatar-box"></div>
         <div style="flex:1">
             <div class="message-header">
@@ -570,7 +569,7 @@ function renderCommentTree() {
     function renderChildren(pid, d) {
         allMessages.filter(m => String(m.reply_to) === String(pid)).forEach(x => {
             html += `
-            <div class="message-item ${d === 1 ? 'level-1' : 'level-2'}" id="msg-${x.id}" data-avatar-url="${escapeHtml(x.avatar_url || '')}">
+            <div class="message-item ${d === 1 ? 'level-1' : 'level-2'}" id="msg-${x.id}" data-avatar-url="${escapeHtml(x.avatar_url || '')}" data-official="${x.is_official === true}">
                 <div class="message-avatar-box"></div>
                 <div style="flex:1">
                     <div class="message-header">
@@ -589,7 +588,7 @@ function renderCommentTree() {
     }
     roots.forEach(r => {
         html += `
-        <div class="message-item level-1" id="msg-${r.id}" data-avatar-url="${escapeHtml(r.avatar_url || '')}">
+        <div class="message-item level-1" id="msg-${r.id}" data-avatar-url="${escapeHtml(r.avatar_url || '')}" data-official="${r.is_official === true}">
             <div class="message-avatar-box"></div>
             <div style="flex:1">
                 <div class="message-header">

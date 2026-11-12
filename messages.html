@@ -372,7 +372,7 @@
             object-fit: cover;
             background: var(--surface-alt);
         }
-        .profile-avatar-placeholder {
+        .profile-avatar-placeholder:not([hidden]) {
             display: flex;
             align-items: center;
             justify-content: center;
@@ -653,7 +653,6 @@
     <script>
         const DEVELOPER_NICKNAMES = [
             "Sam.Li",
-            "RootedVox官方",
             "Jerry",
             "Maod1e",
             "bYcHhh",
@@ -784,7 +783,6 @@
             if (data.nickname) {
                 currentUserRealName = data.nickname;
                 initNicknameSelect();
-                document.getElementById('profileNickname').value = data.nickname;
             }
 
             if (url) {
@@ -929,7 +927,7 @@
                 const username = el.querySelector(".message-author")?.textContent || "";
                 const firstChar = username.charAt(0) || "?";
 
-                const isDeveloper = DEVELOPER_NICKNAMES.includes(username);
+                const isDeveloper = el.dataset.official === "true" || DEVELOPER_NICKNAMES.includes(username);
 
                 const devWrapStyle = isDeveloper
                     ? `position:relative;padding:2px;border-radius:50%;background:linear-gradient(135deg,#ffd700,#ff9500);`
@@ -1210,7 +1208,7 @@
                     }
 
                     html += `
-                    <div class="message-item" id="message-${msg.id}" data-avatar-url="${escapeHtml(msg.avatar_url || '')}" data-anonymous="${msg.username === '匿名用户' ? 'true' : 'false'}">
+                    <div class="message-item" id="message-${msg.id}" data-avatar-url="${escapeHtml(msg.avatar_url || '')}" data-official="${msg.is_official === true}" data-anonymous="${msg.username === '匿名用户' ? 'true' : 'false'}">
                         <div class="message-avatar-box"></div>
                         <div style="flex:1">
                             <div class="message-header">
@@ -1348,7 +1346,9 @@
             document.getElementById('openProfile').onclick = () => {
                 document.getElementById('profileModal').style.display = 'flex';
                 avatarDropdown.style.display = "none";
-                document.getElementById('profileNickname').focus();
+                const nicknameInput = document.getElementById('profileNickname');
+                nicknameInput.value = currentUserRealName;
+                nicknameInput.focus();
             };
 
             document.getElementById('profileAvatarButton').onclick = () => document.getElementById('avatarInput').click();

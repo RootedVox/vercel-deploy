@@ -1,6 +1,7 @@
 import { authenticateApi, cleanText, integerParam } from '../_lib/api.js';
 import { json, methodNotAllowed } from '../_lib/http.js';
 import { loadLexicon, scanLexicon } from '../_lib/lexicon.js';
+import { resolveProfileNickname } from '../_lib/official-profile.js';
 import { requestBusinessData, requestPublicData } from '../_lib/supabase.js';
 
 const ZONES = new Set(['校园生活', '学习互助', '活动社团', '失物招领']);
@@ -164,7 +165,7 @@ async function listMessages(request, env) {
   const url = new URL(request.url);
   const thread = url.searchParams.get('thread');
   const params = new URLSearchParams({
-    select: 'id,username,content,zone,pic_url,created_at,reply_to,avatar_url'
+    select: 'id,username,content,zone,pic_url,created_at,reply_to,avatar_url,is_official'
   });
 
   if (thread) {
@@ -258,7 +259,10 @@ async function createMessage(request, env) {
     return json({ error: 'profile_unavailable' }, 503, auth.headers);
   }
   const displayName = cleanText(
-    profile.nickname || profile.display_name || auth.session.display_name || auth.session.email?.split('@')[0] || '校园用户',
+    resolveProfileNickname(
+      auth.session.user_id, profile.nickname,
+      profile.display_name || auth.session.display_name || auth.session.email?.split('@')[0] || '校园用户'
+    ),
     80
   );
   const username = body.anonymous === true ? '匿名用户' : displayName;

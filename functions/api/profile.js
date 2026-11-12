@@ -1,12 +1,11 @@
 import { authenticateApi, cleanText } from '../_lib/api.js';
 import { json, methodNotAllowed } from '../_lib/http.js';
+import { isOfficialNickname, OFFICIAL_USER_ID, resolveProfileNickname } from '../_lib/official-profile.js';
 import { requestBusinessData } from '../_lib/supabase.js';
 
 const MAX_NICKNAME_LENGTH = 40;
 const RESERVED_NICKNAMES = new Set([
   '匿名用户',
-  'rootedvox官方',
-  'isa spectrum官方',
   'sam.li',
   'jerry',
   'maod1e',
@@ -18,10 +17,11 @@ export function normalizeNickname(value) {
   return String(value ?? '').normalize('NFKC').replace(/\s+/g, ' ').trim();
 }
 
-function validNickname(value) {
+function validNickname(value, userId) {
   return value.length >= 1
     && value.length <= MAX_NICKNAME_LENGTH
     && !/[\u0000-\u001f\u007f]/.test(value)
+    && (!isOfficialNickname(value) || userId === OFFICIAL_USER_ID)
     && !RESERVED_NICKNAMES.has(value.toLocaleLowerCase('zh-CN'));
 }
 
@@ -32,7 +32,10 @@ export async function onRequestGet({ request, env }) {
     const rows = await requestBusinessData(env, auth.session, `business_users?user_id=eq.${encodeURIComponent(auth.session.user_id)}&select=nickname,display_name,avatar_url&limit=1`);
     const row = rows[0] || {};
     return json({
-      nickname: row.nickname || row.display_name || auth.session.display_name || auth.session.email?.split('@')[0] || '校园用户',
+      nickname: resolveProfileNickname(
+        auth.session.user_id, row.nickname,
+        row.display_name || auth.session.display_name || auth.session.email?.split('@')[0] || '校园用户'
+      ),
       customNickname: row.nickname || null,
       avatarUrl: row.avatar_url || null
     }, 200, auth.headers);
@@ -48,8 +51,8 @@ export async function onRequestPut({ request, env }) {
 
   if (Object.hasOwn(body, 'nickname')) {
     const nickname = normalizeNickname(body.nickname);
-    if (!validNickname(nickname)) return json({ error: 'invalid_nickname' }, 400, auth.headers);
-    patch.nickname = cleanText(nickname, MAX_NICKNAME_LENGTH);
+    if (!validNickname(nickname, auth.session.user_id)) return json({ error: 'invalid_nickname' }, 400, auth.headers);
+    patch.nickname = cleanText(resolveProfileNickname(auth.session.user_id, nickname), MAX_NICKNAME_LENGTH);
   }
 
   if (Object.hasOwn(body, 'avatarUrl')) {
