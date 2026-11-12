@@ -1296,14 +1296,9 @@
             return div.innerHTML;
         }
 
-        window.onload = async function () {
-            const loggedIn = await initAuth();
-            if (loggedIn) {
-                document.getElementById('contactEmail').value = currentUserEmail;
-                initNicknameSelect();
-            } else {
-                initGuestMode();
-            }
+        document.addEventListener('DOMContentLoaded', async function () {
+            const authReady = initAuth();
+            document.getElementById('submitBtn').disabled = true;
 
             const contentInput = document.getElementById('messageContent');
             contentInput.addEventListener('input', () => {
@@ -1336,9 +1331,27 @@
                 loadMainMessages(false);
             });
 
-            await loadMainMessages(false);
+            // Public browsing must not wait for session or profile requests.
+            loadMainMessages(false);
+            const messageFeed = document.getElementById('messageFeed');
+            messageFeed.addEventListener('scroll', () => {
+                if (isLoadingMore || !hasMore) return;
+                clearTimeout(scrollTimeout);
+                scrollTimeout = setTimeout(() => {
+                    if (messageFeed.scrollTop + messageFeed.clientHeight >= messageFeed.scrollHeight - SCROLL_THRESHOLD) {
+                        loadMainMessages(true);
+                    }
+                }, 120);
+            });
 
-            if (loggedIn) await initUserExtra();
+            const loggedIn = await authReady;
+            if (loggedIn) {
+                document.getElementById('contactEmail').value = currentUserEmail;
+                initNicknameSelect();
+            } else {
+                initGuestMode();
+            }
+            document.getElementById('submitBtn').disabled = false;
 
             document.getElementById('logoutBtn').onclick = loggedIn
             ? async () => {
@@ -1455,17 +1468,10 @@
                 }
             });
 
-            const messageFeed = document.getElementById('messageFeed');
-            messageFeed.addEventListener('scroll', () => {
-                if (isLoadingMore || !hasMore) return;
-                clearTimeout(scrollTimeout);
-                scrollTimeout = setTimeout(() => {
-                    if (messageFeed.scrollTop + messageFeed.clientHeight >= messageFeed.scrollHeight - SCROLL_THRESHOLD) {
-                        loadMainMessages(true);
-                    }
-                }, 120);
-            });
-        };
+            if (loggedIn) {
+                initUserExtra().catch(() => showFormStatus('个人资料暂时无法同步，可稍后重新打开页面重试。', 'error'));
+            }
+        });
 
         window.addEventListener('beforeunload', () => {
             clearImagePreviews();
