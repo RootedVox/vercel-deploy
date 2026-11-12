@@ -15,5 +15,6 @@ for (const entry of await readdir(root, { withFileTypes: true })) {
 }
 
 await cp(join(root, 'images'), join(output, 'images'), { recursive: true });
+await cp(join(root, 'vendor'), join(output, 'vendor'), { recursive: true });
 
 console.log(`Prepared Vercel static output in ${output}`);

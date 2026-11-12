@@ -60,7 +60,8 @@ export async function onRequestPut({ request, env }) {
     try { avatar = new URL(body.avatarUrl); } catch { return json({ error: 'invalid_avatar' }, 400, auth.headers); }
     const base = new URL(String(env.BUSINESS_SUPABASE_URL));
     const requiredPrefix = `/storage/v1/object/public/avatars/business/${auth.session.user_id}.`;
-    if (avatar.origin !== base.origin || !avatar.pathname.startsWith(requiredPrefix)) return json({ error: 'invalid_avatar' }, 400, auth.headers);
+    const suffix = avatar.pathname.slice(requiredPrefix.length);
+    if (avatar.origin !== base.origin || avatar.username || avatar.password || avatar.search || avatar.hash || !avatar.pathname.startsWith(requiredPrefix) || !/^[a-f0-9]{64}\.png$/.test(suffix)) return json({ error: 'invalid_avatar' }, 400, auth.headers);
     patch.avatar_url = avatar.toString();
   }
 
