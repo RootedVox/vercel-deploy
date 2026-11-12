@@ -551,7 +551,7 @@
                 <div class="form-group">
                     <label for="zoneSelect">发布到分区</label>
                     <select id="zoneSelect" class="form-control">
-                        <option value="校园生活">日常分享</option>
+                        <option value="日常分享">日常分享</option>
                         <option value="学习互助">学习互助</option>
                         <option value="活动社团">活动社团</option>
                         <option value="失物招领">失物招领</option>
@@ -593,7 +593,7 @@
                             <input id="messageSearch" type="search" placeholder="搜索留言内容" aria-label="搜索留言内容">
                             <select id="messageZoneFilter" aria-label="按分区筛选">
                                 <option value="all">全部分区</option>
-                                <option value="校园生活">日常分享</option>
+                                <option value="日常分享">日常分享</option>
                                 <option value="学习互助">学习互助</option>
                                 <option value="活动社团">活动社团</option>
                                 <option value="失物招领">失物招领</option>
@@ -677,11 +677,13 @@
 
         function parseMessageContent(content = '', storedZone = '') {
             const marker = content.match(/^【([^】]+)】\s*/);
-            const validZones = ['校园生活', ...MESSAGE_ZONES.map(zone => zone.label)];
-            const explicitZone = validZones.includes(marker?.[1]) ? marker[1] : '';
+            const validZones = ['日常分享', ...MESSAGE_ZONES.map(zone => zone.label)];
+            if (storedZone === '校园生活') storedZone = '日常分享';
+            const markerZone = marker?.[1] === '校园生活' ? '日常分享' : marker?.[1];
+            const explicitZone = validZones.includes(markerZone) ? markerZone : '';
             const text = explicitZone ? content.replace(/^【[^】]+】\s*/, '') : content;
             const inferredZone = MESSAGE_ZONES.find(zone => zone.keywords.some(word => text.includes(word)))?.label;
-            return { zone: validZones.includes(storedZone) ? storedZone : (explicitZone || inferredZone || '校园生活'), text };
+            return { zone: validZones.includes(storedZone) ? storedZone : (explicitZone || inferredZone || '日常分享'), text };
         }
 
         let notifyPage = 0;
@@ -1302,7 +1304,8 @@
             });
 
             const zoneFilter = document.getElementById('messageZoneFilter');
-            const requestedZone = new URLSearchParams(location.search).get('zone');
+            const zoneParam = new URLSearchParams(location.search).get('zone');
+            const requestedZone = zoneParam === '校园生活' ? '日常分享' : zoneParam;
             if ([...zoneFilter.options].some(option => option.value === requestedZone)) {
                 activeZone = requestedZone;
                 zoneFilter.value = requestedZone;

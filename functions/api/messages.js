@@ -4,7 +4,9 @@ import { loadLexicon, scanLexicon } from '../_lib/lexicon.js';
 import { resolveProfileNickname } from '../_lib/official-profile.js';
 import { requestBusinessData, requestPublicData } from '../_lib/supabase.js';
 
-const ZONES = new Set(['校园生活', '学习互助', '活动社团', '失物招领']);
+const LEGACY_DAILY_ZONE = '校园生活';
+const DAILY_ZONE = '日常分享';
+const ZONES = new Set([DAILY_ZONE, '学习互助', '活动社团', '失物招领']);
 const MESSAGE_ID = /^(?:\d+|[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
 
 const NVAPI_MODEL = 'nvidia/nemotron-3.5-content-safety';
@@ -161,6 +163,10 @@ async function runAiCheck(contentText, imageUrls, env) {
   return { verdict: 'uncertain', reason: 'upstream_unavailable' };
 }
 
+function normalizeMessageZone(message) {
+  return message.zone === LEGACY_DAILY_ZONE ? { ...message, zone: DAILY_ZONE } : message;
+}
+
 async function listMessages(request, env) {
   const url = new URL(request.url);
   const thread = url.searchParams.get('thread');
@@ -189,7 +195,7 @@ async function listMessages(request, env) {
       }
     };
     visit(root.id);
-    return json({ messages: result });
+    return json({ messages: result.map(normalizeMessageZone) });
   }
 
   const page = integerParam(url.searchParams.get('page'), 0, 0, 100000);
@@ -201,12 +207,16 @@ async function listMessages(request, env) {
   params.set('order', `created_at.${url.searchParams.get('sort') === 'oldest' ? 'asc' : 'desc'}`);
   params.set('offset', String(page * limit));
   params.set('limit', String(limit + 1));
-  if (zone && zone !== 'all' && ZONES.has(zone)) params.set('zone', `eq.${zone}`);
+  if (zone === DAILY_ZONE || zone === LEGACY_DAILY_ZONE) {
+    params.set('zone', `in.(${DAILY_ZONE},${LEGACY_DAILY_ZONE})`);
+  } else if (ZONES.has(zone)) {
+    params.set('zone', `eq.${zone}`);
+  }
   if (search) params.set('content', `ilike.*${search.replace(/[,*()]/g, ' ')}*`);
 
   const rows = await requestPublicData(env, `approved_messages_public?${params}`);
   const hasMore = rows.length > limit;
-  return json({ messages: rows.slice(0, limit), hasMore, page });
+  return json({ messages: rows.slice(0, limit).map(normalizeMessageZone), hasMore, page });
 }
 
 function validateImageUrls(env, values, userId) {
@@ -239,7 +249,8 @@ async function createMessage(request, env) {
   }
 
   const content = cleanText(body.content, 1000);
-  const zone = ZONES.has(body.zone) ? body.zone : '校园生活';
+  // The database normalizes the legacy value once the zone migration is applied.
+  const zone = ZONES.has(body.zone) && body.zone !== DAILY_ZONE ? body.zone : LEGACY_DAILY_ZONE;
   const replyTo = body.replyTo == null ? null : String(body.replyTo);
   const imageUrls = validateImageUrls(env, body.imageUrls || [], auth.session.user_id);
 

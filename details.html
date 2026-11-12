@@ -402,11 +402,13 @@ function parseMessageContent(content = '', storedZone = '') {
         { label: '活动社团', keywords: ['活动', '社团', '比赛', '演出', '运动', '招新', '音乐', '篮球', '足球'] },
         { label: '失物招领', keywords: ['失物', '招领', '丢了', '捡到', '寻找', '遗失', '找到'] }
     ];
-    const validZones = ['校园生活', ...groups.map(group => group.label)];
-    const explicitZone = validZones.includes(marker?.[1]) ? marker[1] : '';
+    const validZones = ['日常分享', ...groups.map(group => group.label)];
+    if (storedZone === '校园生活') storedZone = '日常分享';
+    const markerZone = marker?.[1] === '校园生活' ? '日常分享' : marker?.[1];
+    const explicitZone = validZones.includes(markerZone) ? markerZone : '';
     const text = explicitZone ? content.replace(/^【[^】]+】\s*/, '') : content;
     const inferred = groups.find(group => group.keywords.some(word => text.includes(word)))?.label;
-    return { zone: validZones.includes(storedZone) ? storedZone : (explicitZone || inferred || '校园生活'), text };
+    return { zone: validZones.includes(storedZone) ? storedZone : (explicitZone || inferred || '日常分享'), text };
 }
 function getFreshAvatar(src) {
     if (!src) return '';

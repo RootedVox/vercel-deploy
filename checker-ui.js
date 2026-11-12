@@ -49,7 +49,7 @@
       list.innerHTML = data.messages.map(message => `
         <article class="item">
           <div class="item-header"><strong>${escapeHtml(message.username)}</strong><time>${new Date(message.created_at).toLocaleString('zh-CN')}</time></div>
-          <div class="zone">${escapeHtml(message.zone || '校园生活')}</div>
+          <div class="zone">${escapeHtml(message.zone && message.zone !== '校园生活' ? message.zone : '日常分享')}</div>
           <div class="item-content">${escapeHtml(message.content).replace(/\n/g, '<br>')}</div>
           ${imageMarkup(message.pic_url)}
           <div class="meta">账号邮箱：${escapeHtml(message.contact_email || '未提供')}</div>

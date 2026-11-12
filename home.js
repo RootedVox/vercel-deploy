@@ -1,6 +1,6 @@
 (function () {
   const zones = [
-    { key: 'life', label: '校园生活', icon: '日', description: '日常分享与生活见闻', keywords: ['校园', '食堂', '宿舍', '老师', '同学', '日常', '生活', '周末'] },
+    { key: 'life', label: '日常分享', icon: '日', description: '日常分享与生活见闻', keywords: ['校园', '食堂', '宿舍', '老师', '同学', '日常', '生活', '周末'] },
     { key: 'study', label: '学习互助', icon: '学', description: '课程、考试与经验分享', keywords: ['学习', '作业', '考试', '课程', '笔记', '竞赛', '选课', '大学'] },
     { key: 'clubs', label: '活动社团', icon: '动', description: '活动、比赛与社团招新', keywords: ['活动', '社团', '比赛', '演出', '运动', '招新', '音乐', '篮球', '足球'] },
     { key: 'lost', label: '失物招领', icon: '寻', description: '寻找物品与归还线索', keywords: ['失物', '招领', '丢了', '捡到', '寻找', '遗失', '找到'] }
@@ -24,12 +24,13 @@
   };
   const parseContent = (content = '') => {
     const marker = content.match(/^【([^】]+)】\s*/);
-    const label = zones.some((zone) => zone.label === marker?.[1]) ? marker[1] : '';
+    const markerZone = marker?.[1] === '校园生活' ? '日常分享' : marker?.[1];
+    const label = zones.some((zone) => zone.label === markerZone) ? markerZone : '';
     return { marker: label, text: label ? content.replace(/^【[^】]+】\s*/, '') : content };
   };
   const classify = (item) => {
     const parsed = parseContent(item.content);
-    const stored = zones.find((zone) => zone.label === item.zone);
+    const stored = zones.find((zone) => zone.label === (item.zone === '校园生活' ? '日常分享' : item.zone));
     if (stored) return stored.key;
     const marked = zones.find((zone) => zone.label === parsed.marker);
     if (marked) return marked.key;

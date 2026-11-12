@@ -71,5 +71,5 @@ test('the same-origin API accepts the UUID identifiers used by the messages tabl
   });
 
   assert.equal(response.status, 200);
-  assert.deepEqual((await response.json()).messages.map(message => message.id), [id]);
+  assert.deepEqual((await response.json()).messages.map(({ id, zone }) => ({ id, zone })), [{ id, zone: '日常分享' }]);
 });
