@@ -4,7 +4,7 @@ Copyright (c) 2026 沧海四象
 Licensed under the MIT License.
 -->
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh-CN">
 <head>
 <meta name="robots" content="noindex">
     <meta charset="UTF-8">
@@ -13,8 +13,9 @@ Licensed under the MIT License.
     <style>
         :root {
             --theme-color: #5cff8a;
-            --text-gray: #666;
-            --bg: #f7f9fc;
+            --text-gray: #b8c0b8;
+            --bg: #0b0b0b;
+            color-scheme: dark;
         }
         * {
             margin: 0;
@@ -24,7 +25,7 @@ Licensed under the MIT License.
         body {
             font-family: "Microsoft YaHei", sans-serif;
             background-color: var(--bg);
-            color: #aeb5ae;
+            color: #f0f3f0;
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -37,7 +38,7 @@ Licensed under the MIT License.
             width: 100%;
         }
         .error-code {
-            font-size: 8rem;
+            font-size: clamp(5rem, 18vw, 8rem);
             font-weight: 900;
             color: var(--theme-color);
             line-height: 1;
@@ -50,7 +51,7 @@ Licensed under the MIT License.
         .title {
             font-size: 1.8rem;
             margin: 20px 0 10px;
-            color: #aeb5ae;
+            color: #f0f3f0;
         }
         .desc {
             font-size: 1rem;
@@ -61,13 +62,21 @@ Licensed under the MIT License.
             display: inline-block;
             padding: 12px 28px;
             background-color: var(--theme-color);
-            color: #fff;
+            color: #071109;
             text-decoration: none;
             border-radius: 8px;
             font-size: 1rem;
-            transition: background-color 0.2s;color:#071109}
+            transition: background-color 0.2s;
+        }
         .btn:hover {
-            background-color: #15408f;
+            background-color: #83ff9f;
+        }
+        .btn:focus-visible {
+            outline: 2px solid var(--theme-color);
+            outline-offset: 4px;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .error-code { animation: none; }
         }
     </style>
     <link rel="icon" type="image/png" href="/images/favicon-96x96.png" sizes="96x96" />
@@ -78,11 +87,11 @@ Licensed under the MIT License.
     <link rel="manifest" href="/images/site.webmanifest" />
 </head>
 <body>
-    <div class="container">
+    <main class="container">
         <div class="error-code">404</div>
         <h1 class="title">哎呀，页面走丢了</h1>
         <p class="desc">你访问的页面不存在、已被删除或链接错误</p>
-        <a href="/index" class="btn">返回首页</a>
-    </div>
+        <a href="/" class="btn">返回首页</a>
+    </main>
 </body>
 </html>
