@@ -410,9 +410,11 @@ function parseMessageContent(content = '', storedZone = '') {
     const inferred = groups.find(group => group.keywords.some(word => text.includes(word)))?.label;
     return { zone: validZones.includes(storedZone) ? storedZone : (explicitZone || inferred || '日常分享'), text };
 }
+const avatarCacheVersion = Date.now();
 function getFreshAvatar(src) {
     if (!src) return '';
-    return src + (src.includes('?') ? '&' : '?') + 't=' + Date.now();
+    if (/\.[a-f0-9]{64}\.png(?:[?#]|$)/.test(src)) return src;
+    return src + (src.includes('?') ? '&' : '?') + 't=' + avatarCacheVersion;
 }
 // ==================== 登录验证 ====================
 async function initAuth() {
@@ -501,12 +503,12 @@ async function renderMessageAvatars() {
                 avatarCore = `
                 <div style="${devWrapStyle}">
                     <div style="${devInnerStyle}">
-                        <img src="${getFreshAvatar(avatarUrl)}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:block;">
+                        <img src="${escapeHtml(getFreshAvatar(avatarUrl))}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:block;">
                     </div>
                     <span style="position:absolute;right:-6px;bottom:-2px;font-size:9px;font-weight:bold;color:#fff;background:#c28c00;padding:1px 4px;border-radius:6px;white-space:nowrap;z-index:2;">Dev</span>
                 </div>`;
             } else {
-                avatarCore = `<img src="${getFreshAvatar(avatarUrl)}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">`;
+                avatarCore = `<img src="${escapeHtml(getFreshAvatar(avatarUrl))}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">`;
             }
         } else {
             if (isDeveloper) {

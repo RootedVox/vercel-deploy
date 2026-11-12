@@ -699,10 +699,12 @@
         let currentUserRealName = '';
         let userId = '';
 
+        const avatarCacheVersion = Date.now();
         function getFreshAvatar(src) {
-            if (!src) return "";
-            const sp = src.includes('?') ? '&t=' : '?t=';
-            return src + sp + Date.now();
+            if (!src) return '';
+            // Content-addressed avatars are immutable; legacy paths refresh once per visit.
+            if (/\.[a-f0-9]{64}\.png(?:[?#]|$)/.test(src)) return src;
+            return src + (src.includes('?') ? '&' : '?') + 't=' + avatarCacheVersion;
         }
 
         async function refreshNotificationDot() {
@@ -933,6 +935,9 @@
                 const firstChar = username.charAt(0) || "?";
 
                 const isDeveloper = el.dataset.official === "true" || DEVELOPER_NICKNAMES.includes(username);
+                const renderKey = JSON.stringify([avatarUrl, anonymous, username, isDeveloper]);
+                if (box.dataset.renderKey === renderKey) return;
+                box.dataset.renderKey = renderKey;
 
                 const devWrapStyle = isDeveloper
                     ? `position:relative;padding:2px;border-radius:50%;background:linear-gradient(135deg,#ffd700,#ff9500);`
@@ -958,12 +963,12 @@
                         avatarCore = `
                         <div style="${devWrapStyle}">
                             <div style="${devInnerStyle}">
-                                <img src="${getFreshAvatar(avatarUrl)}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:block;">
+                                <img src="${escapeHtml(getFreshAvatar(avatarUrl))}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:block;">
                             </div>
                             <span style="position:absolute;right:-6px;bottom:-2px;font-size:9px;font-weight:bold;color:#fff;background:#c28c00;padding:1px 4px;border-radius:6px;white-space:nowrap;z-index:2;">Dev</span>
                         </div>`;
                     } else {
-                        avatarCore = `<img src="${getFreshAvatar(avatarUrl)}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">`;
+                        avatarCore = `<img src="${escapeHtml(getFreshAvatar(avatarUrl))}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">`;
                     }
                 } else {
                     if (isDeveloper) {
@@ -1031,37 +1036,45 @@
             select.value = currentUserRealName;
         }
 
+        let previewObjectUrls = [];
+        function clearImagePreviews() {
+            document.getElementById('previewContainer').replaceChildren();
+            previewObjectUrls.forEach(url => URL.revokeObjectURL(url));
+            previewObjectUrls = [];
+        }
+
         function previewImages(input) {
-            const container = document.getElementById('previewContainer');
-            container.innerHTML = '';
+            clearImagePreviews();
             const files = Array.from(input.files);
+            // Validate the whole selection before allocating preview resources.
             if (files.length > MAX_IMAGES) {
                 alert(`最多只能上传${MAX_IMAGES}张图片！`);
                 input.value = '';
                 return;
             }
-            for (let file of files) {
+            for (const file of files) {
                 if (!file.type.startsWith('image/')) {
-                    alert(`仅支持图片文件！`);
+                    alert('仅支持图片文件！');
                     input.value = '';
-                    container.innerHTML = '';
                     return;
                 }
                 if (file.size > MAX_SIZE) {
                     showFormStatus(`“${file.name}”超过 5MB，请压缩后重试。`, 'error');
                     input.value = '';
-                    container.innerHTML = '';
                     return;
                 }
-                const reader = new FileReader();
-                reader.onload = function (e) {
-                    const img = document.createElement('img');
-                    img.src = e.target.result;
-                    img.className = 'file-preview';
-                    container.appendChild(img);
-                };
-                reader.readAsDataURL(file);
             }
+            const fragment = document.createDocumentFragment();
+            for (const file of files) {
+                const url = URL.createObjectURL(file);
+                previewObjectUrls.push(url);
+                const img = document.createElement('img');
+                img.src = url;
+                img.alt = file.name;
+                img.className = 'file-preview';
+                fragment.appendChild(img);
+            }
+            document.getElementById('previewContainer').appendChild(fragment);
         }
 
         async function uploadImages(files) {
@@ -1127,7 +1140,7 @@
                 document.getElementById('messageContent').value = '';
                 document.getElementById('contentCount').textContent = '0 / 1000';
                 document.getElementById('messagePicFile').value = '';
-                document.getElementById('previewContainer').innerHTML = '';
+                clearImagePreviews();
                 loadMainMessages(false);
             } catch (error) {
                 showFormStatus('发布失败：' + (error.message || error), 'error');
@@ -1455,6 +1468,7 @@
         };
 
         window.addEventListener('beforeunload', () => {
+            clearImagePreviews();
             if (abortController) abortController.abort();
             if (scrollTimeout) clearTimeout(scrollTimeout);
         });
