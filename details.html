@@ -383,6 +383,7 @@ function compressImage(file, options = {}) {
 // Identity and data writes are handled by the business backend.
 let mainMsgId = null;
 let currentUser = null;
+let authReady;
 let userId = '';
 let currentUserRealName = '';
 let currentUserEmail = '';
@@ -415,9 +416,11 @@ function parseMessageContent(content = '', storedZone = '') {
     const inferred = groups.find(group => group.keywords.some(word => text.includes(word)))?.label;
     return { zone: validZones.includes(storedZone) ? storedZone : (explicitZone || inferred || '日常分享'), text };
 }
+const avatarCacheVersion = Date.now();
 function getFreshAvatar(src) {
     if (!src) return '';
-    return src + (src.includes('?') ? '&' : '?') + 't=' + Date.now();
+    if (/\.[a-f0-9]{64}\.png(?:[?#]|$)/.test(src)) return src;
+    return src + (src.includes('?') ? '&' : '?') + 't=' + avatarCacheVersion;
 }
 // ==================== 登录验证 ====================
 async function initAuth() {
@@ -505,12 +508,12 @@ function renderMessageAvatars(items = document.querySelectorAll('.message-item')
                 avatarCore = `
                 <div style="${devWrapStyle}">
                     <div style="${devInnerStyle}">
-                        <img src="${getFreshAvatar(avatarUrl)}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:block;">
+                        <img src="${escapeHtml(getFreshAvatar(avatarUrl))}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:block;">
                     </div>
                     <span style="position:absolute;right:-6px;bottom:-2px;font-size:9px;font-weight:bold;color:#fff;background:#c28c00;padding:1px 4px;border-radius:6px;white-space:nowrap;z-index:2;">Dev</span>
                 </div>`;
             } else {
-                avatarCore = `<img src="${getFreshAvatar(avatarUrl)}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">`;
+                avatarCore = `<img src="${escapeHtml(getFreshAvatar(avatarUrl))}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">`;
             }
         } else {
             if (isDeveloper) {
@@ -536,11 +539,27 @@ async function loadMainMessage() {
         if (!window.RootedVoxPublicData) throw new Error('public_data_unavailable');
         allMessages = await RootedVoxPublicData.getThread(mainMsgId);
     } catch {
-        document.getElementById('mainMessageCard').innerHTML = '<div class="loading">留言不存在或暂不可用</div>';
-        return;
+        document.getElementById('mainMessageCard').innerHTML = '<div class="loading">留言暂时无法加载。<button class="comment-btn" onclick="retryThread()">重试</button></div>';
+        document.getElementById('commentContainer').innerHTML = '<div class="empty-comment">评论暂时无法加载，请重试。</div>';
+        return false;
     }
     const main = allMessages.find(message => String(message.id) === String(mainMsgId));
-    if (main) { renderMainMessage(main); loadAllComments(); }
+    if (!main) {
+        document.getElementById('mainMessageCard').innerHTML = '<div class="loading">留言不存在或暂不可用</div>';
+        document.getElementById('commentContainer').innerHTML = '<div class="empty-comment">暂无可显示的评论</div>';
+        return false;
+    }
+    renderMainMessage(main);
+    loadAllComments();
+    return true;
+}
+async function retryThread() {
+    document.getElementById('mainMessageCard').innerHTML = '<div class="loading">加载主楼内容中...</div>';
+    document.getElementById('commentContainer').innerHTML = '<div class="loading">加载评论中...</div>';
+    if (await loadMainMessage()) {
+        await autoJumpFromUrl();
+        observeMoreComments();
+    }
 }
 function renderMainMessage(msg) {
     const parsedContent = parseMessageContent(msg.content, msg.zone);
@@ -687,29 +706,43 @@ function showReplyBox(tid) {
     </div>`;
 }
 // ==================== 提交评论 ====================
+let commentSubmitting = false;
 async function submitComment(rid, type) {
-    if (!currentUser || !currentUser.id) return RootedVoxAuth.handleLogin('/details' + location.search);
-    const el = type === 'main'
-        ? document.getElementById('mainCommentInput')
-        : document.getElementById(`replyInput-${rid}`);
-    const content = el?.value.trim();
-    if (!content) { alert('内容不能为空'); return; }
-    const ano = document.getElementById(`anonymous-${rid}`)?.checked || false;
-    const filesInput = document.getElementById(`imageUpload-${rid}`);
-    const files = filesInput?.files;
-    const urls = files && files.length > 0 ? await uploadImages(files, rid) : [];
-    const response = await request('/api/messages', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, anonymous: ano, imageUrls: urls, replyTo: rid })
-    });
-    if (response.status === 401) return RootedVoxAuth.handleLogin('/details' + location.search);
-    if (!response.ok) {
-        alert('发布失败，请稍后重试');
-        return;
+    if (commentSubmitting) return;
+    commentSubmitting = true;
+    const button = document.querySelector(`#reply-box-${rid} .comment-submit-btn`);
+    const originalLabel = button?.textContent;
+    if (button) { button.disabled = true; button.textContent = '发布中…'; }
+    try {
+        await authReady;
+        if (!currentUser || !currentUser.id) return RootedVoxAuth.handleLogin('/details' + location.search);
+        const el = type === 'main'
+            ? document.getElementById('mainCommentInput')
+            : document.getElementById(`replyInput-${rid}`);
+        const content = el?.value.trim();
+        if (!content) { alert('内容不能为空'); return; }
+        const ano = document.getElementById(`anonymous-${rid}`)?.checked || false;
+        const files = document.getElementById(`imageUpload-${rid}`)?.files;
+        const urls = files && files.length > 0 ? await uploadImages(files, rid) : [];
+        const response = await request('/api/messages', {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content, anonymous: ano, imageUrls: urls, replyTo: rid })
+        });
+        if (response.status === 401) return RootedVoxAuth.handleLogin('/details' + location.search);
+        if (!response.ok) throw new Error('comment_failed');
+        el.value = '';
+        const input = document.getElementById(`imageUpload-${rid}`);
+        if (input) input.value = '';
+        document.getElementById(`preview-${rid}`)?.replaceChildren();
+        alert('发布成功！等待审核');
+        closeAllCommentBoxes();
+    } catch {
+        alert('发布失败，请检查网络后重试。内容和图片已保留。');
+    } finally {
+        commentSubmitting = false;
+        if (button) { button.disabled = false; button.textContent = originalLabel; }
     }
-    alert('发布成功！等待审核');
-    closeAllCommentBoxes();
 }
 // ==================== 跳转 + 高亮 ====================
 function jumpToComment(targetId) {
@@ -732,12 +765,10 @@ async function autoJumpFromUrl() {
     jumpToComment(replyId);
 }
 // ==================== 初始化 ====================
-window.onload=async()=>{
-    await initAuth();
-    await loadMainMessage();
-    await autoJumpFromUrl();
-    observeMoreComments();
-};
+document.addEventListener('DOMContentLoaded', () => {
+    authReady = initAuth();
+    retryThread();
+});
     </script>
 </body>
 </html>

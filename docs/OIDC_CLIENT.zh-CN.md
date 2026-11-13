@@ -93,11 +93,11 @@ where u.identity_provider = 'https://maximus.tail39bd71.ts.net/realms/testrealm'
 
 ## 10. 业务 Session
 
-Session token 由 32 字节安全随机数生成，D1 只保存 SHA-256 哈希。Cookie 为 `HttpOnly; Secure; SameSite=Lax; Path=/`，HTTPS 下使用 `__Secure-business_session`，默认空闲有效期 8 小时、每 30 分钟轮换、绝对有效期 7 天。轮换为旧哈希保留 60 秒并发宽限，避免并行请求误清新 Cookie。前端 `/auth/session` 只能得到必要的业务用户信息及认证中心返回的可选认证元数据，不能读取 Session token。`amr`、`acr`、`auth_time` 当前仅作审计信息，不参与审核端权限判断。
+Session token 由 32 字节安全随机数生成，D1 只保存 SHA-256 哈希。Cookie 为 `HttpOnly; Secure; SameSite=Lax; Path=/`，HTTPS 下使用 `__Secure-rv_session`，默认空闲有效期 8 小时、每 30 分钟轮换、绝对有效期 7 天。轮换为旧哈希保留 60 秒并发宽限，避免并行请求误清新 Cookie。前端 `/auth/session` 只能得到必要的业务用户信息及认证中心返回的可选认证元数据，不能读取 Session token。`amr`、`acr`、`auth_time` 当前仅作审计信息，不参与审核端权限判断。
 
 ## 11. Logout
 
-`POST /auth/logout` 校验同源 `Origin`，在数据库撤销业务 Session 并清 Cookie。它不会假装同时退出认证中心。若未来需要全局登出，应按认证中心 discovery/协议另行接入 RP-Initiated Logout；不能共享父域 Cookie。
+`POST /auth/logout` 校验来源并严格撤销业务会话。前端仅收到一次性路径，不接触含 ID Token 的认证中心地址。服务端使用现有 transaction 存储保存退出地址，120 秒过期，并用独立 HttpOnly、host-only Cookie 绑定当前浏览器；GET 只原子消费此流程，不撤销会话。直接 GET 退出被拒绝。认证中心 discovery 最多等待 5 秒，共享存储单次调用最多 10 秒；前端 POST 45 秒超时且不自动重放，重复点击合并为同一请求。认证中心不可用时本地退出仍成功，真实 SSO 兼容性需在部署环境验收。退出 transaction 使用独立哈希命名空间，不会被登录 callback 消费。
 
 ## 12. 错误处理
 

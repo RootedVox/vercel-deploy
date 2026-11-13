@@ -10,5 +10,6 @@
     document.addEventListener('click',event=>{if(!header.contains(event.target))closeMenu()});document.addEventListener('keydown',event=>{if(event.key==='Escape')closeMenu()});window.addEventListener('resize',()=>{if(innerWidth>860)closeMenu()});
     const syncHeader=()=>header.classList.toggle('scrolled',scrollY>12);syncHeader();addEventListener('scroll',syncHeader,{passive:true});
   };
-  Promise.all([include('#headerBox','./header.html'),include('#footerBox','./footer.html')]).then(initHeader).catch(error=>console.error(error));
+  include('#headerBox','./header.html').then(initHeader).catch(error=>console.error(error));
+  include('#footerBox','./footer.html').catch(error=>console.error(error));
 })();
