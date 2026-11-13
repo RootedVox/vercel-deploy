@@ -164,6 +164,7 @@
             display: inline-block;
             text-align: left;
         }
+        #moreComments[hidden] { display: none; }
         .reply-btn:hover, .comment-btn:hover {
             background: #171717;
         }
@@ -317,6 +318,7 @@
         <div class="comment-section">
             <h2 class="section-title">💬 全部评论</h2>
             <div id="commentContainer" class="loading">加载评论中...</div>
+            <button id="moreComments" class="comment-btn" type="button" hidden>加载更多回复</button>
         </div>
     </main>
     <!-- 公共页脚挂载容器 -->
@@ -385,7 +387,10 @@ let userId = '';
 let currentUserRealName = '';
 let currentUserEmail = '';
 let allMessages = [];
-let userMap = {};
+let userMap = Object.create(null);
+const COMMENT_BATCH_SIZE = 20;
+let orderedComments = [];
+let renderedComments = 0;
 function getMsgIdFromUrl() {
     const params = new URLSearchParams(window.location.search);
     return params.get('id');
@@ -472,8 +477,7 @@ function previewImages(targetId) {
     });
 }
 // ==================== 头像渲染（增加Dev头像框+角标，与messages.html逻辑完全对齐） ====================
-async function renderMessageAvatars() {
-    const items = document.querySelectorAll('.message-item');
+function renderMessageAvatars(items = document.querySelectorAll('.message-item')) {
     items.forEach(el => {
         const avatarUrl = el.dataset.avatarUrl;
         const box = el.querySelector('.message-avatar-box');
@@ -559,54 +563,81 @@ function renderMainMessage(msg) {
     </div>`;
     renderMessageAvatars();
 }
-async function loadAllComments() {
-    allMessages.forEach(m => userMap[m.id] = m.username);
-    renderCommentTree();
-}
-function renderCommentTree() {
-    const c = document.getElementById('commentContainer');
-    const roots = allMessages.filter(m => String(m.reply_to) === String(mainMsgId));
-    if (!roots.length) { c.innerHTML = '<div class="empty-comment">暂无评论</div>'; return; }
-    let html = '';
-    function renderChildren(pid, d) {
-        allMessages.filter(m => String(m.reply_to) === String(pid)).forEach(x => {
-            html += `
-            <div class="message-item ${d === 1 ? 'level-1' : 'level-2'}" id="msg-${x.id}" data-avatar-url="${escapeHtml(x.avatar_url || '')}" data-official="${x.is_official === true}">
-                <div class="message-avatar-box"></div>
-                <div style="flex:1">
-                    <div class="message-header">
-                        <span class="message-author">${escapeHtml(x.username)}</span>
-                        <span class="message-time">${new Date(x.created_at).toLocaleString()}</span>
-                    </div>
-                    ${d >= 2 ? `<div class="reply-info" onclick="jumpToComment('${x.reply_to}')">↳ 回复 @${escapeHtml(userMap[x.reply_to] || '用户')}</div>` : ''}
-                    <div class="message-content">${escapeHtml(x.content).replace(/\n/g, '<br>')}</div>
-                    <div class="message-images">${x.pic_url ? x.pic_url.map(u => `<img src="${escapeHtml(u)}" class="message-image" onclick="window.open(this.src)">`).join('') : ''}</div>
-                    <button class="reply-btn" onclick="showReplyBox('${x.id}')">💬 回复</button>
-                    <div id="reply-box-${x.id}" class="comment-input-container"></div>
-                </div>
-            </div>`;
-            renderChildren(x.id, d + 1);
-        });
+function loadAllComments() {
+    const container = document.getElementById('commentContainer');
+    const more = document.getElementById('moreComments');
+    const children = new Map();
+    for (const message of allMessages) {
+        userMap[message.id] = message.username;
+        if (message.reply_to == null) continue;
+        const parent = String(message.reply_to);
+        if (!children.has(parent)) children.set(parent, []);
+        children.get(parent).push(message);
     }
-    roots.forEach(r => {
-        html += `
-        <div class="message-item level-1" id="msg-${r.id}" data-avatar-url="${escapeHtml(r.avatar_url || '')}" data-official="${r.is_official === true}">
+
+    // Flatten in depth-first order so every parent precedes its replies.
+    const stack = [...(children.get(String(mainMsgId)) || [])].reverse();
+    const seen = new Set([String(mainMsgId)]);
+    while (stack.length) {
+        const message = stack.pop();
+        const id = String(message.id);
+        if (seen.has(id)) continue;
+        seen.add(id);
+        orderedComments.push(message);
+        const replies = children.get(id) || [];
+        for (let i = replies.length - 1; i >= 0; i--) stack.push(replies[i]);
+    }
+
+    container.classList.remove('loading');
+    if (!orderedComments.length) {
+        container.innerHTML = '<div class="empty-comment">暂无评论</div>';
+        return;
+    }
+    container.replaceChildren();
+    more.addEventListener('click', appendCommentBatch);
+    appendCommentBatch();
+}
+
+function renderComment(r) {
+    const nested = String(r.reply_to) !== String(mainMsgId);
+    return `
+        <div class="message-item ${nested ? 'level-2' : 'level-1'}" id="msg-${r.id}" data-avatar-url="${escapeHtml(r.avatar_url || '')}" data-official="${r.is_official === true}">
             <div class="message-avatar-box"></div>
             <div style="flex:1">
                 <div class="message-header">
                     <span class="message-author">${escapeHtml(r.username)}</span>
                     <span class="message-time">${new Date(r.created_at).toLocaleString()}</span>
                 </div>
+                ${nested ? `<div class="reply-info" onclick="jumpToComment('${r.reply_to}')">↳ 回复 @${escapeHtml(userMap[r.reply_to] || '用户')}</div>` : ''}
                 <div class="message-content">${escapeHtml(r.content).replace(/\n/g, '<br>')}</div>
-                <div class="message-images">${r.pic_url ? r.pic_url.map(u => `<img src="${escapeHtml(u)}" class="message-image" onclick="window.open(this.src)">`).join('') : ''}</div>
+                <div class="message-images">${r.pic_url ? r.pic_url.map(u => `<img loading="lazy" src="${escapeHtml(u)}" class="message-image" onclick="window.open(this.src)">`).join('') : ''}</div>
                 <button class="reply-btn" onclick="showReplyBox('${r.id}')">💬 回复</button>
                 <div id="reply-box-${r.id}" class="comment-input-container"></div>
             </div>
         </div>`;
-        renderChildren(r.id, 2);
+}
+
+function appendCommentBatch() {
+    const container = document.getElementById('commentContainer');
+    const batch = orderedComments.slice(renderedComments, renderedComments + COMMENT_BATCH_SIZE);
+    const template = document.createElement('template');
+    template.innerHTML = batch.map(renderComment).join('');
+    const items = [...template.content.children];
+    container.append(template.content);
+    renderMessageAvatars(items);
+    renderedComments += batch.length;
+    document.getElementById('moreComments').hidden = renderedComments >= orderedComments.length;
+}
+
+function observeMoreComments() {
+    if (!('IntersectionObserver' in window) || renderedComments >= orderedComments.length) return;
+    const more = document.getElementById('moreComments');
+    const observer = new IntersectionObserver(([entry]) => {
+        if (!entry.isIntersecting) return;
+        appendCommentBatch();
+        if (more.hidden) observer.disconnect();
     });
-    c.innerHTML = html;
-    renderMessageAvatars();
+    observer.observe(more);
 }
 // ==================== 评论框 ====================
 function closeAllCommentBoxes() {
@@ -679,7 +710,6 @@ async function submitComment(rid, type) {
     }
     alert('发布成功！等待审核');
     closeAllCommentBoxes();
-    loadAllComments();
 }
 // ==================== 跳转 + 高亮 ====================
 function jumpToComment(targetId) {
@@ -694,24 +724,19 @@ async function autoJumpFromUrl() {
     const replyId = params.get('replyId');
 
     if (!replyId) return;
-    let retry = 0;
-    const interval = setInterval(() => {
-        const el = document.getElementById(`msg-${replyId}`);
-        if (el) {
-            clearInterval(interval);
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            el.classList.add('highlight');
-            setTimeout(() => el.classList.remove('highlight'), 2000);
-        }
-        retry++;
-        if (retry > 20) clearInterval(interval);
-    }, 100);
+    const index = orderedComments.findIndex(message => String(message.id) === replyId);
+    while (index >= renderedComments) {
+        await new Promise(requestAnimationFrame);
+        appendCommentBatch();
+    }
+    jumpToComment(replyId);
 }
 // ==================== 初始化 ====================
 window.onload=async()=>{
     await initAuth();
     await loadMainMessage();
-    autoJumpFromUrl();
+    await autoJumpFromUrl();
+    observeMoreComments();
 };
     </script>
 </body>

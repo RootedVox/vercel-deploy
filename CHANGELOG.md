@@ -1,5 +1,9 @@
 # 更新日志 / Changelog
 
+## v4.1.1
+- 详情页每批渲染 20 条回复，保留回复顺序、父子关系与通知跳转。
+- 移除匿名角色对 messages 底表的冗余读取权限，防止敏感字段泄露。
+
 ## v4.1.0 · RootedVox
 - 更新项目名称、声纹标志与黑底终端绿界面。
 - Cloudflare 和 Vercel 分别服务 `rv.celestivast.com` 与 `rv-vc.celestivast.com`。
