@@ -45,8 +45,7 @@ export async function identityUserId(issuer, subject) {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-export async function createDatabaseToken(env, identity) {
-  const { url, jwk } = supabaseConfig(env);
+export async function createDatabaseToken(env, identity, { url, jwk } = supabaseConfig(env)) {
   const now = Math.floor(Date.now() / 1000);
   const header = base64UrlEncode(utf8(JSON.stringify({ alg: 'ES256', kid: jwk.kid, typ: 'JWT' })));
   const payload = base64UrlEncode(utf8(JSON.stringify({
@@ -67,9 +66,16 @@ export async function createDatabaseToken(env, identity) {
   return `${input}.${base64UrlEncode(signature)}`;
 }
 
+// Session objects are created for one inbound request by the session store.
+const requestTokens = new WeakMap();
+function requestToken(env, session) {
+  if (!requestTokens.has(session)) requestTokens.set(session, createDatabaseToken(env, session));
+  return requestTokens.get(session);
+}
+
 async function requestSupabase(env, session, route, init = {}) {
-  const { url, publishableKey } = supabaseConfig(env);
-  const token = await createDatabaseToken(env, session);
+  const { url, publishableKey } = publicSupabaseConfig(env);
+  const token = await requestToken(env, session);
   return withDeadline(async signal => {
     const response = await fetch(`${url}/${route}`, {
       ...init,
@@ -103,23 +109,25 @@ export function requestBusinessData(env, session, path, init = {}) {
 
 export async function requestPublicData(env, path, init = {}) {
   const { url, publishableKey } = publicSupabaseConfig(env);
-  const response = await fetch(`${url}/rest/v1/${path}`, {
-    ...init,
-    headers: {
-      apikey: publishableKey,
-      'Content-Type': 'application/json',
-      ...init.headers
-    }
+  return withDeadline(async signal => {
+    const response = await fetch(`${url}/rest/v1/${path}`, {
+      ...init, signal,
+      headers: {
+        apikey: publishableKey,
+        'Content-Type': 'application/json',
+        ...init.headers
+      }
+    });
+    if (!response.ok) throw new Error('business_store_failure');
+    if (response.status === 204) return null;
+    const text = await response.text();
+    return text ? JSON.parse(text) : null;
   });
-  if (!response.ok) throw new Error('business_store_failure');
-  if (response.status === 204) return null;
-  const text = await response.text();
-  return text ? JSON.parse(text) : null;
 }
 
 export async function uploadBusinessObject(env, session, bucket, path, file, upsert = false, reuseExisting = false) {
-  const { url, publishableKey } = supabaseConfig(env);
-  const token = await createDatabaseToken(env, session);
+  const { url, publishableKey } = publicSupabaseConfig(env);
+  const token = await requestToken(env, session);
   const response = await withDeadline(async signal => {
     const result = await fetch(`${url}/storage/v1/object/${bucket}/${path}`, {
       signal, method: 'POST',

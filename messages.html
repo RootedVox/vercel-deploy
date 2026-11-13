@@ -513,6 +513,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="./images/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-title" content="RootedVox" />
     <link rel="manifest" href="./images/site.webmanifest" />
+<script src="./forum-ui.js"></script>
 </head>
 <body>
     <div id="headerBox"></div>
@@ -651,14 +652,7 @@
     <div id="footerBox"></div>
     <script src="./common.js"></script>
     <script>
-        const DEVELOPER_NICKNAMES = [
-            "Sam.Li",
-            "Jerry",
-            "Maod1e",
-            "bYcHhh",
-            "曹颢喆 Jerry"
-        ];
-
+        const { escapeHtml, parseMessageContent, getFreshAvatar, renderMessageAvatars } = ForumUI;
         let currentPage = 0;
         const PAGE_SIZE = 20;
         let hasMore = true;
@@ -669,49 +663,25 @@
         let activeSort = 'newest';
         let activeZone = 'all';
         let searchTimer = null;
-        const MESSAGE_ZONES = [
-            { label: '学习互助', keywords: ['学习', '作业', '考试', '课程', '笔记', '竞赛', '选课', '大学'] },
-            { label: '活动社团', keywords: ['活动', '社团', '比赛', '演出', '运动', '招新', '音乐', '篮球', '足球'] },
-            { label: '失物招领', keywords: ['失物', '招领', '丢了', '捡到', '寻找', '遗失', '找到'] }
-        ];
-
-        function parseMessageContent(content = '', storedZone = '') {
-            const marker = content.match(/^【([^】]+)】\s*/);
-            const validZones = ['日常分享', ...MESSAGE_ZONES.map(zone => zone.label)];
-            if (storedZone === '校园生活') storedZone = '日常分享';
-            const markerZone = marker?.[1] === '校园生活' ? '日常分享' : marker?.[1];
-            const explicitZone = validZones.includes(markerZone) ? markerZone : '';
-            const text = explicitZone ? content.replace(/^【[^】]+】\s*/, '') : content;
-            const inferredZone = MESSAGE_ZONES.find(zone => zone.keywords.some(word => text.includes(word)))?.label;
-            return { zone: validZones.includes(storedZone) ? storedZone : (explicitZone || inferredZone || '日常分享'), text };
-        }
-
         let notifyPage = 0;
+        let notifyCursor = null;
         const NOTIFY_PAGE_SIZE = 10;
         let notifyHasMore = true;
         let notifyLoading = false;
         const MAX_IMAGES = 5;
         const MAX_SIZE = 5 * 1024 * 1024;
         const SCROLL_THRESHOLD = 350;
-        let userMap = {};
+        let feedCursor = null;
         let currentUser = null;
         let currentUserEmail = '';
         let currentUserRealName = '';
         let userId = '';
 
-        const avatarCacheVersion = Date.now();
-        function getFreshAvatar(src) {
-            if (!src) return '';
-            // Content-addressed avatars are immutable; legacy paths refresh once per visit.
-            if (/\.[a-f0-9]{64}\.png(?:[?#]|$)/.test(src)) return src;
-            return src + (src.includes('?') ? '&' : '?') + 't=' + avatarCacheVersion;
-        }
-
         async function refreshNotificationDot() {
             if (!userId) return;
-            const response = await request('/api/notifications?unread=1&limit=1', { credentials: 'include', cache: 'no-store' });
-            const data = response.ok ? await response.json() : { notifications: [] };
-            const hasUnread = data.notifications?.length > 0;
+            const response = await request('/api/notifications?exists=1', { credentials: 'include', cache: 'no-store' });
+            if (!response.ok) return;
+            const { hasUnread } = await response.json();
             notificationDot.style.display = hasUnread ? "block" : "none";
             dropdownDot.style.display = hasUnread ? "inline-block" : "none";
         }
@@ -725,12 +695,13 @@
 
             if (!append) {
                 notifyPage = 0;
+                notifyCursor = null;
                 notifyHasMore = true;
                 listEl.innerHTML = '<div style="text-align:center;padding:20px 0;color:#aeb5ae;">加载通知中...</div>';
             }
 
             try {
-                const response = await request(`/api/notifications?page=${notifyPage}&limit=${NOTIFY_PAGE_SIZE}`, { credentials: 'include', cache: 'no-store' });
+                const response = await request(`/api/notifications?page=${notifyPage}&limit=${NOTIFY_PAGE_SIZE}&cursor=${encodeURIComponent(notifyCursor || '')}`, { credentials: 'include', cache: 'no-store' });
                 if (!response.ok) throw new Error('通知服务暂时不可用');
                 const result = await response.json();
                 const notes = result.notifications || [];
@@ -764,11 +735,16 @@
                 if (!append) listEl.innerHTML = "";
                 listEl.appendChild(htmlFragment);
 
+                notifyCursor = result.nextCursor;
                 notifyHasMore = result.hasMore === true;
 
                 if (!append) {
-                    await request('/api/notifications', { method: 'PATCH', credentials: 'include' });
-                    refreshNotificationDot();
+                    const marked = await request(`/api/notifications?through=${encodeURIComponent(notes[0].id)}`, { method: 'PATCH', credentials: 'include' });
+                    if (marked.ok) {
+                        const { hasUnread } = await marked.json();
+                        notificationDot.style.display = hasUnread ? 'block' : 'none';
+                        dropdownDot.style.display = hasUnread ? 'inline-block' : 'none';
+                    }
                 }
 
                 notifyPage++;
@@ -804,52 +780,6 @@
             }
 
             refreshNotificationDot();
-        }
-
-        function compressImage(file, options = {}) {
-            return new Promise((resolve, reject) => {
-                if (!file.type.startsWith('image/')) {
-                    return resolve(file);
-                }
-                const defaultOpts = {
-                    maxWidth: 1920,
-                    maxHeight: 1080,
-                    quality: 0.6,
-                    mimeType: "image/webp"
-                };
-                const opts = { ...defaultOpts, ...options };
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = e => {
-                    const img = new Image();
-                    img.src = e.target.result;
-                    img.onload = () => {
-                        let width = img.width;
-                        let height = img.height;
-                        const scaleRatio = Math.min(opts.maxWidth / width, opts.maxHeight / height);
-                        if (scaleRatio < 1) {
-                            width = width * scaleRatio;
-                            height = height * scaleRatio;
-                        }
-                        const canvas = document.createElement("canvas");
-                        canvas.width = width;
-                        canvas.height = height;
-                        const ctx = canvas.getContext("2d");
-                        ctx.drawImage(img, 0, 0, width, height);
-                        canvas.toBlob(blob => {
-                            if (!blob) return reject("图片压缩失败");
-                            const suffixes = { "image/webp": ".webp", "image/png": ".png", "image/jpeg": ".jpg" };
-                            const suffix = suffixes[blob.type];
-                            if (!suffix) return reject(new Error("图片格式不受支持"));
-                            const newFileName = file.name.replace(/(\.\w+)$/, suffix);
-                            const compressedFile = new File([blob], newFileName, { type: blob.type });
-                            resolve(compressedFile);
-                        }, opts.mimeType, opts.quality);
-                    };
-                    img.onerror = () => reject("图片加载失败");
-                };
-                reader.onerror = () => reject("文件读取失败");
-            });
         }
 
         const pendingAvatarUploads = new WeakMap();
@@ -923,69 +853,6 @@
             } finally {
                 button.disabled = false;
             }
-        }
-
-        async function renderMessageAvatars() {
-            const items = document.querySelectorAll(".message-item");
-            items.forEach(el => {
-                const avatarUrl = el.dataset.avatarUrl;
-                const anonymous = el.dataset.anonymous === "true";
-                const box = el.querySelector(".message-avatar-box");
-                const username = el.querySelector(".message-author")?.textContent || "";
-                const firstChar = username.charAt(0) || "?";
-
-                const isDeveloper = el.dataset.official === "true" || DEVELOPER_NICKNAMES.includes(username);
-                const renderKey = JSON.stringify([avatarUrl, anonymous, username, isDeveloper]);
-                if (box.dataset.renderKey === renderKey) return;
-                box.dataset.renderKey = renderKey;
-
-                const devWrapStyle = isDeveloper
-                    ? `position:relative;padding:2px;border-radius:50%;background:linear-gradient(135deg,#ffd700,#ff9500);`
-                    : ``;
-                const devInnerStyle = isDeveloper
-                    ? `border-radius:50%;background:#fff;padding:1px;`
-                    : ``;
-
-                box.style.removeProperty("display");
-                box.style.removeProperty("flex-direction");
-                box.style.removeProperty("align-items");
-                box.style.removeProperty("gap");
-
-                if (anonymous) {
-                    box.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#000;"></div>`;
-                    return;
-                }
-
-                let avatarCore = "";
-
-                if (avatarUrl) {
-                    if (isDeveloper) {
-                        avatarCore = `
-                        <div style="${devWrapStyle}">
-                            <div style="${devInnerStyle}">
-                                <img src="${escapeHtml(getFreshAvatar(avatarUrl))}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:block;">
-                            </div>
-                            <span style="position:absolute;right:-6px;bottom:-2px;font-size:9px;font-weight:bold;color:#fff;background:#c28c00;padding:1px 4px;border-radius:6px;white-space:nowrap;z-index:2;">Dev</span>
-                        </div>`;
-                    } else {
-                        avatarCore = `<img src="${escapeHtml(getFreshAvatar(avatarUrl))}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">`;
-                    }
-                } else {
-                    if (isDeveloper) {
-                        avatarCore = `
-                        <div style="${devWrapStyle}">
-                            <div style="${devInnerStyle}">
-                                <div style="width:38px;height:38px;border-radius:50%;background:#ccc;display:flex;align-items:center;justify-content:center;color:#aeb5ae;">${escapeHtml(firstChar)}</div>
-                            </div>
-                            <span style="position:absolute;right:-6px;bottom:-2px;font-size:9px;font-weight:bold;color:#fff;background:#c28c00;padding:1px 4px;border-radius:6px;white-space:nowrap;z-index:2;">Dev</span>
-                        </div>`;
-                    } else {
-                        avatarCore = `<div style="width:38px;height:38px;border-radius:50%;background:#ccc;display:flex;align-items:center;justify-content:center;color:#aeb5ae;">${escapeHtml(firstChar)}</div>`;
-                    }
-                }
-
-                box.innerHTML = avatarCore;
-            });
         }
 
         async function initAuth() {
@@ -1084,30 +951,10 @@
             uploadProgress.style.display = 'block';
             progressBar.style.width = '0%';
             try {
-                const compressedFiles = [];
-                for (const file of files) {
-                    if (file.size < 100 * 1024) {
-                        compressedFiles.push(file);
-                    } else {
-                        const compressFile = await compressImage(file, {
-                            maxWidth: 1920,
-                            maxHeight: 1080,
-                            quality: 0.6,
-                            mimeType: "image/webp"
-                        });
-                        compressedFiles.push(compressFile);
-                    }
-                }
-                const form = new FormData();
-                form.append('kind', 'message');
-                compressedFiles.forEach(file => form.append('files', file, file.name));
                 progressBar.style.width = '45%';
-                const response = await request('/api/uploads', { method: 'POST', credentials: 'include', body: form });
-                if (!response.ok) throw new Error('图片上传失败');
+                const urls = await ForumUI.uploadFiles(files);
                 progressBar.style.width = '100%';
-                return (await response.json()).urls || [];
-            } catch (error) {
-                throw error;
+                return urls;
             } finally {
                 uploadProgress.style.display = 'none';
             }
@@ -1175,6 +1022,7 @@
                 container.innerHTML = '<div class="loading">加载留言中...</div>';
                 document.getElementById('messageFeed').scrollTop = 0;
                 currentPage = 0;
+                feedCursor = null;
                 hasMore = true;
                 if (loadMoreWrap) loadMoreWrap.remove();
                 document.querySelector('.no-more-tip')?.remove();
@@ -1187,7 +1035,7 @@
             try {
                 if (!window.RootedVoxPublicData) throw new Error('留言服务暂时不可用');
                 const result = await RootedVoxPublicData.listMessages({
-                    page: currentPage,
+                    page: currentPage, cursor: feedCursor,
                     limit: PAGE_SIZE,
                     sort: activeSort,
                     search: activeSearch,
@@ -1207,11 +1055,10 @@
                     }
                     hasMore = false;
                     showNoMoreTip();
-                    userMap = {};
                     return;
                 }
 
-                data.forEach(msg => { userMap[msg.id] = msg.username; });
+                feedCursor = result.nextCursor || null;
 
                 let html = '';
                 for (let msg of data) {
@@ -1260,7 +1107,7 @@
                     showNoMoreTip();
                 }
 
-                renderMessageAvatars();
+                renderMessageAvatars(data.map(msg => document.getElementById(`message-${msg.id}`)).filter(Boolean));
                 // A tall form can leave the first page shorter than the feed viewport.
                 requestAnimationFrame(() => {
                     const feed = document.getElementById('messageFeed');
@@ -1288,12 +1135,6 @@
                     <div class="empty-message no-more-tip" style="padding:20px 0;">— 已经到底啦，没有更多留言 —</div>
                 `);
             }
-        }
-
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text || '';
-            return div.innerHTML;
         }
 
         document.addEventListener('DOMContentLoaded', async function () {

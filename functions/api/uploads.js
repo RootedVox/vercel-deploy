@@ -1,5 +1,4 @@
 import { authenticateApi } from '../_lib/api.js';
-import { randomBase64Url } from '../_lib/crypto.js';
 import { json, methodNotAllowed } from '../_lib/http.js';
 import { uploadBusinessObject, requestBusinessData, listAvatarObjects, deleteAvatarObjects } from '../_lib/supabase.js';
 
@@ -49,7 +48,9 @@ export async function onRequestPost({ request, env }) {
       });
       // The accompanying database policies serialize deletion with profile saves
       // and refuse removal of any object currently referenced by a profile.
-      for (const item of obsolete) await deleteAvatarObjects(env, auth.session, ['business/' + item.name]);
+      if (obsolete.length) {
+        await deleteAvatarObjects(env, auth.session, obsolete.map(item => 'business/' + item.name));
+      }
       if (own.some(item => 'business/' + item.name === avatarPath)) return json({ urls: [String(env.BUSINESS_SUPABASE_URL).replace(/\/$/, '') + '/storage/v1/object/public/avatars/' + avatarPath] }, 201, auth.headers);
       if (own.length - obsolete.length >= AVATAR_LIMIT && !own.some(item => 'business/' + item.name === avatarPath)) return json({ error: 'avatar_storage_limit' }, 429, auth.headers);
     } catch { return json({ error: 'avatar_storage_unavailable' }, 503, auth.headers); }
@@ -57,10 +58,19 @@ export async function onRequestPost({ request, env }) {
   const urls = [];
   try {
     for (const file of files) {
+      const hash = kind === 'message'
+        ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await file.arrayBuffer())), byte => byte.toString(16).padStart(2, '0')).join('')
+        : null;
       const path = kind === 'avatar'
         ? avatarPath
-        : `business/${auth.session.user_id}/${randomBase64Url(24)}.${extensionFor(file.type)}`;
-      urls.push(await uploadBusinessObject(env, auth.session, bucket, path, file, false, kind === 'avatar'));
+        : `business/${auth.session.user_id}/${hash}.${extensionFor(file.type)}`;
+      if (kind === 'message') {
+        const ready = await requestBusinessData(env, auth.session, 'rpc/prepare_forum_media', {
+          method: 'POST', body: JSON.stringify({ object_name: path })
+        });
+        if (!ready) throw new Error('upload_cleanup_pending');
+      }
+      urls.push(await uploadBusinessObject(env, auth.session, bucket, path, file, false, true));
     }
     return json({ urls }, 201, auth.headers);
   } catch {

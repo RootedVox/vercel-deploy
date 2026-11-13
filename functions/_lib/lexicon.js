@@ -71,7 +71,7 @@ function buildIndex(rawText, fingerprint) {
  * 取词库索引。
  * 🚨 Fail-Safe：如果无法获取任何有效词库，必须返回 null。
  */
-export async function loadLexicon(env) {
+async function refresh(env) {
   const now = Date.now();
   // 如果内存里有缓存且未过期，直接用
   if (cache && now - cache.loadedAt < CACHE_TTL_MS) return cache;
@@ -90,13 +90,15 @@ export async function loadLexicon(env) {
       return cache ? cache : null;
     }
 
-    const fingerprint = `${value.length}:${value.slice(0, 48)}`;
+    const fingerprint = value;
     if (cache && cache.fingerprint === fingerprint) {
       cache.loadedAt = now;
       return cache;
     }
 
-    cache = buildIndex(value, fingerprint);
+    const next = buildIndex(value, fingerprint);
+    if (!next.size) return null;
+    cache = next;
     console.log(`[Lexicon] 索引重建完成：词条 ${cache.size} 条，最长 ${cache.maxLen}，跳过 ${cache.skipped}`);
     return cache;
   } catch (e) {
@@ -133,4 +135,10 @@ export function scanLexicon(text, lex) {
   }
 
   return { hit: hits.size > 0, words: [...hits] };
+}
+let refreshing;
+export function loadLexicon(env) {
+  if (cache && Date.now() - cache.loadedAt < CACHE_TTL_MS) return Promise.resolve(cache);
+  if (!refreshing) refreshing = refresh(env).finally(() => { refreshing = null; });
+  return refreshing;
 }

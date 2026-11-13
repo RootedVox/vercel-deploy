@@ -29,7 +29,7 @@ function setup() {
     parseMessageContent: () => ({ zone: '校园生活', text: '留言' }),
     escapeHtml: value => value || '', renderMessageAvatars() {}, showNoMoreTip() {}
   });
-  vm.runInContext(`let currentPage=0, PAGE_SIZE=20, hasMore=true, isLoadingMore=false, abortController=null, activeSearch='', activeSort='newest', activeZone='all', userMap={};\n${loader}\nglobalThis.load=loadMainMessages;`, context);
+  vm.runInContext(`let currentPage=0, PAGE_SIZE=20, hasMore=true, isLoadingMore=false, abortController=null, activeSearch='', activeSort='newest', activeZone='all', feedCursor=null;\n${loader}\nglobalThis.load=loadMainMessages;`, context);
   return { calls, container, feed, frames, load: context.load };
 }
 const item = { id: '1', username: '测试', content: '留言', created_at: '2026-01-01', pic_url: [] };

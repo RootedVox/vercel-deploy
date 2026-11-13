@@ -305,6 +305,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="./images/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-title" content="RootedVox" />
     <link rel="manifest" href="./images/site.webmanifest" />
+<script src="./forum-ui.js"></script>
 </head>
 <body>
     <!-- 公共头部挂载容器 -->
@@ -328,58 +329,7 @@
     <!-- 页面业务JS完整保留 -->
     <script>
 // ===================== 开发者昵称白名单，与messages.html保持同步 =====================
-const DEVELOPER_NICKNAMES = [
-    "Sam.Li",
-    "Jerry",
-    "Maod1e",
-    "bYcHhh",
-    "曹颢喆 Jerry"
-];
-
-// ===================== 新增：通用图片压缩函数（和messages.html保持一致） =====================
-function compressImage(file, options = {}) {
-    return new Promise((resolve, reject) => {
-        if (!file.type.startsWith('image/')) {
-            return resolve(file);
-        }
-        const defaultOpts = {
-            maxWidth: 1920,
-            maxHeight: 1080,
-            quality: 0.6,
-            mimeType: "image/webp"
-        };
-        const opts = { ...defaultOpts, ...options };
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = e => {
-            const img = new Image();
-            img.src = e.target.result;
-            img.onload = () => {
-                let width = img.width;
-                let height = img.height;
-                const scaleRatio = Math.min(opts.maxWidth / width, opts.maxHeight / height);
-                if (scaleRatio < 1) {
-                    width = width * scaleRatio;
-                    height = height * scaleRatio;
-                }
-                const canvas = document.createElement("canvas");
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext("2d");
-                ctx.drawImage(img, 0, 0, width, height);
-                canvas.toBlob(blob => {
-                    if (!blob) return reject("图片压缩失败");
-                    const suffix = opts.mimeType === "image/webp" ? ".webp" : ".jpg";
-                    const newFileName = file.name.replace(/(\.\w+)$/, suffix);
-                    const compressedFile = new File([blob], newFileName, { type: opts.mimeType });
-                    resolve(compressedFile);
-                }, opts.mimeType, opts.quality);
-            };
-            img.onerror = () => reject("图片加载失败");
-        };
-        reader.onerror = () => reject("文件读取失败");
-    });
-}
+const { escapeHtml, parseMessageContent, renderMessageAvatars } = ForumUI;
 // Identity and data writes are handled by the business backend.
 let mainMsgId = null;
 let currentUser = null;
@@ -391,36 +341,12 @@ let allMessages = [];
 let userMap = Object.create(null);
 const COMMENT_BATCH_SIZE = 20;
 let orderedComments = [];
+let threadCursor = null;
+let pageLoading = false;
 let renderedComments = 0;
 function getMsgIdFromUrl() {
     const params = new URLSearchParams(window.location.search);
     return params.get('id');
-}
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text || '';
-    return div.innerHTML;
-}
-function parseMessageContent(content = '', storedZone = '') {
-    const marker = content.match(/^【([^】]+)】\s*/);
-    const groups = [
-        { label: '学习互助', keywords: ['学习', '作业', '考试', '课程', '笔记', '竞赛', '选课', '大学'] },
-        { label: '活动社团', keywords: ['活动', '社团', '比赛', '演出', '运动', '招新', '音乐', '篮球', '足球'] },
-        { label: '失物招领', keywords: ['失物', '招领', '丢了', '捡到', '寻找', '遗失', '找到'] }
-    ];
-    const validZones = ['日常分享', ...groups.map(group => group.label)];
-    if (storedZone === '校园生活') storedZone = '日常分享';
-    const markerZone = marker?.[1] === '校园生活' ? '日常分享' : marker?.[1];
-    const explicitZone = validZones.includes(markerZone) ? markerZone : '';
-    const text = explicitZone ? content.replace(/^【[^】]+】\s*/, '') : content;
-    const inferred = groups.find(group => group.keywords.some(word => text.includes(word)))?.label;
-    return { zone: validZones.includes(storedZone) ? storedZone : (explicitZone || inferred || '日常分享'), text };
-}
-const avatarCacheVersion = Date.now();
-function getFreshAvatar(src) {
-    if (!src) return '';
-    if (/\.[a-f0-9]{64}\.png(?:[?#]|$)/.test(src)) return src;
-    return src + (src.includes('?') ? '&' : '?') + 't=' + avatarCacheVersion;
 }
 // ==================== 登录验证 ====================
 async function initAuth() {
@@ -437,99 +363,31 @@ async function initAuth() {
     }
 }
 // ==================== 图片上传【改造：先压缩再上传】 ====================
-async function uploadImages(files, targetId) {
-    if (!files || files.length === 0) return [];
-    // 批量压缩图片
-    const compressedFiles = [];
-    for (const file of files) {
-        // 小于100KB原图跳过压缩，避免画质损耗
-        if (file.size < 100 * 1024) {
-            compressedFiles.push(file);
-        } else {
-            const compressFile = await compressImage(file, {
-                maxWidth: 1920,
-                maxHeight: 1080,
-                quality: 0.6,
-                mimeType: "image/webp"
-            });
-            compressedFiles.push(compressFile);
-        }
+const uploadImages = files => ForumUI.uploadFiles(files);
+const previewUrls = new Map();
+function releasePreviews(id) {
+    for (const url of previewUrls.get(id) || []) URL.revokeObjectURL(url);
+    previewUrls.delete(id);
+}
+function previewImages(id) {
+    const input = document.getElementById(`imageUpload-${id}`);
+    const box = document.getElementById(`preview-${id}`);
+    releasePreviews(id);
+    box.replaceChildren();
+    const files = Array.from(input.files);
+    if (files.length > 5 || files.some(file => !file.type.startsWith('image/') || file.size > 5 * 1024 * 1024)) {
+        input.value = '';
+        alert('最多选择 5 张图片，每张不超过 5MB');
+        return;
     }
-    const form = new FormData();
-    form.append('kind', 'message');
-    compressedFiles.forEach(file => form.append('files', file, file.name));
-    const response = await request('/api/uploads', { method: 'POST', credentials: 'include', body: form });
-    if (!response.ok) throw new Error('图片上传失败');
-    return (await response.json()).urls || [];
-}
-function previewImages(targetId) {
-    const input = document.getElementById(`imageUpload-${targetId}`);
-    const box = document.getElementById(`preview-${targetId}`);
-    if (!input || !box) return;
-    box.innerHTML = '';
-    if (!input.files) return;
-    Array.from(input.files).forEach(file => {
-        const r = new FileReader();
-        r.onload = e => {
-            const img = document.createElement('img');
-            img.src = e.target.result;
-            img.className = 'preview-image-item';
-            box.appendChild(img);
-        };
-        r.readAsDataURL(file);
-    });
-}
-// ==================== 头像渲染（增加Dev头像框+角标，与messages.html逻辑完全对齐） ====================
-function renderMessageAvatars(items = document.querySelectorAll('.message-item')) {
-    items.forEach(el => {
-        const avatarUrl = el.dataset.avatarUrl;
-        const box = el.querySelector('.message-avatar-box');
-        if (!box) return;
-        const name = el.querySelector('.message-author')?.textContent || '';
-        const c = name.charAt(0) || '?';
-
-        const isDeveloper = el.dataset.official === "true" || DEVELOPER_NICKNAMES.includes(name);
-
-        const devWrapStyle = isDeveloper
-            ? `position:relative;padding:2px;border-radius:50%;background:linear-gradient(135deg,#ffd700,#ff9500);`
-            : ``;
-        const devInnerStyle = isDeveloper
-            ? `border-radius:50%;background:#fff;padding:1px;`
-            : ``;
-
-        if (name === '匿名用户') {
-            box.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#000;"></div>`;
-            return;
-        }
-
-        let avatarCore = "";
-        if (avatarUrl) {
-            if (isDeveloper) {
-                avatarCore = `
-                <div style="${devWrapStyle}">
-                    <div style="${devInnerStyle}">
-                        <img src="${escapeHtml(getFreshAvatar(avatarUrl))}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:block;">
-                    </div>
-                    <span style="position:absolute;right:-6px;bottom:-2px;font-size:9px;font-weight:bold;color:#fff;background:#c28c00;padding:1px 4px;border-radius:6px;white-space:nowrap;z-index:2;">Dev</span>
-                </div>`;
-            } else {
-                avatarCore = `<img src="${escapeHtml(getFreshAvatar(avatarUrl))}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">`;
-            }
-        } else {
-            if (isDeveloper) {
-                avatarCore = `
-                <div style="${devWrapStyle}">
-                    <div style="${devInnerStyle}">
-                        <div style="width:38px;height:38px;border-radius:50%;background:#ccc;display:flex;align-items:center;justify-content:center;color:#aeb5ae;">${escapeHtml(c)}</div>
-                    </div>
-                    <span style="position:absolute;right:-6px;bottom:-2px;font-size:9px;font-weight:bold;color:#fff;background:#c28c00;padding:1px 4px;border-radius:6px;white-space:nowrap;z-index:2;">Dev</span>
-                </div>`;
-            } else {
-                avatarCore = `<div style="width:38px;height:38px;border-radius:50%;background:#ccc;display:flex;align-items:center;justify-content:center;color:#aeb5ae;">${escapeHtml(c)}</div>`;
-            }
-        }
-        box.innerHTML = avatarCore;
-    });
+    const urls = files.map(file => URL.createObjectURL(file));
+    previewUrls.set(id, urls);
+    for (const url of urls) {
+        const image = document.createElement('img');
+        image.className = 'preview-image-item';
+        image.src = url;
+        box.appendChild(image);
+    }
 }
 // ==================== 加载内容 ====================
 async function loadMainMessage() {
@@ -537,7 +395,9 @@ async function loadMainMessage() {
     if (!/^(?:\d+|[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.test(mainMsgId || '')) return location.replace('/messages.html');
     try {
         if (!window.RootedVoxPublicData) throw new Error('public_data_unavailable');
-        allMessages = await RootedVoxPublicData.getThread(mainMsgId);
+        const page = await RootedVoxPublicData.threadPage(mainMsgId);
+        allMessages = page.messages;
+        threadCursor = page.nextCursor;
     } catch {
         document.getElementById('mainMessageCard').innerHTML = '<div class="loading">留言暂时无法加载。<button class="comment-btn" onclick="retryThread()">重试</button></div>';
         document.getElementById('commentContainer').innerHTML = '<div class="empty-comment">评论暂时无法加载，请重试。</div>';
@@ -585,35 +445,19 @@ function renderMainMessage(msg) {
 function loadAllComments() {
     const container = document.getElementById('commentContainer');
     const more = document.getElementById('moreComments');
-    const children = new Map();
-    for (const message of allMessages) {
-        userMap[message.id] = message.username;
-        if (message.reply_to == null) continue;
-        const parent = String(message.reply_to);
-        if (!children.has(parent)) children.set(parent, []);
-        children.get(parent).push(message);
-    }
-
-    // Flatten in depth-first order so every parent precedes its replies.
-    const stack = [...(children.get(String(mainMsgId)) || [])].reverse();
-    const seen = new Set([String(mainMsgId)]);
-    while (stack.length) {
-        const message = stack.pop();
-        const id = String(message.id);
-        if (seen.has(id)) continue;
-        seen.add(id);
-        orderedComments.push(message);
-        const replies = children.get(id) || [];
-        for (let i = replies.length - 1; i >= 0; i--) stack.push(replies[i]);
-    }
+    orderedComments = allMessages.filter(message => message.reply_to != null);
+    renderedComments = 0;
+    userMap = Object.create(null);
+    for (const message of allMessages) userMap[message.id] = message.username;
 
     container.classList.remove('loading');
     if (!orderedComments.length) {
+        more.hidden = true;
         container.innerHTML = '<div class="empty-comment">暂无评论</div>';
         return;
     }
     container.replaceChildren();
-    more.addEventListener('click', appendCommentBatch);
+    more.onclick = loadMoreComments;
     appendCommentBatch();
 }
 
@@ -645,21 +489,56 @@ function appendCommentBatch() {
     container.append(template.content);
     renderMessageAvatars(items);
     renderedComments += batch.length;
-    document.getElementById('moreComments').hidden = renderedComments >= orderedComments.length;
+    document.getElementById('moreComments').hidden = !threadCursor && renderedComments >= orderedComments.length;
 }
 
-function observeMoreComments() {
-    if (!('IntersectionObserver' in window) || renderedComments >= orderedComments.length) return;
+async function loadMoreComments() {
+    if (pageLoading) return false;
+    pageLoading = true;
     const more = document.getElementById('moreComments');
-    const observer = new IntersectionObserver(([entry]) => {
-        if (!entry.isIntersecting) return;
+    more.disabled = true;
+    try {
+        if (renderedComments >= orderedComments.length && threadCursor) {
+            const page = await RootedVoxPublicData.threadPage(mainMsgId, threadCursor);
+            for (const message of page.messages) {
+                if (Object.hasOwn(userMap, message.id)) continue;
+                userMap[message.id] = message.username;
+                orderedComments.push(message);
+            }
+            threadCursor = page.nextCursor;
+        }
         appendCommentBatch();
-        if (more.hidden) observer.disconnect();
+        more.textContent = '加载更多评论';
+        return true;
+    } catch (error) {
+        if (error.message === 'stale_cursor') {
+            more.textContent = '评论已更新，重新加载';
+            more.onclick = retryThread;
+        } else {
+            more.textContent = '加载失败，点击重试';
+        }
+        return false;
+    } finally {
+        more.disabled = false;
+        pageLoading = false;
+    }
+}
+
+let commentObserver;
+function observeMoreComments() {
+    commentObserver?.disconnect();
+    const more = document.getElementById('moreComments');
+    if (!('IntersectionObserver' in window) || more.hidden) return;
+    commentObserver = new IntersectionObserver(async ([entry]) => {
+        if (!entry.isIntersecting || pageLoading) return;
+        const loaded = await loadMoreComments();
+        if (!loaded || more.hidden) commentObserver.disconnect();
     });
-    observer.observe(more);
+    commentObserver.observe(more);
 }
 // ==================== 评论框 ====================
 function closeAllCommentBoxes() {
+    for (const id of previewUrls.keys()) releasePreviews(id);
     document.querySelectorAll('.comment-input-container').forEach(e => e.style.display = 'none');
 }
 function showMainCommentBox(tid) {
@@ -757,10 +636,8 @@ async function autoJumpFromUrl() {
     const replyId = params.get('replyId');
 
     if (!replyId) return;
-    const index = orderedComments.findIndex(message => String(message.id) === replyId);
-    while (index >= renderedComments) {
-        await new Promise(requestAnimationFrame);
-        appendCommentBatch();
+    while (!document.getElementById(`msg-${replyId}`) && (threadCursor || renderedComments < orderedComments.length)) {
+        if (!await loadMoreComments()) break;
     }
     jumpToComment(replyId);
 }

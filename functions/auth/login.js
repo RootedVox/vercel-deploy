@@ -4,6 +4,8 @@ import { cookieNames, json, methodNotAllowed, redirect, safeReturnPath, setCooki
 import { buildAuthorizationUrl, discover } from '../_lib/oidc.js';
 import { createTransaction, pruneAuthState } from '../_lib/store.js';
 
+let nextPruneAt = 0;
+
 export async function onRequestGet({ request, env }) {
   let config;
   try { config = getConfig(env); } catch { return json({ error: 'configuration_error' }, 503); }
@@ -13,7 +15,10 @@ export async function onRequestGet({ request, env }) {
 
   try {
     const discovery = await discover(config);
-    try { await pruneAuthState(env); } catch {}
+    if (Date.now() >= nextPruneAt) {
+      nextPruneAt = Date.now() + 5 * 60_000;
+      try { await pruneAuthState(env); } catch { nextPruneAt = 0; }
+    }
     const state = randomBase64Url(32);
     const nonce = randomBase64Url(32);
     const codeVerifier = randomBase64Url(64);

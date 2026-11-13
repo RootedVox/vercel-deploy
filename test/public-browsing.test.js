@@ -45,7 +45,7 @@ function threadHarness(read) {
   const main = node(), comments = node();
   let renders = 0, jumps = 0, observations = 0, initialize;
   const context = vm.createContext({
-    window: { RootedVoxPublicData: {} }, RootedVoxPublicData: { getThread: read },
+    window: { RootedVoxPublicData: {} }, RootedVoxPublicData: { threadPage: async id => ({ messages: await read(id) }) },
     document: { getElementById: id => id === 'mainMessageCard' ? main : comments,
       addEventListener(_type, callback) { initialize = callback; } },
     getMsgIdFromUrl: () => '1', location: { replace() {} },
@@ -55,7 +55,7 @@ function threadHarness(read) {
     initAuth: () => new Promise(() => {})
   });
   const start = details.indexOf('async function loadMainMessage()');
-  vm.runInContext('let mainMsgId, allMessages, authReady;\n' + details.slice(start, details.indexOf('function renderMainMessage(', start)) + '\nglobalThis.retry = retryThread;', context);
+  vm.runInContext('let mainMsgId, allMessages, authReady, threadCursor;\n' + details.slice(start, details.indexOf('function renderMainMessage(', start)) + '\nglobalThis.retry = retryThread;', context);
   const init = details.indexOf("document.addEventListener('DOMContentLoaded'");
   vm.runInContext(details.slice(init, details.indexOf('</script>', init)), context);
   return { main, comments, retry: context.retry, initialize: () => initialize(), renders: () => renders, jumps: () => jumps, observations: () => observations };
