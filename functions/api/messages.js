@@ -72,7 +72,13 @@ async function listMessages(request, env) {
   } catch {
     // is_official 由 20261113 迁移提供；未迁移时退回旧字段集，官方标识按 false 处理
     params.set('select', 'id,username,content,zone,pic_url,created_at,reply_to,avatar_url');
-    rows = await requestPublicData(env, `approved_messages_public?${params}`);
+    try {
+      rows = await requestPublicData(env, `approved_messages_public?${params}`);
+    } catch {
+      // 更早的头像迁移也未执行时去掉 avatar_url
+      params.set('select', 'id,username,content,zone,pic_url,created_at,reply_to');
+      rows = await requestPublicData(env, `approved_messages_public?${params}`);
+    }
   }
   return json({ ...pageResult(rows.map(normalizeMessageZone), limit, 'messages'), page });
 }
