@@ -37,10 +37,18 @@ export async function onRequestPatch({ request, env }) {
   try {
     const through = new URL(request.url).searchParams.get('through');
     if (through !== null && !/^\d{1,19}$/.test(through)) return json({ error: 'invalid_request' }, 400, auth.headers);
-    const hasUnread = await requestBusinessData(env, auth.session, 'rpc/read_forum_notifications', {
-      method: 'POST', body: JSON.stringify({ through_id: through })
-    });
-    return json({ ok: true, hasUnread }, 200, auth.headers);
+    try {
+      const hasUnread = await requestBusinessData(env, auth.session, 'rpc/read_forum_notifications', {
+        method: 'POST', body: JSON.stringify({ through_id: through })
+      });
+      return json({ ok: true, hasUnread }, 200, auth.headers);
+    } catch {
+      // 迁移未执行时退回旧的全量标记
+      await requestBusinessData(env, auth.session, `business_notifications?user_id=eq.${encodeURIComponent(auth.session.user_id)}&read=eq.false`, {
+        method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ read: true })
+      });
+      return json({ ok: true, hasUnread: false }, 200, auth.headers);
+    }
   } catch { return json({ error: 'notifications_update_failed' }, 503, auth.headers); }
 }
 

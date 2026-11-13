@@ -1,4 +1,5 @@
-import { processNextModeration } from '../_lib/moderation-worker.js';
+import { moderationQueueAvailable, processNextModeration } from '../_lib/moderation-worker.js';
+import { runAiCheck } from '../_lib/moderate-content.js';
 import { authenticateApi, cleanText, integerParam } from '../_lib/api.js';
 import { json, methodNotAllowed } from '../_lib/http.js';
 import { applyPage, pageResult } from '../_lib/pagination.js';
@@ -23,21 +24,26 @@ async function listMessages(request, env) {
 
   if (thread) {
     if (!MESSAGE_ID.test(thread)) return json({ error: 'invalid_request' }, 400);
-    const query = new URLSearchParams({ root_id: thread });
+    const root = new URLSearchParams({ root_id: thread });
     if (url.searchParams.has('batch') && !/^\d+$/.test(thread)) {
+      const query = new URLSearchParams(root);
       query.set('page_size', String(integerParam(url.searchParams.get('batch'), 20, 1, 100)));
       const after = url.searchParams.get('after');
       if (after) {
         if (!MESSAGE_ID.test(after) || /^\d+$/.test(after)) return json({ error: 'invalid_cursor' }, 400);
         query.set('after_id', after);
       }
-      const result = await requestPublicData(env, `rpc/public_forum_thread_page?${query}`);
-      if (!result.exists) return json({ error: 'not_found' }, 404);
-      if (!result.cursorValid) return json({ error: 'stale_cursor' }, 409);
-      return json({ messages: result.messages.map(normalizeMessageZone), nextCursor: result.nextCursor });
+      try {
+        const result = await requestPublicData(env, `rpc/public_forum_thread_page?${query}`);
+        if (!result.exists) return json({ error: 'not_found' }, 404);
+        if (!result.cursorValid) return json({ error: 'stale_cursor' }, 409);
+        return json({ messages: result.messages.map(normalizeMessageZone), nextCursor: result.nextCursor });
+      } catch {
+        // 分页 RPC 随 20261113 迁移上线；未迁移时退回旧接口，一次返回整栋楼
+      }
     }
     // The RPC returns a JSON array to avoid PostgREST's global table row cap.
-    const rows = await requestPublicData(env, `rpc/public_forum_thread?${query}`);
+    const rows = await requestPublicData(env, `rpc/public_forum_thread?${root}`);
     if (!rows.length) return json({ error: 'not_found' }, 404);
     return json({ messages: rows.map(normalizeMessageZone) });
   }
@@ -60,7 +66,14 @@ async function listMessages(request, env) {
   }
   if (search) params.set('content', `ilike.*${search.replace(/[,*()]/g, ' ')}*`);
 
-  const rows = await requestPublicData(env, `approved_messages_public?${params}`);
+  let rows;
+  try {
+    rows = await requestPublicData(env, `approved_messages_public?${params}`);
+  } catch {
+    // is_official 由 20261113 迁移提供；未迁移时退回旧字段集，官方标识按 false 处理
+    params.set('select', 'id,username,content,zone,pic_url,created_at,reply_to,avatar_url');
+    rows = await requestPublicData(env, `approved_messages_public?${params}`);
+  }
   return json({ ...pageResult(rows.map(normalizeMessageZone), limit, 'messages'), page });
 }
 
@@ -133,6 +146,18 @@ async function createMessage(request, env, waitUntil) {
     if (!target.length) return json({ error: 'reply_target_not_found' }, 404, auth.headers);
   }
 
+  const queued = await moderationQueueAvailable(env);
+  let flag = 0;
+  if (!queued) {
+    // 20261113 迁移未执行时退回同步审核：只有模型明确通过才直接发布
+    try {
+      const review = await runAiCheck(content, imageUrls, env);
+      if (review.verdict === 'safe' && review.reason === 'model_safe') flag = 1;
+    } catch {
+      flag = 0;
+    }
+  }
+
   try {
     const rows = await requestBusinessData(env, auth.session, 'messages?select=id', {
       method: 'POST',
@@ -144,12 +169,12 @@ async function createMessage(request, env, waitUntil) {
         zone,
         pic_url: imageUrls.length ? imageUrls : null,
         contact_email: auth.session.email || null,
-        flag: 0,
+        flag,
         reply_to: replyTo || null
       })
     });
     const messageId = rows[0].id;
-    if (waitUntil && env.AUTH_STORE_SUPABASE_SECRET_KEY && !imageUrls.length) {
+    if (queued && waitUntil && env.AUTH_STORE_SUPABASE_SECRET_KEY && !imageUrls.length) {
       waitUntil(processNextModeration(env, messageId).catch(() => {}));
     }
     return json({ ok: true, id: messageId }, 201, auth.headers);

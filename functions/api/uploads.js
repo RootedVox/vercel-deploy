@@ -65,10 +65,15 @@ export async function onRequestPost({ request, env }) {
         ? avatarPath
         : `business/${auth.session.user_id}/${hash}.${extensionFor(file.type)}`;
       if (kind === 'message') {
-        const ready = await requestBusinessData(env, auth.session, 'rpc/prepare_forum_media', {
-          method: 'POST', body: JSON.stringify({ object_name: path })
-        });
-        if (!ready) throw new Error('upload_cleanup_pending');
+        let ready = true;
+        try {
+          ready = await requestBusinessData(env, auth.session, 'rpc/prepare_forum_media', {
+            method: 'POST', body: JSON.stringify({ object_name: path })
+          });
+        } catch {
+          // 迁移未执行时跳过登记，沿用旧上传流程
+        }
+        if (ready === false) throw new Error('upload_cleanup_pending');
       }
       urls.push(await uploadBusinessObject(env, auth.session, bucket, path, file, false, true));
     }
