@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>留言详情 - RootedVox</title>
-    <script src="./request.js?v=20261101"></script>
-    <script src="./auth-client.js"></script>
-    <script src="./public-data.js"></script>
+    <script defer src="./request.js?v=20261101"></script>
+    <script defer src="./auth-client.js"></script>
+    <script defer src="./public-data.js"></script>
     <!-- 引入全局公共样式 -->
     <link rel="stylesheet" href="./common.css">
     <style>
@@ -306,6 +306,7 @@
     <meta name="apple-mobile-web-app-title" content="RootedVox" />
     <link rel="manifest" href="./images/site.webmanifest" />
 <script src="./forum-ui.js"></script>
+<script defer src="./forum-drafts.js"></script>
 </head>
 <body>
     <!-- 公共头部挂载容器 -->
@@ -356,6 +357,7 @@ async function initAuth() {
         if (!session?.authenticated) return false;
         currentUser = session.user;
         userId = session.user.id;
+        ForumDrafts.bind(userId);
         currentUserEmail = session.user.email || '';
         currentUserRealName = session.user.name || session.user.email?.split('@')[0] || '用户';
         return true;
@@ -372,6 +374,8 @@ function releasePreviews(id) {
 }
 function previewImages(id) {
     const input = document.getElementById(`imageUpload-${id}`);
+    const text = document.querySelector(`#reply-box-${id} textarea`)?.value || '';
+    ForumDrafts.save('reply-' + id, { text, attachments: [] });
     const box = document.getElementById(`preview-${id}`);
     releasePreviews(id);
     box.replaceChildren();
@@ -426,6 +430,11 @@ async function retryThread() {
     if (await loadMainMessage()) {
         if (replyId) jumpToComment(replyId);
         observeMoreComments();
+        const target = new URLSearchParams(location.search).get('compose');
+        if (target && await authReady && ForumDrafts.get('reply-' + target) && document.getElementById('reply-box-' + target)) {
+            if (target === mainMsgId) showMainCommentBox(target);
+            else showReplyBox(target);
+        }
     }
 }
 function renderMainMessage(msg) {
@@ -563,6 +572,31 @@ function closeAllCommentBoxes() {
     for (const id of previewUrls.keys()) releasePreviews(id);
     document.querySelectorAll('.comment-input-container').forEach(e => e.style.display = 'none');
 }
+function bindReplyDraft(tid, box) {
+    const key = 'reply-' + tid;
+    const text = box.querySelector('textarea');
+    const anon = box.querySelector('input[type=checkbox]');
+    const draft = ForumDrafts.get(key);
+    if (draft) {
+        text.value = draft.text;
+        anon.checked = draft.anonymous === true;
+        const preview = document.getElementById('preview-' + tid);
+        for (const src of draft.attachments || []) {
+            const img = document.createElement('img');
+            img.className = 'preview-image-item';
+            img.src = src;
+            img.alt = '已上传的图片';
+            preview.append(img);
+        }
+    }
+    const save = () => ForumDrafts.save(key, { text: text.value, anonymous: anon.checked });
+    text.oninput = save;
+    anon.onchange = save;
+    box.querySelector('.cancel-comment-btn').onclick = () => {
+        ForumDrafts.clear(key);
+        closeAllCommentBoxes();
+    };
+}
 function showMainCommentBox(tid) {
     closeAllCommentBoxes();
     const b = document.getElementById(`reply-box-${tid}`);
@@ -581,8 +615,9 @@ function showMainCommentBox(tid) {
     </div>
     <div>
         <button class="comment-submit-btn" onclick="submitComment('${tid}', 'main')">发布评论</button>
-        <button class="cancel-comment-btn" onclick="closeAllCommentBoxes()">取消</button>
+        <button class="cancel-comment-btn" >取消</button>
     </div>`;
+    bindReplyDraft(tid, b);
 }
 function showReplyBox(tid) {
     closeAllCommentBoxes();
@@ -603,8 +638,9 @@ function showReplyBox(tid) {
     </div>
     <div>
         <button class="comment-submit-btn" onclick="submitComment('${tid}', 'reply')">发布回复</button>
-        <button class="cancel-comment-btn" onclick="closeAllCommentBoxes()">取消</button>
+        <button class="cancel-comment-btn" >取消</button>
     </div>`;
+    bindReplyDraft(tid, b);
 }
 // ==================== 提交评论 ====================
 let commentSubmitting = false;
@@ -624,21 +660,35 @@ async function submitComment(rid, type) {
         if (!content) { alert('内容不能为空'); return; }
         const ano = document.getElementById(`anonymous-${rid}`)?.checked || false;
         const files = document.getElementById(`imageUpload-${rid}`)?.files;
-        const urls = files && files.length > 0 ? await uploadImages(files, rid) : [];
+        const key = 'reply-' + rid;
+        const urls = files?.length ? await uploadImages(files, rid) : ForumDrafts.get(key)?.attachments || [];
+        ForumDrafts.save(key, { text: content, anonymous: ano, attachments: urls });
+        const payload = { content, anonymous: ano, imageUrls: urls, replyTo: rid };
+        const lastSubmission = ForumDrafts.get(key)?.submissionId;
+        payload.submissionId = ForumDrafts.submission(key, payload);
+        payload.retry = payload.submissionId === lastSubmission;
         const response = await request('/api/messages', {
             method: 'POST', credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content, anonymous: ano, imageUrls: urls, replyTo: rid })
+            body: JSON.stringify(payload)
         });
-        if (response.status === 401) return RootedVoxAuth.handleLogin('/details' + location.search);
+        if (response.status === 401) throw new Error('login_required');
         if (!response.ok) throw new Error('comment_failed');
+        ForumDrafts.clear(key);
         el.value = '';
         const input = document.getElementById(`imageUpload-${rid}`);
         if (input) input.value = '';
         document.getElementById(`preview-${rid}`)?.replaceChildren();
         alert('发布成功！等待审核');
         closeAllCommentBoxes();
-    } catch {
+    } catch (error) {
+        if (error.message === 'login_required') {
+            const url = new URL('/details', location.origin);
+            url.searchParams.set('id', mainMsgId);
+            url.searchParams.set('compose', rid);
+            if (rid !== mainMsgId) url.searchParams.set('replyId', rid);
+            return RootedVoxAuth.handleLogin(url.pathname + url.search);
+        }
         alert('发布失败，请检查网络后重试。内容和图片已保留。');
     } finally {
         commentSubmitting = false;

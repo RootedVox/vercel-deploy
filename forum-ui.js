@@ -75,12 +75,12 @@
                   avatarCore = `
                   <div style="${devWrapStyle}">
                       <div style="${devInnerStyle}">
-                          <img src="${escapeHtml(getFreshAvatar(avatarUrl))}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:block;">
+                          <img loading="lazy" decoding="async" width="38" height="38" alt="" src="${escapeHtml(getFreshAvatar(avatarUrl))}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:block;">
                       </div>
                       <span style="position:absolute;right:-6px;bottom:-2px;font-size:9px;font-weight:bold;color:#fff;background:#c28c00;padding:1px 4px;border-radius:6px;white-space:nowrap;z-index:2;">Dev</span>
                   </div>`;
               } else {
-                  avatarCore = `<img src="${escapeHtml(getFreshAvatar(avatarUrl))}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">`;
+                  avatarCore = `<img loading="lazy" decoding="async" width="38" height="38" alt="" src="${escapeHtml(getFreshAvatar(avatarUrl))}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">`;
               }
           } else {
               if (isDeveloper) {
@@ -159,6 +159,7 @@
               form.append('files', image, image.name);
           }
           const response = await request('/api/uploads', { method: 'POST', credentials: 'include', body: form });
+          if (response.status === 401) throw new Error('login_required');
           if (!response.ok) throw new Error('图片上传失败');
           const { urls } = await response.json();
           if (urls?.length !== missing.length) throw new Error('图片上传未完成');

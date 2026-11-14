@@ -4,7 +4,7 @@ import { authenticateApi, cleanText, integerParam } from '../_lib/api.js';
 import { json, methodNotAllowed } from '../_lib/http.js';
 import { applyPage, pageResult } from '../_lib/pagination.js';
 import { resolveProfileNickname } from '../_lib/official-profile.js';
-import { isMissingRpc, requestBusinessData, requestPublicData } from '../_lib/supabase.js';
+import { identityUserId, isMissingRpc, requestBusinessData, requestPublicData } from '../_lib/supabase.js';
 
 const LEGACY_DAILY_ZONE = '校园生活';
 const DAILY_ZONE = '日常分享';
@@ -162,6 +162,12 @@ async function createMessage(request, env, waitUntil) {
     return json({ error: 'invalid_request' }, 400, auth.headers);
   }
 
+  if (!body || typeof body !== 'object') return json({ error: 'invalid_request' }, 400, auth.headers);
+  const submission = body.submissionId;
+  if (submission !== undefined && (typeof submission !== 'string' ||
+      !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(submission))) {
+    return json({ error: 'invalid_submission_id' }, 400, auth.headers);
+  }
   const content = cleanText(body.content, 1000);
   // The database normalizes the legacy value once the zone migration is applied.
   const zone = ZONES.has(body.zone) && body.zone !== DAILY_ZONE ? body.zone : LEGACY_DAILY_ZONE;
@@ -170,6 +176,30 @@ async function createMessage(request, env, waitUntil) {
 
   if (!content || (replyTo !== null && !MESSAGE_ID.test(replyTo)) || imageUrls === null) {
     return json({ error: 'invalid_request' }, 400, auth.headers);
+  }
+
+  // Both deployments derive the same primary key for a retry by the same account.
+  const postId = submission ? await identityUserId('forum-post:' + auth.session.user_id, submission.toLowerCase()) : null;
+  async function previousSubmission() {
+    const params = new URLSearchParams({
+      id: 'eq.' + postId, business_user_id: 'eq.' + auth.session.user_id,
+      select: 'id,content,zone,reply_to,pic_url,username,flag', limit: '1'
+    });
+    const [saved] = await requestBusinessData(env, auth.session, 'messages?' + params);
+    if (!saved) return null;
+    const matches = saved.content === content && (saved.reply_to ?? null) === replyTo &&
+      normalizeMessageZone(saved).zone === normalizeMessageZone({ zone }).zone &&
+      (saved.username === '匿名用户') === (body.anonymous === true) &&
+      JSON.stringify(saved.pic_url || []) === JSON.stringify(imageUrls);
+    return matches ? json({ ok: true, id: postId, published: saved.flag === 1 }, 200, auth.headers)
+      : json({ error: 'submission_changed' }, 409, auth.headers);
+  }
+
+  if (postId && body.retry === true) {
+    try {
+      const replay = await previousSubmission();
+      if (replay) return replay;
+    } catch { return json({ error: 'message_save_failed' }, 503, auth.headers); }
   }
 
   let username = '匿名用户';
@@ -219,6 +249,7 @@ async function createMessage(request, env, waitUntil) {
       method: 'POST',
       headers: { Prefer: 'return=representation' },
       body: JSON.stringify({
+        ...(postId ? { id: postId } : {}),
         business_user_id: auth.session.user_id,
         username,
         content,
@@ -233,8 +264,14 @@ async function createMessage(request, env, waitUntil) {
     if (queued && waitUntil && env.AUTH_STORE_SUPABASE_SECRET_KEY && !imageUrls.length) {
       waitUntil(processNextModeration(env, messageId).catch(() => {}));
     }
-    return json({ ok: true, id: messageId }, 201, auth.headers);
-  } catch {
+    return json({ ok: true, id: messageId, published: flag === 1 }, 201, auth.headers);
+  } catch (error) {
+    if (postId && error.code === '23505') {
+      try {
+        const replay = await previousSubmission();
+        if (replay) return replay;
+      } catch { /* The client can retry if the confirmation read is unavailable. */ }
+    }
     return json({ error: 'message_save_failed' }, 503, auth.headers);
   }
 }

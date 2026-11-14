@@ -18,9 +18,9 @@
   <meta name="twitter:description" content="在 RootedVox 社区广场浏览社区日常和话题留言，按分区查找动态。登录后可发布内容，所有留言经审核后公开。">
   <meta name="twitter:image" content="https://rv.celestivast.com/images/logo.png">
 
-    <script src="./request.js?v=20261101"></script>
-    <script src="./auth-client.js"></script>
-    <script src="./public-data.js"></script>
+    <script defer src="./request.js?v=20261101"></script>
+    <script defer src="./auth-client.js"></script>
+    <script defer src="./public-data.js"></script>
     <link rel="stylesheet" href="./common.css">
     <style>
         :root {
@@ -514,6 +514,7 @@
     <meta name="apple-mobile-web-app-title" content="RootedVox" />
     <link rel="manifest" href="./images/site.webmanifest" />
 <script src="./forum-ui.js"></script>
+<script defer src="./forum-drafts.js"></script>
 </head>
 <body>
     <div id="headerBox"></div>
@@ -567,7 +568,7 @@
                 <div class="form-group">
                     <label for="messageContent">留言内容 <span style="color: red;">*</span></label>
                     <textarea id="messageContent" class="form-control" maxlength="1000" placeholder="分享日常趣事、心情或疑问……"></textarea>
-                    <div class="textarea-meta"><span id="contentCount">0 / 1000</span></div>
+                    <div class="textarea-meta"><button type="button" id="discardDraft" hidden>清除草稿</button><span id="contentCount">0 / 1000</span></div>
                 </div>
                 <div class="form-group">
                     <label>上传图片（可选）</label>
@@ -591,7 +592,7 @@
                         <h2 class="form-title" id="feedTitle">最新动态</h2>
                         <p class="section-copy">按时间浏览，或直接寻找你关心的话题。</p>
                         <div class="feed-toolbar">
-                            <input id="messageSearch" type="search" placeholder="搜索留言内容" aria-label="搜索留言内容">
+                            <input id="messageSearch" maxlength="100" type="search" placeholder="搜索留言内容" aria-label="搜索留言内容">
                             <select id="messageZoneFilter" aria-label="按分区筛选">
                                 <option value="all">全部分区</option>
                                 <option value="日常分享">日常分享</option>
@@ -899,6 +900,7 @@
 
         function initNicknameSelect() {
             const select = document.getElementById('nicknameSelect');
+            const wasAnonymous = select.value === '匿名用户';
             select.innerHTML = '';
             const optionReal = document.createElement('option');
             optionReal.value = currentUserRealName;
@@ -908,7 +910,7 @@
             optionAnon.textContent = '匿名用户';
             select.appendChild(optionReal);
             select.appendChild(optionAnon);
-            select.value = currentUserRealName;
+            select.value = wasAnonymous ? '匿名用户' : currentUserRealName;
         }
 
         let previewObjectUrls = [];
@@ -968,6 +970,54 @@
             }
         }
 
+        function savePostDraft() {
+            const text = document.getElementById('messageContent').value;
+            const fields = { text, zone: document.getElementById('zoneSelect').value,
+                anonymous: document.getElementById('nicknameSelect').value === '匿名用户' };
+            ForumDrafts.save('post', fields);
+            document.getElementById('discardDraft').hidden = !ForumDrafts.get('post');
+        }
+
+        function initPostDraft() {
+            ForumDrafts.bind(userId);
+            const text = document.getElementById('messageContent');
+            const zone = document.getElementById('zoneSelect');
+            const nickname = document.getElementById('nicknameSelect');
+            const discard = document.getElementById('discardDraft');
+            const draft = ForumDrafts.get('post');
+            if (draft) {
+                text.value = draft.text;
+                zone.value = draft.zone || zone.value;
+                if (draft.anonymous) nickname.value = '匿名用户';
+                document.getElementById('contentCount').textContent = text.value.length + ' / 1000';
+                showFormStatus(draft.attachments?.length ? '已恢复草稿和已上传的图片。' : '已恢复文字草稿。');
+                for (const src of draft.attachments || []) {
+                    const img = document.createElement('img');
+                    img.className = 'file-preview';
+                    img.src = src;
+                    img.alt = '已上传的图片';
+                    document.getElementById('previewContainer').append(img);
+                }
+                discard.hidden = false;
+            }
+            text.addEventListener('input', savePostDraft);
+            zone.addEventListener('change', savePostDraft);
+            nickname.addEventListener('change', savePostDraft);
+            document.getElementById('messagePicFile').addEventListener('change', () => {
+                ForumDrafts.save('post', { text: text.value, attachments: [] });
+                savePostDraft();
+            });
+            discard.onclick = () => {
+                ForumDrafts.clear('post');
+                text.value = '';
+                document.getElementById('messagePicFile').value = '';
+                clearImagePreviews();
+                document.getElementById('contentCount').textContent = '0 / 1000';
+                discard.hidden = true;
+                showFormStatus('');
+            };
+        }
+
         async function postMessage() {
             const anonymous = document.getElementById('nicknameSelect').value === '匿名用户';
             const content = document.getElementById('messageContent').value.trim();
@@ -979,25 +1029,37 @@
                 document.getElementById('messageContent').focus();
                 return;
             }
+            if (submitBtn.disabled) return;
             submitBtn.disabled = true;
             submitBtn.textContent = '发布中...';
             try {
-                const picUrls = await uploadImages(Array.from(files));
+                savePostDraft();
+                const picUrls = files.length ? await uploadImages(Array.from(files)) : ForumDrafts.get('post')?.attachments || [];
+                ForumDrafts.save('post', { text: content, attachments: picUrls });
+                const payload = { content, zone, anonymous, imageUrls: picUrls };
+                const lastSubmission = ForumDrafts.get('post')?.submissionId;
+                payload.submissionId = ForumDrafts.submission('post', payload);
+                payload.retry = payload.submissionId === lastSubmission;
                 showFormStatus('正在上传并提交…');
                 const response = await request('/api/messages', {
                     method: 'POST', credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ content, zone, anonymous, imageUrls: picUrls })
+                    body: JSON.stringify(payload)
                 });
-                if (response.status === 401) return RootedVoxAuth.handleLogin('/messages');
+                if (response.status === 401) return RootedVoxAuth.handleLogin('/messages' + location.search);
                 if (!response.ok) throw new Error('留言服务暂时不可用');
+                const result = await response.json();
+                ForumDrafts.clear('post');
+                document.getElementById('discardDraft').hidden = true;
                 showFormStatus('发布成功，审核结果会通过站内通知告知你。', 'success');
                 document.getElementById('messageContent').value = '';
                 document.getElementById('contentCount').textContent = '0 / 1000';
                 document.getElementById('messagePicFile').value = '';
                 clearImagePreviews();
-                loadMainMessages(false);
+                // A pending post is not yet part of the public feed.
+                if (result.published === true) loadMainMessages(false);
             } catch (error) {
+                if (error.message === 'login_required') return RootedVoxAuth.handleLogin('/messages' + location.search);
                 showFormStatus('发布失败：' + (error.message || error), 'error');
             } finally {
                 submitBtn.disabled = false;
@@ -1024,6 +1086,7 @@
             const signal = controller.signal;
             isLoadingMore = true;
             const container = document.getElementById('messageContainer');
+            document.querySelector('.feed-retry')?.remove();
             const loadMoreWrap = document.getElementById('loadMoreWrapper');
 
             if (!isLoadMore) {
@@ -1126,9 +1189,13 @@
             } catch (err) {
                 if (signal.aborted) return;
                 document.querySelector('.list-loading-tip')?.remove();
-                if (!isLoadMore) {
-                    container.innerHTML = `<div class="empty-message">加载失败：${err.message}</div>`;
-                }
+                if (!isLoadMore) container.innerHTML = '';
+                const retry = document.createElement('button');
+                retry.type = 'button';
+                retry.className = 'detail-btn feed-retry';
+                retry.textContent = isLoadMore ? '下一页加载失败，点击重试' : '加载失败，点击重试';
+                retry.onclick = () => loadMainMessages(isLoadMore);
+                container.append(retry);
             } finally {
                 if (abortController === controller) isLoadingMore = false;
             }
@@ -1155,36 +1222,47 @@
                 if (document.getElementById('formStatus').classList.contains('error')) showFormStatus('');
             });
 
-            document.getElementById('messageSearch').addEventListener('input', (event) => {
+            const search = document.getElementById('messageSearch');
+            const sort = document.getElementById('messageSort');
+            const zone = document.getElementById('messageZoneFilter');
+            const params = new URLSearchParams(location.search);
+            const initialZone = params.get('zone') === '校园生活' ? '日常分享' : params.get('zone');
+            activeZone = [...zone.options].some(o => o.value === initialZone) ? initialZone : 'all';
+            activeSort = params.get('sort') === 'oldest' ? 'oldest' : 'newest';
+            activeSearch = (params.get('q') || '').trim().slice(0, 100);
+            zone.value = activeZone;
+            sort.value = activeSort;
+            search.value = activeSearch;
+
+            function applyFilters() {
                 clearTimeout(searchTimer);
-                searchTimer = setTimeout(() => { activeSearch = event.target.value.trim(); loadMainMessages(false); }, 280);
-            });
-
-            document.getElementById('messageSort').addEventListener('change', (event) => {
-                activeSort = event.target.value;
-                loadMainMessages(false);
-            });
-
-            const zoneFilter = document.getElementById('messageZoneFilter');
-            const zoneParam = new URLSearchParams(location.search).get('zone');
-            const requestedZone = zoneParam === '校园生活' ? '日常分享' : zoneParam;
-            if ([...zoneFilter.options].some(option => option.value === requestedZone)) {
-                activeZone = requestedZone;
-                zoneFilter.value = requestedZone;
-            }
-            zoneFilter.addEventListener('change', (event) => {
-                activeZone = event.target.value;
+                const text = search.value.trim();
+                if (text === activeSearch && zone.value === activeZone && sort.value === activeSort) return;
+                activeSearch = text;
+                activeSort = sort.value;
+                activeZone = zone.value;
                 const url = new URL(location.href);
-                if (activeZone === 'all') url.searchParams.delete('zone'); else url.searchParams.set('zone', activeZone);
-                history.replaceState(null, '', url);
+                for (const [key, value] of [['q', text], ['zone', activeZone === 'all' ? '' : activeZone],
+                    ['sort', activeSort === 'newest' ? '' : activeSort]]) {
+                    if (value) url.searchParams.set(key, value);
+                    else url.searchParams.delete(key);
+                }
+                history.replaceState(history.state, '', url);
                 loadMainMessages(false);
+            }
+            search.addEventListener('input', event => {
+                clearTimeout(searchTimer);
+                if (!event.isComposing) searchTimer = setTimeout(applyFilters, 280);
             });
+            search.addEventListener('compositionend', applyFilters);
+            zone.addEventListener('change', applyFilters);
+            sort.addEventListener('change', applyFilters);
 
             // Public browsing must not wait for session or profile requests.
             loadMainMessages(false);
             const messageFeed = document.getElementById('messageFeed');
             messageFeed.addEventListener('scroll', () => {
-                if (isLoadingMore || !hasMore) return;
+                if (isLoadingMore || !hasMore || document.querySelector('.feed-retry')) return;
                 clearTimeout(scrollTimeout);
                 scrollTimeout = setTimeout(() => {
                     if (messageFeed.scrollTop + messageFeed.clientHeight >= messageFeed.scrollHeight - SCROLL_THRESHOLD) {
@@ -1197,6 +1275,7 @@
             if (loggedIn) {
                 document.getElementById('contactEmail').value = currentUserEmail;
                 initNicknameSelect();
+                initPostDraft();
             } else {
                 initGuestMode();
             }
@@ -1206,6 +1285,7 @@
             ? async () => {
                 const ok = confirm("确定要退出登录吗？");
                 if(!ok) return;
+                ForumDrafts.logout();
                 await RootedVoxAuth.logout('/main');
             }
             : () => RootedVoxAuth.handleLogin();

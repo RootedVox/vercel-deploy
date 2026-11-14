@@ -21,7 +21,7 @@ test('public feed and scrolling initialize while authentication is pending; prof
     initAuth: () => new Promise(resolve => { finishAuth = resolve; }),
     loadMainMessages() { feedCalls++; return new Promise(() => {}); },
     initUserExtra: async () => { throw new Error('offline'); },
-    initNicknameSelect() {}, currentUserEmail: 'test@example.invalid',
+    initPostDraft() {}, initNicknameSelect() {}, currentUserEmail: 'test@example.invalid',
     showFormStatus(message) { status = message; }, saveProfileNickname() {}, closeProfileModal() {}
   });
   const start = messages.indexOf("        document.addEventListener('DOMContentLoaded'");
@@ -48,7 +48,7 @@ function threadHarness(read) {
     window: { RootedVoxPublicData: {} }, RootedVoxPublicData: { threadPage: async id => ({ messages: await read(id) }) },
     document: { getElementById: id => id === 'mainMessageCard' ? main : comments,
       addEventListener(_type, callback) { initialize = callback; } },
-    getMsgIdFromUrl: () => '1', location: { replace() {} },
+    URLSearchParams, getMsgIdFromUrl: () => '1', location: { replace() {} },
     renderMainMessage() { renders++; main.innerHTML = 'loaded'; },
     loadAllComments() { comments.innerHTML = 'comments'; }, jumpToComment() { jumps++; },
     observeMoreComments() { observations++; },
@@ -101,6 +101,7 @@ function commentHarness(upload = async () => ['https://example.invalid/picture.w
       if (id === 'preview-1') return { replaceChildren() { clears++; } };
       return null;
     } },
+    ForumDrafts: { get() {}, save() {}, clear() {}, submission: () => 'receipt' },
     uploadImages: upload,
     request: () => new Promise((resolve, reject) => writes.push({ resolve, reject })),
     alert(message) { alerts.push(message); }, closeAllCommentBoxes() { closes++; }, loadAllComments() {}
