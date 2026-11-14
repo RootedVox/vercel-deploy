@@ -647,6 +647,7 @@
                 <button id="closeModal" aria-label="关闭通知中心">×</button>
             </div>
             <div class="modal-body" id="notificationList"></div>
+            <button id="notificationRetry" type="button" hidden></button>
         </div>
     </div>
     <div id="footerBox"></div>
@@ -692,6 +693,8 @@
             const listEl = document.getElementById("notificationList");
             if (notifyLoading) return;
             notifyLoading = true;
+            const retry = document.getElementById('notificationRetry');
+            retry.hidden = true;
 
             if (!append) {
                 notifyPage = 0;
@@ -738,18 +741,23 @@
                 notifyCursor = result.nextCursor;
                 notifyHasMore = result.hasMore === true;
 
+                notifyPage++;
                 if (!append) {
-                    const marked = await request(`/api/notifications?through=${encodeURIComponent(notes[0].id)}`, { method: 'PATCH', credentials: 'include' });
-                    if (marked.ok) {
-                        const { hasUnread } = await marked.json();
+                    // Keep the fetched notifications visible when marking them read fails.
+                    const marked = await request(`/api/notifications?through=${encodeURIComponent(notes[0].id)}`, { method: 'PATCH', credentials: 'include' }).catch(() => null);
+                    if (marked?.ok) {
+                        const { hasUnread } = await marked.json().catch(() => ({}));
+                        if (typeof hasUnread !== 'boolean') return;
                         notificationDot.style.display = hasUnread ? 'block' : 'none';
                         dropdownDot.style.display = hasUnread ? 'inline-block' : 'none';
                     }
                 }
 
-                notifyPage++;
-            } catch (err) {
-                listEl.innerHTML = `<div style="color:red;text-align:center;padding:20px;">加载失败：${err.message}</div>`;
+            } catch {
+                if (!append) listEl.textContent = '通知暂时无法加载。';
+                retry.textContent = append ? '下一页加载失败，点击重试' : '重新加载通知';
+                retry.onclick = () => openNotifications(append);
+                retry.hidden = false;
             } finally {
                 notifyLoading = false;
             }

@@ -24,8 +24,9 @@
     return result.messages || [];
   }
 
-  function threadPage(id, after) {
+  function threadPage(id, after, reply) {
     const params = new URLSearchParams({ thread: id, batch: '21' });
+    if (reply) params.set('reply', reply);
     if (after) params.set('after', after);
     return readMessages(params);
   }

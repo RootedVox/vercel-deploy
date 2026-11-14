@@ -164,7 +164,7 @@
             display: inline-block;
             text-align: left;
         }
-        #moreComments[hidden] { display: none; }
+        #allCommentsLink[hidden], #moreComments[hidden] { display: none; }
         .reply-btn:hover, .comment-btn:hover {
             background: #171717;
         }
@@ -317,7 +317,8 @@
             <div class="loading">加载主楼内容中...</div>
         </div>
         <div class="comment-section">
-            <h2 class="section-title">💬 全部评论</h2>
+            <h2 id="commentHeading" class="section-title">💬 全部评论</h2>
+            <a id="allCommentsLink" class="back-btn" hidden>查看全部评论</a>
             <div id="commentContainer" class="loading">加载评论中...</div>
             <button id="moreComments" class="comment-btn" type="button" hidden>加载更多回复</button>
         </div>
@@ -346,7 +347,7 @@ let pageLoading = false;
 let renderedComments = 0;
 function getMsgIdFromUrl() {
     const params = new URLSearchParams(window.location.search);
-    return params.get('id');
+    return params.get('id')?.toLowerCase();
 }
 // ==================== 登录验证 ====================
 async function initAuth() {
@@ -390,12 +391,18 @@ function previewImages(id) {
     }
 }
 // ==================== 加载内容 ====================
+const messageIdPattern = /^(?:\d+|[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
+const linkedId = new URLSearchParams(location.search).get('replyId')?.toLowerCase();
+const replyId = linkedId === getMsgIdFromUrl() ? null : linkedId;
+let replyParentName = null;
 async function loadMainMessage() {
     mainMsgId = getMsgIdFromUrl();
-    if (!/^(?:\d+|[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i.test(mainMsgId || '')) return location.replace('/messages.html');
+    if (!messageIdPattern.test(mainMsgId || '')) return location.replace('/messages.html');
     try {
         if (!window.RootedVoxPublicData) throw new Error('public_data_unavailable');
-        const page = await RootedVoxPublicData.threadPage(mainMsgId);
+        const target = messageIdPattern.test(replyId || '') ? replyId : null;
+        const page = await RootedVoxPublicData.threadPage(mainMsgId, null, target);
+        replyParentName = page.parentName;
         allMessages = page.messages;
         threadCursor = page.nextCursor;
     } catch {
@@ -417,7 +424,7 @@ async function retryThread() {
     document.getElementById('mainMessageCard').innerHTML = '<div class="loading">加载主楼内容中...</div>';
     document.getElementById('commentContainer').innerHTML = '<div class="loading">加载评论中...</div>';
     if (await loadMainMessage()) {
-        await autoJumpFromUrl();
+        if (replyId) jumpToComment(replyId);
         observeMoreComments();
     }
 }
@@ -446,6 +453,15 @@ function loadAllComments() {
     const container = document.getElementById('commentContainer');
     const more = document.getElementById('moreComments');
     orderedComments = allMessages.filter(message => message.reply_to != null);
+    const focused = Boolean(replyId);
+    if (focused) {
+        document.getElementById('commentHeading').textContent = '链接指向的回复';
+        const link = document.getElementById('allCommentsLink');
+        link.href = '?id=' + encodeURIComponent(mainMsgId);
+        link.hidden = false;
+        orderedComments = orderedComments.filter(row => String(row.id) === replyId);
+        threadCursor = null;
+    }
     renderedComments = 0;
     userMap = Object.create(null);
     for (const message of allMessages) userMap[message.id] = message.username;
@@ -453,7 +469,9 @@ function loadAllComments() {
     container.classList.remove('loading');
     if (!orderedComments.length) {
         more.hidden = true;
-        container.innerHTML = '<div class="empty-comment">暂无评论</div>';
+        container.innerHTML = focused
+            ? '<div class="empty-comment">这条回复已不可见或不属于当前主帖。</div>'
+            : '<div class="empty-comment">暂无评论</div>';
         return;
     }
     container.replaceChildren();
@@ -463,6 +481,10 @@ function loadAllComments() {
 
 function renderComment(r) {
     const nested = String(r.reply_to) !== String(mainMsgId);
+    const parentName = escapeHtml(userMap[r.reply_to] || replyParentName || '用户');
+    const parentInfo = replyId
+        ? `<a class="reply-info" href="?id=${encodeURIComponent(mainMsgId)}&amp;replyId=${encodeURIComponent(r.reply_to)}">↳ 回复 @${parentName}</a>`
+        : `<div class="reply-info" onclick="jumpToComment('${r.reply_to}')">↳ 回复 @${parentName}</div>`;
     return `
         <div class="message-item ${nested ? 'level-2' : 'level-1'}" id="msg-${r.id}" data-avatar-url="${escapeHtml(r.avatar_url || '')}" data-official="${r.is_official === true}">
             <div class="message-avatar-box"></div>
@@ -471,7 +493,7 @@ function renderComment(r) {
                     <span class="message-author">${escapeHtml(r.username)}</span>
                     <span class="message-time">${new Date(r.created_at).toLocaleString()}</span>
                 </div>
-                ${nested ? `<div class="reply-info" onclick="jumpToComment('${r.reply_to}')">↳ 回复 @${escapeHtml(userMap[r.reply_to] || '用户')}</div>` : ''}
+                ${nested ? parentInfo : ''}
                 <div class="message-content">${escapeHtml(r.content).replace(/\n/g, '<br>')}</div>
                 <div class="message-images">${r.pic_url ? r.pic_url.map(u => `<img loading="lazy" src="${escapeHtml(u)}" class="message-image" onclick="window.open(this.src)">`).join('') : ''}</div>
                 <button class="reply-btn" onclick="showReplyBox('${r.id}')">💬 回复</button>
@@ -630,16 +652,6 @@ function jumpToComment(targetId) {
     el.scrollIntoView({ behavior: 'smooth' });
     el.classList.add('highlight');
     setTimeout(() => el.classList.remove('highlight'), 2000);
-}
-async function autoJumpFromUrl() {
-    const params = new URLSearchParams(window.location.search);
-    const replyId = params.get('replyId');
-
-    if (!replyId) return;
-    while (!document.getElementById(`msg-${replyId}`) && (threadCursor || renderedComments < orderedComments.length)) {
-        if (!await loadMoreComments()) break;
-    }
-    jumpToComment(replyId);
 }
 // ==================== 初始化 ====================
 document.addEventListener('DOMContentLoaded', () => {

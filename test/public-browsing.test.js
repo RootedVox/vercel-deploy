@@ -50,12 +50,12 @@ function threadHarness(read) {
       addEventListener(_type, callback) { initialize = callback; } },
     getMsgIdFromUrl: () => '1', location: { replace() {} },
     renderMainMessage() { renders++; main.innerHTML = 'loaded'; },
-    loadAllComments() { comments.innerHTML = 'comments'; }, autoJumpFromUrl() { jumps++; },
+    loadAllComments() { comments.innerHTML = 'comments'; }, jumpToComment() { jumps++; },
     observeMoreComments() { observations++; },
     initAuth: () => new Promise(() => {})
   });
   const start = details.indexOf('async function loadMainMessage()');
-  vm.runInContext('let mainMsgId, allMessages, authReady, threadCursor;\n' + details.slice(start, details.indexOf('function renderMainMessage(', start)) + '\nglobalThis.retry = retryThread;', context);
+  vm.runInContext('let mainMsgId, allMessages, authReady, threadCursor, replyParentName; const replyId = "2", messageIdPattern = /^\\d+$/;\n' + details.slice(start, details.indexOf('function renderMainMessage(', start)) + '\nglobalThis.retry = retryThread;', context);
   const init = details.indexOf("document.addEventListener('DOMContentLoaded'");
   vm.runInContext(details.slice(init, details.indexOf('</script>', init)), context);
   return { main, comments, retry: context.retry, initialize: () => initialize(), renders: () => renders, jumps: () => jumps, observations: () => observations };

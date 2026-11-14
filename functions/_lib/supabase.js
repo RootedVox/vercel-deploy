@@ -73,6 +73,25 @@ function requestToken(env, session) {
   return requestTokens.get(session);
 }
 
+async function databaseError(response, route, method) {
+  const body = await response.text().catch(() => '');
+  let code;
+  try { code = JSON.parse(body)?.code; } catch {}
+  const detail = body.replace(/\s+/g, ' ').slice(0, 200);
+  if (route) {
+    // Never log the query string: it carries user ids and filters.
+    console.error(`[supabase] ${method || 'GET'} ${route.split('?')[0]} -> ${response.status} ${detail}`);
+  }
+  const error = new Error(route ? `business_store_failure:${response.status}:${detail}` : 'business_store_failure');
+  error.code = code;
+  error.status = response.status;
+  return error;
+}
+
+export function isMissingRpc(error) {
+  return error?.status === 404 && error.code === 'PGRST202';
+}
+
 async function requestSupabase(env, session, route, init = {}) {
   const { url, publishableKey } = publicSupabaseConfig(env);
   const token = await requestToken(env, session);
@@ -86,20 +105,11 @@ async function requestSupabase(env, session, route, init = {}) {
         'Content-Type': 'application/json',
         ...init.headers
       }
-  });
-  if (!response.ok) {
-    // Keep the HTTP status and the PostgREST error code. A 42501 "permission denied"
-    // means a missing column grant, while PGRST301 means the project does not trust our
-    // signing key. Both used to collapse into one indistinguishable failure.
-    let detail = '';
-    try { detail = (await response.text()).replace(/\s+/g, ' ').slice(0, 200); } catch {}
-    // Never log the query string: it carries user ids and filters.
-    console.error(`[supabase] ${init.method || 'GET'} ${String(route).split('?')[0]} -> ${response.status} ${detail}`);
-    throw new Error(`business_store_failure:${response.status}:${detail}`);
-  }
-  if (response.status === 204) return null;
-  const text = await response.text();
-  return text ? JSON.parse(text) : null;
+    });
+    if (!response.ok) throw await databaseError(response, route, init.method);
+    if (response.status === 204) return null;
+    const text = await response.text();
+    return text ? JSON.parse(text) : null;
   });
 }
 
@@ -118,7 +128,7 @@ export async function requestPublicData(env, path, init = {}) {
         ...init.headers
       }
     });
-    if (!response.ok) throw new Error('business_store_failure');
+    if (!response.ok) throw await databaseError(response);
     if (response.status === 204) return null;
     const text = await response.text();
     return text ? JSON.parse(text) : null;

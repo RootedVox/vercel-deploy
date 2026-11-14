@@ -4,7 +4,7 @@ import { authenticateApi, cleanText, integerParam } from '../_lib/api.js';
 import { json, methodNotAllowed } from '../_lib/http.js';
 import { applyPage, pageResult } from '../_lib/pagination.js';
 import { resolveProfileNickname } from '../_lib/official-profile.js';
-import { requestBusinessData, requestPublicData } from '../_lib/supabase.js';
+import { isMissingRpc, requestBusinessData, requestPublicData } from '../_lib/supabase.js';
 
 const LEGACY_DAILY_ZONE = '校园生活';
 const DAILY_ZONE = '日常分享';
@@ -13,6 +13,50 @@ const MESSAGE_ID = /^(?:\d+|[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a
 
 function normalizeMessageZone(message) {
   return message.zone === LEGACY_DAILY_ZONE ? { ...message, zone: DAILY_ZONE } : message;
+}
+
+function zoneFilter(zone) {
+  if (zone === DAILY_ZONE || zone === LEGACY_DAILY_ZONE) return `in.(${DAILY_ZONE},${LEGACY_DAILY_ZONE})`;
+  return ZONES.has(zone) ? `eq.${zone}` : null;
+}
+
+async function forumOverview(env) {
+  try {
+    return await requestPublicData(env, 'rpc/public_forum_overview');
+  } catch (error) {
+    if (!isMissingRpc(error)) throw error;
+  }
+  const groups = await Promise.all([...ZONES].map(zone => {
+    const params = new URLSearchParams({
+      select: 'id,username,content,zone,created_at', reply_to: 'is.null',
+      zone: zoneFilter(zone), order: 'created_at.desc,id.desc', limit: '2'
+    });
+    return requestPublicData(env, `approved_messages_public?${params}`);
+  }));
+  return groups.flat().map(normalizeMessageZone);
+}
+
+function isMissingColumn(error) {
+  return error?.status === 400 && ['42703', 'PGRST204'].includes(error.code);
+}
+
+async function focusedReply(env, thread, target) {
+  const query = new URLSearchParams({ root_id: thread, target_id: target });
+  if (!/^\d+$/.test(thread) && !/^\d+$/.test(target)) {
+    try {
+      const result = await requestPublicData(env, `rpc/public_forum_reply?${query}`);
+      return { messages: result.messages.map(normalizeMessageZone), parentName: result.parentName };
+    } catch (error) {
+      if (!isMissingRpc(error)) throw error;
+    }
+  }
+  // The legacy RPC already restricts results to visible descendants of this root.
+  query.delete('target_id');
+  const rows = await requestPublicData(env, `rpc/public_forum_thread?${query}`);
+  const messages = rows.filter(row => [thread, target].includes(String(row.id))).map(normalizeMessageZone);
+  const reply = messages.find(row => String(row.id) === target);
+  const parent = reply && rows.find(row => String(row.id) === String(reply.reply_to));
+  return { messages, parentName: parent?.username ?? null };
 }
 
 async function listMessages(request, env) {
@@ -24,6 +68,12 @@ async function listMessages(request, env) {
 
   if (thread) {
     if (!MESSAGE_ID.test(thread)) return json({ error: 'invalid_request' }, 400);
+    if (url.searchParams.has('reply')) {
+      const target = url.searchParams.get('reply');
+      if (!MESSAGE_ID.test(target)) return json({ error: 'invalid_request' }, 400);
+      const result = await focusedReply(env, thread.toLowerCase(), target.toLowerCase());
+      return result.messages.length ? json(result) : json({ error: 'not_found' }, 404);
+    }
     const root = new URLSearchParams({ root_id: thread });
     if (url.searchParams.has('batch') && !/^\d+$/.test(thread)) {
       const query = new URLSearchParams(root);
@@ -38,7 +88,8 @@ async function listMessages(request, env) {
         if (!result.exists) return json({ error: 'not_found' }, 404);
         if (!result.cursorValid) return json({ error: 'stale_cursor' }, 409);
         return json({ messages: result.messages.map(normalizeMessageZone), nextCursor: result.nextCursor });
-      } catch {
+      } catch (error) {
+        if (!isMissingRpc(error)) throw error;
         // 分页 RPC 随 20261113 迁移上线；未迁移时退回旧接口，一次返回整栋楼
       }
     }
@@ -48,7 +99,7 @@ async function listMessages(request, env) {
     return json({ messages: rows.map(normalizeMessageZone) });
   }
   if (url.searchParams.get('overview') === '1') {
-    return json({ messages: await requestPublicData(env, 'rpc/public_forum_overview') });
+    return json({ messages: await forumOverview(env) });
   }
 
   const page = integerParam(url.searchParams.get('page'), 0, 0, 100000);
@@ -59,22 +110,21 @@ async function listMessages(request, env) {
   params.set('reply_to', 'is.null');
   const direction = url.searchParams.get('sort') === 'oldest' ? 'asc' : 'desc';
   if (!applyPage(params, url, page, limit, direction)) return json({ error: 'invalid_cursor' }, 400);
-  if (zone === DAILY_ZONE || zone === LEGACY_DAILY_ZONE) {
-    params.set('zone', `in.(${DAILY_ZONE},${LEGACY_DAILY_ZONE})`);
-  } else if (ZONES.has(zone)) {
-    params.set('zone', `eq.${zone}`);
-  }
+  const filter = zoneFilter(zone);
+  if (filter) params.set('zone', filter);
   if (search) params.set('content', `ilike.*${search.replace(/[,*()]/g, ' ')}*`);
 
   let rows;
   try {
     rows = await requestPublicData(env, `approved_messages_public?${params}`);
-  } catch {
-    // is_official 由 20261113 迁移提供；未迁移时退回旧字段集，官方标识按 false 处理
+  } catch (error) {
+    if (!isMissingColumn(error)) throw error;
+    // 旧库缺少 is_official；未迁移时退回旧字段集，官方标识按 false 处理
     params.set('select', 'id,username,content,zone,pic_url,created_at,reply_to,avatar_url');
     try {
       rows = await requestPublicData(env, `approved_messages_public?${params}`);
-    } catch {
+    } catch (error) {
+      if (!isMissingColumn(error)) throw error;
       // 更早的头像迁移也未执行时去掉 avatar_url
       params.set('select', 'id,username,content,zone,pic_url,created_at,reply_to');
       rows = await requestPublicData(env, `approved_messages_public?${params}`);

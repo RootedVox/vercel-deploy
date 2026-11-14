@@ -1,7 +1,7 @@
 import { applyPage, pageResult } from '../_lib/pagination.js';
 import { authenticateApi, integerParam } from '../_lib/api.js';
 import { json, methodNotAllowed } from '../_lib/http.js';
-import { requestBusinessData } from '../_lib/supabase.js';
+import { isMissingRpc, requestBusinessData } from '../_lib/supabase.js';
 
 export async function onRequestGet({ request, env }) {
   const auth = await authenticateApi(request, env);
@@ -42,12 +42,18 @@ export async function onRequestPatch({ request, env }) {
         method: 'POST', body: JSON.stringify({ through_id: through })
       });
       return json({ ok: true, hasUnread }, 200, auth.headers);
-    } catch {
-      // 迁移未执行时退回旧的全量标记
-      await requestBusinessData(env, auth.session, `business_notifications?user_id=eq.${encodeURIComponent(auth.session.user_id)}&read=eq.false`, {
+    } catch (error) {
+      if (!isMissingRpc(error)) throw error;
+      const unread = new URLSearchParams({ user_id: `eq.${auth.session.user_id}`, read: 'eq.false' });
+      const shown = new URLSearchParams(unread);
+      if (through !== null) shown.set('id', `lte.${through}`);
+      await requestBusinessData(env, auth.session, `business_notifications?${shown}`, {
         method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ read: true })
       });
-      return json({ ok: true, hasUnread: false }, 200, auth.headers);
+      unread.set('select', 'id');
+      unread.set('limit', '1');
+      const remaining = await requestBusinessData(env, auth.session, `business_notifications?${unread}`);
+      return json({ ok: true, hasUnread: remaining.length > 0 }, 200, auth.headers);
     }
   } catch { return json({ error: 'notifications_update_failed' }, 503, auth.headers); }
 }
