@@ -72,3 +72,23 @@ test('peer preflight allows PATCH, and scheduled work requires a secret', async 
   const denied = await scheduledWorker({ request, env: {} });
   assert.equal(denied.status, 403);
 });
+
+test('scheduled work accepts only the exact worker secret', async () => {
+  const env = { FORUM_WORKER_SECRET: 'worker-secret' };
+  const post = auth => new Request('https://rv.celestivast.com/api/moderation-worker', {
+    method: 'POST', headers: auth ? { Authorization: auth } : {}
+  });
+  for (const auth of [null, 'Bearer worker-secre', 'Bearer worker-secret2', 'bearer worker-secret']) {
+    assert.equal((await scheduledWorker({ request: post(auth), env })).status, 403);
+  }
+});
+
+test('media hardening checks upload ownership and skips referenced files by key', () => {
+  const sql = readFileSync(new URL('../supabase/20261115_forum_media_hardening.sql', import.meta.url), 'utf8');
+  assert.match(sql, /media_path not like \('business\/' \|\| new\.business_user_id::text \|\| '\/%'\)/);
+  assert.match(sql, /raise exception 'invalid media owner'/);
+  assert.match(sql, /insert into forum_private\.attached_media\(object_name\) values\(media_path\)/);
+  const cleanup = sql.slice(sql.indexOf('claim_forum_media_cleanup()'));
+  assert.doesNotMatch(cleanup, /public\.messages/);
+  assert.match(cleanup, /not exists \(select from forum_private\.attached_media/);
+});
