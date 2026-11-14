@@ -40,19 +40,18 @@ test('loading more messages preserves existing avatar elements and updates chang
   let writes = 0;
   const box = { dataset: {}, style: { removeProperty() {} }, set innerHTML(value) { writes++; this.html = value; } };
   const item = { dataset: { avatarUrl: 'https://db.example/avatar.png', anonymous: 'false' }, querySelector(selector) { return selector === '.message-avatar-box' ? box : { textContent: '用户' }; } };
-  const cacheStart = page.indexOf('        const avatarCacheVersion =');
-  const renderStart = page.indexOf('        async function renderMessageAvatars(');
   const context = vm.createContext({
-    document: { querySelectorAll() { return [item]; } }, DEVELOPER_NICKNAMES: [], escapeHtml: value => value
+    window: {}, document: { querySelectorAll() { return [item]; } }
   });
-  vm.runInContext(page.slice(cacheStart, page.indexOf('        async function refreshNotificationDot', cacheStart)) + page.slice(renderStart, page.indexOf('        async function initAuth(', renderStart)) + '\nglobalThis.render = renderMessageAvatars;globalThis.fresh = getFreshAvatar;', context);
-  await context.render(); await context.render();
+  vm.runInContext(readFileSync(new URL('../forum-ui.js', import.meta.url), 'utf8'), context);
+  const { renderMessageAvatars: render, getFreshAvatar: fresh } = context.window.ForumUI;
+  await render(); await render();
   assert.equal(writes, 1, 'existing avatar DOM must survive pagination');
   const hashed = 'https://db.example/avatar.' + 'a'.repeat(64) + '.png';
-  assert.equal(context.fresh(hashed), hashed);
-  assert.equal(context.fresh(item.dataset.avatarUrl), context.fresh(item.dataset.avatarUrl));
+  assert.equal(fresh(hashed), hashed);
+  assert.equal(fresh(item.dataset.avatarUrl), fresh(item.dataset.avatarUrl));
   item.dataset.avatarUrl = hashed;
-  await context.render();
+  await render();
   assert.equal(writes, 2);
   assert.ok(box.html.includes(hashed));
 });

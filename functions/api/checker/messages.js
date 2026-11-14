@@ -1,3 +1,4 @@
+import { applyPage, pageResult } from '../../_lib/pagination.js';
 import { authenticateApi, cleanText, integerParam } from '../../_lib/api.js';
 import { json, methodNotAllowed } from '../../_lib/http.js';
 import { requestBusinessData } from '../../_lib/supabase.js';
@@ -20,14 +21,12 @@ export async function onRequestGet({ request, env }) {
   const limit = integerParam(url.searchParams.get('limit'), 50, 1, 100);
   const params = new URLSearchParams({
     flag: `eq.${STATUSES[status]}`,
-    select: 'id,username,content,zone,pic_url,created_at,reply_to,contact_email,reject_reason',
-    order: 'created_at.desc',
-    offset: String(page * limit),
-    limit: String(limit + 1)
+    select: 'id,username,content,zone,pic_url,created_at,reply_to,contact_email,reject_reason'
   });
+  if (!applyPage(params, url, page, limit)) return json({ error: 'invalid_cursor' }, 400, auth.headers);
   try {
     const rows = await requestBusinessData(env, auth.session, `messages?${params}`);
-    return json({ messages: rows.slice(0, limit), hasMore: rows.length > limit }, 200, auth.headers);
+    return json(pageResult(rows, limit, 'messages'), 200, auth.headers);
   } catch {
     return json({ error: 'moderation_unavailable' }, 503, auth.headers);
   }

@@ -1,170 +1,62 @@
+import { moderationQueueAvailable, processNextModeration } from '../_lib/moderation-worker.js';
+import { runAiCheck } from '../_lib/moderate-content.js';
 import { authenticateApi, cleanText, integerParam } from '../_lib/api.js';
 import { json, methodNotAllowed } from '../_lib/http.js';
-import { loadLexicon, scanLexicon } from '../_lib/lexicon.js';
+import { applyPage, pageResult } from '../_lib/pagination.js';
 import { resolveProfileNickname } from '../_lib/official-profile.js';
-import { requestBusinessData, requestPublicData } from '../_lib/supabase.js';
+import { identityUserId, isMissingRpc, requestBusinessData, requestPublicData } from '../_lib/supabase.js';
 
 const LEGACY_DAILY_ZONE = '校园生活';
 const DAILY_ZONE = '日常分享';
 const ZONES = new Set([DAILY_ZONE, '学习互助', '活动社团', '失物招领']);
 const MESSAGE_ID = /^(?:\d+|[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
 
-const NVAPI_MODEL = 'nvidia/nemotron-3.5-content-safety';
-const NVAPI_ENDPOINT = 'https://integrate.api.nvidia.com/v1/chat/completions';
-const NVAPI_TIMEOUT_MS = 15000;
-const NVAPI_MAX_ATTEMPTS = 2;
-
-/** KV统计，故障不影响业务 */
-async function getTodayAiCounter(env) {
-  try {
-    const todayUtc = new Date().toISOString().slice(0, 10);
-    const kvKey = `ai_check:${todayUtc}`;
-    const raw = await env.AI_COUNTER_KV.get(kvKey);
-    const count = Number(raw) || 0;
-    return { kvKey, count };
-  } catch {
-    return { kvKey: '', count: 0 };
-  }
-}
-
-/** KV 计数 +1，失败静默 */
-async function bumpCounter(env, key, expirationTtl = 86400) {
-  if (!key) return;
-  try {
-    const raw = await env.AI_COUNTER_KV.get(key);
-    await env.AI_COUNTER_KV.put(key, String((Number(raw) || 0) + 1), { expirationTtl });
-  } catch {}
-}
-
-/**
- * 解析 NIM 输出。只认最后一次出现的判定，避免推理文本里的字样干扰。
- */
-function verdictFromText(outText) {
-  if (!outText) return { verdict: 'uncertain', reason: 'empty_output' };
-  const matches = [...outText.matchAll(/user safety:\s*(safe|unsafe)/gi)];
-  const last = matches.length ? matches[matches.length - 1][1].toLowerCase() : '';
-  if (last === 'safe') return { verdict: 'safe', reason: 'model_safe' };
-  if (last === 'unsafe') return { verdict: 'blocked', reason: 'model_unsafe' };
-  return { verdict: 'uncertain', reason: 'unparsed_output' };
-}
-
-/**
- * 两级审核
- *   L1 本地词库：零网络开销，命中即阻断转人工（含图片的留言同样执行）
- *   L2 NVIDIA nemotron-3.5-content-safety：仅纯文本，明确输出 safe 才通过
- *
- * 返回 { verdict, reason, hits }
- *   verdict: 'safe' | 'blocked' | 'uncertain' | 'timeout' | 'error'
- *   reason : 'lexicon' | 'model_safe' | 'model_unsafe' | 'image' | ...
- * 仅 verdict === 'safe' 时放行，其余一律 flag=0 转人工。
- */
-async function runAiCheck(contentText, imageUrls, env) {
-  // ---- L1 词库 ----
-  const lex = await loadLexicon(env);
-
-  // 🎯 核心补丁：Fail-Safe 拦截防线
-  if (!lex) {
-    console.error('[AI Check] 词库不可用，触发 Fail-Safe，强制转人工审核以阻断绕过！');
-    return { verdict: 'uncertain', reason: 'lexicon_unavailable' };
-  }
-
-  const scan = scanLexicon(contentText, lex);
-  if (scan.hit) {
-    console.log(`[AI Check] 词库命中 ${scan.words.length} 条，转人工`);
-    return { verdict: 'blocked', reason: 'lexicon', hits: scan.words };
-  }
-
-  // ---- L2 NIM ----
-  // 有图片直接跳过API，转入人工
-  if (imageUrls && imageUrls.length > 0) {
-    console.log('[AI Check] 留言包含图片，跳过AI自动审核，转入人工');
-    return { verdict: 'uncertain', reason: 'image' };
-  }
-
-  const nvApiKey = env.NVAPI_KEY;
-  if (!nvApiKey) {
-    console.error('[AI Check] NVAPI_KEY 环境变量缺失');
-    return { verdict: 'error', reason: 'missing_key' };
-  }
-
-  const payload = {
-    model: NVAPI_MODEL,
-    messages: [
-      {
-        role: 'user',
-        content: [{ type: 'text', text: contentText }]
-      }
-    ],
-    max_tokens: 100,
-    temperature: 0.01,
-    top_p: 0.95,
-    chat_template_kwargs: {
-      request_categories: '/no_categories',
-      enable_thinking: false
-    }
-  };
-
-  const headers = {
-    Authorization: `Bearer ${nvApiKey}`,
-    'Content-Type': 'application/json'
-  };
-
-  console.log(`[AI Check] 请求 NIM，文本长度 ${contentText.length}`);
-
-  for (let attempt = 1; attempt <= NVAPI_MAX_ATTEMPTS; attempt++) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), NVAPI_TIMEOUT_MS);
-    let retryable = false;
-
-    try {
-      const resp = await fetch(NVAPI_ENDPOINT, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-        signal: controller.signal
-      });
-
-      if (resp.ok) {
-        const apiResult = await resp.json();
-        const outText = apiResult.choices?.[0]?.message?.content?.trim() ?? '';
-        console.log(`[AI Check] 判定结果: ${outText.replace(/\s+/g, ' ').slice(0, 200)}`);
-        return verdictFromText(outText);
-      }
-
-      const errText = await resp.text().catch(() => '');
-      if (resp.status === 429 || resp.status >= 500) {
-        console.error(`[AI Check] 可重试状态 ${resp.status}：`, errText.slice(0, 300));
-        retryable = true;
-      } else {
-        console.error(`[AI Check] 非重试错误 ${resp.status}：`, errText.slice(0, 300));
-        return { verdict: 'error', reason: `http_${resp.status}` };
-      }
-    } catch (e) {
-      if (e?.name === 'AbortError') {
-        console.error(`[AI Check] 请求超时 > ${NVAPI_TIMEOUT_MS}ms`);
-      } else {
-        console.error('[AI Check] 请求异常：', e?.message);
-      }
-      retryable = true;
-    } finally {
-      clearTimeout(timeoutId);
-      controller.abort();
-    }
-
-    if (retryable && attempt < NVAPI_MAX_ATTEMPTS) {
-      const backoff = 500 * attempt;
-      console.log(`[AI Check] ${backoff}ms 后重试（第 ${attempt + 1} 次）`);
-      await new Promise((r) => setTimeout(r, backoff));
-      continue;
-    }
-    return { verdict: 'uncertain', reason: 'upstream_unavailable' };
-  }
-
-  return { verdict: 'uncertain', reason: 'upstream_unavailable' };
-}
-
 function normalizeMessageZone(message) {
   return message.zone === LEGACY_DAILY_ZONE ? { ...message, zone: DAILY_ZONE } : message;
+}
+
+function zoneFilter(zone) {
+  if (zone === DAILY_ZONE || zone === LEGACY_DAILY_ZONE) return `in.(${DAILY_ZONE},${LEGACY_DAILY_ZONE})`;
+  return ZONES.has(zone) ? `eq.${zone}` : null;
+}
+
+async function forumOverview(env) {
+  try {
+    return await requestPublicData(env, 'rpc/public_forum_overview');
+  } catch (error) {
+    if (!isMissingRpc(error)) throw error;
+  }
+  const groups = await Promise.all([...ZONES].map(zone => {
+    const params = new URLSearchParams({
+      select: 'id,username,content,zone,created_at', reply_to: 'is.null',
+      zone: zoneFilter(zone), order: 'created_at.desc,id.desc', limit: '2'
+    });
+    return requestPublicData(env, `approved_messages_public?${params}`);
+  }));
+  return groups.flat().map(normalizeMessageZone);
+}
+
+function isMissingColumn(error) {
+  return error?.status === 400 && ['42703', 'PGRST204'].includes(error.code);
+}
+
+async function focusedReply(env, thread, target) {
+  const query = new URLSearchParams({ root_id: thread, target_id: target });
+  if (!/^\d+$/.test(thread) && !/^\d+$/.test(target)) {
+    try {
+      const result = await requestPublicData(env, `rpc/public_forum_reply?${query}`);
+      return { messages: result.messages.map(normalizeMessageZone), parentName: result.parentName };
+    } catch (error) {
+      if (!isMissingRpc(error)) throw error;
+    }
+  }
+  // The legacy RPC already restricts results to visible descendants of this root.
+  query.delete('target_id');
+  const rows = await requestPublicData(env, `rpc/public_forum_thread?${query}`);
+  const messages = rows.filter(row => [thread, target].includes(String(row.id))).map(normalizeMessageZone);
+  const reply = messages.find(row => String(row.id) === target);
+  const parent = reply && rows.find(row => String(row.id) === String(reply.reply_to));
+  return { messages, parentName: parent?.username ?? null };
 }
 
 async function listMessages(request, env) {
@@ -176,26 +68,38 @@ async function listMessages(request, env) {
 
   if (thread) {
     if (!MESSAGE_ID.test(thread)) return json({ error: 'invalid_request' }, 400);
-    params.set('order', 'created_at.asc');
-    params.set('limit', '1000');
-    const all = await requestPublicData(env, `approved_messages_public?${params}`);
-    const byParent = new Map();
-    all.forEach((message) => {
-      const key = message.reply_to == null ? null : String(message.reply_to);
-      if (!byParent.has(key)) byParent.set(key, []);
-      byParent.get(key).push(message);
-    });
-    const root = all.find((message) => String(message.id) === thread && message.reply_to == null);
-    if (!root) return json({ error: 'not_found' }, 404);
-    const result = [root];
-    const visit = (parentId) => {
-      for (const child of byParent.get(String(parentId)) || []) {
-        result.push(child);
-        visit(child.id);
+    if (url.searchParams.has('reply')) {
+      const target = url.searchParams.get('reply');
+      if (!MESSAGE_ID.test(target)) return json({ error: 'invalid_request' }, 400);
+      const result = await focusedReply(env, thread.toLowerCase(), target.toLowerCase());
+      return result.messages.length ? json(result) : json({ error: 'not_found' }, 404);
+    }
+    const root = new URLSearchParams({ root_id: thread });
+    if (url.searchParams.has('batch') && !/^\d+$/.test(thread)) {
+      const query = new URLSearchParams(root);
+      query.set('page_size', String(integerParam(url.searchParams.get('batch'), 20, 1, 100)));
+      const after = url.searchParams.get('after');
+      if (after) {
+        if (!MESSAGE_ID.test(after) || /^\d+$/.test(after)) return json({ error: 'invalid_cursor' }, 400);
+        query.set('after_id', after);
       }
-    };
-    visit(root.id);
-    return json({ messages: result.map(normalizeMessageZone) });
+      try {
+        const result = await requestPublicData(env, `rpc/public_forum_thread_page?${query}`);
+        if (!result.exists) return json({ error: 'not_found' }, 404);
+        if (!result.cursorValid) return json({ error: 'stale_cursor' }, 409);
+        return json({ messages: result.messages.map(normalizeMessageZone), nextCursor: result.nextCursor });
+      } catch (error) {
+        if (!isMissingRpc(error)) throw error;
+        // 分页 RPC 随 20261113 迁移上线；未迁移时退回旧接口，一次返回整栋楼
+      }
+    }
+    // The RPC returns a JSON array to avoid PostgREST's global table row cap.
+    const rows = await requestPublicData(env, `rpc/public_forum_thread?${root}`);
+    if (!rows.length) return json({ error: 'not_found' }, 404);
+    return json({ messages: rows.map(normalizeMessageZone) });
+  }
+  if (url.searchParams.get('overview') === '1') {
+    return json({ messages: await forumOverview(env) });
   }
 
   const page = integerParam(url.searchParams.get('page'), 0, 0, 100000);
@@ -204,19 +108,29 @@ async function listMessages(request, env) {
   const search = cleanText(url.searchParams.get('search'), 100);
 
   params.set('reply_to', 'is.null');
-  params.set('order', `created_at.${url.searchParams.get('sort') === 'oldest' ? 'asc' : 'desc'}`);
-  params.set('offset', String(page * limit));
-  params.set('limit', String(limit + 1));
-  if (zone === DAILY_ZONE || zone === LEGACY_DAILY_ZONE) {
-    params.set('zone', `in.(${DAILY_ZONE},${LEGACY_DAILY_ZONE})`);
-  } else if (ZONES.has(zone)) {
-    params.set('zone', `eq.${zone}`);
-  }
+  const direction = url.searchParams.get('sort') === 'oldest' ? 'asc' : 'desc';
+  if (!applyPage(params, url, page, limit, direction)) return json({ error: 'invalid_cursor' }, 400);
+  const filter = zoneFilter(zone);
+  if (filter) params.set('zone', filter);
   if (search) params.set('content', `ilike.*${search.replace(/[,*()]/g, ' ')}*`);
 
-  const rows = await requestPublicData(env, `approved_messages_public?${params}`);
-  const hasMore = rows.length > limit;
-  return json({ messages: rows.slice(0, limit).map(normalizeMessageZone), hasMore, page });
+  let rows;
+  try {
+    rows = await requestPublicData(env, `approved_messages_public?${params}`);
+  } catch (error) {
+    if (!isMissingColumn(error)) throw error;
+    // 旧库缺少 is_official；未迁移时退回旧字段集，官方标识按 false 处理
+    params.set('select', 'id,username,content,zone,pic_url,created_at,reply_to,avatar_url');
+    try {
+      rows = await requestPublicData(env, `approved_messages_public?${params}`);
+    } catch (error) {
+      if (!isMissingColumn(error)) throw error;
+      // 更早的头像迁移也未执行时去掉 avatar_url
+      params.set('select', 'id,username,content,zone,pic_url,created_at,reply_to');
+      rows = await requestPublicData(env, `approved_messages_public?${params}`);
+    }
+  }
+  return json({ ...pageResult(rows.map(normalizeMessageZone), limit, 'messages'), page });
 }
 
 function validateImageUrls(env, values, userId) {
@@ -237,7 +151,7 @@ function validateImageUrls(env, values, userId) {
   return result;
 }
 
-async function createMessage(request, env) {
+async function createMessage(request, env, waitUntil) {
   const auth = await authenticateApi(request, env);
   if (auth.response) return auth.response;
 
@@ -248,6 +162,12 @@ async function createMessage(request, env) {
     return json({ error: 'invalid_request' }, 400, auth.headers);
   }
 
+  if (!body || typeof body !== 'object') return json({ error: 'invalid_request' }, 400, auth.headers);
+  const submission = body.submissionId;
+  if (submission !== undefined && (typeof submission !== 'string' ||
+      !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(submission))) {
+    return json({ error: 'invalid_submission_id' }, 400, auth.headers);
+  }
   const content = cleanText(body.content, 1000);
   // The database normalizes the legacy value once the zone migration is applied.
   const zone = ZONES.has(body.zone) && body.zone !== DAILY_ZONE ? body.zone : LEGACY_DAILY_ZONE;
@@ -258,25 +178,51 @@ async function createMessage(request, env) {
     return json({ error: 'invalid_request' }, 400, auth.headers);
   }
 
-  let profile;
-  try {
-    const rows = await requestBusinessData(
-      env,
-      auth.session,
-      `business_users?user_id=eq.${encodeURIComponent(auth.session.user_id)}&select=nickname,display_name&limit=1`
-    );
-    profile = rows[0] || {};
-  } catch {
-    return json({ error: 'profile_unavailable' }, 503, auth.headers);
+  // Both deployments derive the same primary key for a retry by the same account.
+  const postId = submission ? await identityUserId('forum-post:' + auth.session.user_id, submission.toLowerCase()) : null;
+  async function previousSubmission() {
+    const params = new URLSearchParams({
+      id: 'eq.' + postId, business_user_id: 'eq.' + auth.session.user_id,
+      select: 'id,content,zone,reply_to,pic_url,username,flag', limit: '1'
+    });
+    const [saved] = await requestBusinessData(env, auth.session, 'messages?' + params);
+    if (!saved) return null;
+    const matches = saved.content === content && (saved.reply_to ?? null) === replyTo &&
+      normalizeMessageZone(saved).zone === normalizeMessageZone({ zone }).zone &&
+      (saved.username === '匿名用户') === (body.anonymous === true) &&
+      JSON.stringify(saved.pic_url || []) === JSON.stringify(imageUrls);
+    return matches ? json({ ok: true, id: postId, published: saved.flag === 1 }, 200, auth.headers)
+      : json({ error: 'submission_changed' }, 409, auth.headers);
   }
-  const displayName = cleanText(
-    resolveProfileNickname(
-      auth.session.user_id, profile.nickname,
-      profile.display_name || auth.session.display_name || auth.session.email?.split('@')[0] || '校园用户'
-    ),
-    80
-  );
-  const username = body.anonymous === true ? '匿名用户' : displayName;
+
+  if (postId && body.retry === true) {
+    try {
+      const replay = await previousSubmission();
+      if (replay) return replay;
+    } catch { return json({ error: 'message_save_failed' }, 503, auth.headers); }
+  }
+
+  let username = '匿名用户';
+  if (body.anonymous !== true) {
+    let profile;
+    try {
+      const rows = await requestBusinessData(
+        env,
+        auth.session,
+        `business_users?user_id=eq.${encodeURIComponent(auth.session.user_id)}&select=nickname,display_name&limit=1`
+      );
+      profile = rows[0] || {};
+    } catch {
+      return json({ error: 'profile_unavailable' }, 503, auth.headers);
+    }
+    username = cleanText(
+      resolveProfileNickname(
+        auth.session.user_id, profile.nickname,
+        profile.display_name || auth.session.display_name || auth.session.email?.split('@')[0] || '校园用户'
+      ),
+      80
+    );
+  }
 
   if (replyTo) {
     const target = await requestPublicData(
@@ -286,43 +232,46 @@ async function createMessage(request, env) {
     if (!target.length) return json({ error: 'reply_target_not_found' }, 404, auth.headers);
   }
 
-  // ========= AI 逻辑 =========
+  const queued = await moderationQueueAvailable(env);
   let flag = 0;
-  const { kvKey, count } = await getTodayAiCounter(env);
-
-  const aiRes = await runAiCheck(content, imageUrls, env);
-  if (aiRes.verdict === 'safe') {
-    flag = 1;
-  }
-  console.log(`[AI Check] 结论: ${aiRes.verdict} / ${aiRes.reason}`);
-
-  if (kvKey) {
-    await bumpCounter(env, kvKey);
-    if (aiRes.reason === 'lexicon') {
-      await bumpCounter(env, kvKey.replace('ai_check:', 'lexicon_hit:'));
+  if (!queued) {
+    // 20261113 迁移未执行时退回同步审核：只有模型明确通过才直接发布
+    try {
+      const review = await runAiCheck(content, imageUrls, env);
+      if (review.verdict === 'safe' && review.reason === 'model_safe') flag = 1;
+    } catch {
+      flag = 0;
     }
   }
-  // 命中词条本身不落库、不入日志，避免二次泄露
-  // ===========================
 
   try {
     const rows = await requestBusinessData(env, auth.session, 'messages?select=id', {
       method: 'POST',
       headers: { Prefer: 'return=representation' },
       body: JSON.stringify({
+        ...(postId ? { id: postId } : {}),
         business_user_id: auth.session.user_id,
         username,
         content,
         zone,
         pic_url: imageUrls.length ? imageUrls : null,
         contact_email: auth.session.email || null,
-        flag: flag,
+        flag,
         reply_to: replyTo || null
       })
     });
     const messageId = rows[0].id;
-    return json({ ok: true, id: messageId }, 201, auth.headers);
-  } catch {
+    if (queued && waitUntil && env.AUTH_STORE_SUPABASE_SECRET_KEY && !imageUrls.length) {
+      waitUntil(processNextModeration(env, messageId).catch(() => {}));
+    }
+    return json({ ok: true, id: messageId, published: flag === 1 }, 201, auth.headers);
+  } catch (error) {
+    if (postId && error.code === '23505') {
+      try {
+        const replay = await previousSubmission();
+        if (replay) return replay;
+      } catch { /* The client can retry if the confirmation read is unavailable. */ }
+    }
     return json({ error: 'message_save_failed' }, 503, auth.headers);
   }
 }
@@ -335,8 +284,8 @@ export async function onRequestGet({ request, env }) {
   }
 }
 
-export async function onRequestPost({ request, env }) {
-  return createMessage(request, env);
+export async function onRequestPost({ request, env, waitUntil }) {
+  return createMessage(request, env, waitUntil);
 }
 
 export function onRequest() {

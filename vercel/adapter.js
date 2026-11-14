@@ -1,3 +1,5 @@
+import { waitUntil } from '@vercel/functions';
+
 const DEFAULT_FRONTEND_ORIGIN = 'https://rv.celestivast.com';
 
 const METHOD_EXPORTS = {
@@ -14,6 +16,9 @@ function normalizedEnvironment(source = {}) {
   const frontend = String(source.BUSINESS_FRONTEND_URL || DEFAULT_FRONTEND_ORIGIN).replace(/\/$/, '');
   return {
     ...source,
+    LEXICON_KV: typeof source.LEXICON_KV?.get === 'function' ? source.LEXICON_KV : {
+      get: async () => source.FORUM_LEXICON_WORDS || null
+    },
     AUTH_STORE: source.AUTH_STORE || 'supabase',
     BUSINESS_FRONTEND_URL: frontend,
     CORS_ALLOWED_ORIGINS: source.CORS_ALLOWED_ORIGINS || frontend
@@ -106,7 +111,7 @@ export function createVercelFunction(handlers, options = {}) {
           env,
           data: {},
           params: {},
-          waitUntil() {},
+          waitUntil,
           next: () => new Response('Not Found', { status: 404 })
         });
         if (!(response instanceof Response)) throw new Error('invalid_handler_response');

@@ -18,9 +18,9 @@
   <meta name="twitter:description" content="在 RootedVox 社区广场浏览社区日常和话题留言，按分区查找动态。登录后可发布内容，所有留言经审核后公开。">
   <meta name="twitter:image" content="https://rv.celestivast.com/images/logo.png">
 
-    <script src="./request.js?v=20261101"></script>
-    <script src="./auth-client.js"></script>
-    <script src="./public-data.js"></script>
+    <script defer src="./request.js?v=20261101"></script>
+    <script defer src="./auth-client.js"></script>
+    <script defer src="./public-data.js"></script>
     <link rel="stylesheet" href="./common.css">
     <style>
         :root {
@@ -513,6 +513,8 @@
     <link rel="apple-touch-icon" sizes="180x180" href="./images/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-title" content="RootedVox" />
     <link rel="manifest" href="./images/site.webmanifest" />
+<script src="./forum-ui.js"></script>
+<script defer src="./forum-drafts.js"></script>
 </head>
 <body>
     <div id="headerBox"></div>
@@ -566,7 +568,7 @@
                 <div class="form-group">
                     <label for="messageContent">留言内容 <span style="color: red;">*</span></label>
                     <textarea id="messageContent" class="form-control" maxlength="1000" placeholder="分享日常趣事、心情或疑问……"></textarea>
-                    <div class="textarea-meta"><span id="contentCount">0 / 1000</span></div>
+                    <div class="textarea-meta"><button type="button" id="discardDraft" hidden>清除草稿</button><span id="contentCount">0 / 1000</span></div>
                 </div>
                 <div class="form-group">
                     <label>上传图片（可选）</label>
@@ -590,7 +592,7 @@
                         <h2 class="form-title" id="feedTitle">最新动态</h2>
                         <p class="section-copy">按时间浏览，或直接寻找你关心的话题。</p>
                         <div class="feed-toolbar">
-                            <input id="messageSearch" type="search" placeholder="搜索留言内容" aria-label="搜索留言内容">
+                            <input id="messageSearch" maxlength="100" type="search" placeholder="搜索留言内容" aria-label="搜索留言内容">
                             <select id="messageZoneFilter" aria-label="按分区筛选">
                                 <option value="all">全部分区</option>
                                 <option value="日常分享">日常分享</option>
@@ -646,19 +648,13 @@
                 <button id="closeModal" aria-label="关闭通知中心">×</button>
             </div>
             <div class="modal-body" id="notificationList"></div>
+            <button id="notificationRetry" type="button" hidden></button>
         </div>
     </div>
     <div id="footerBox"></div>
     <script src="./common.js"></script>
     <script>
-        const DEVELOPER_NICKNAMES = [
-            "Sam.Li",
-            "Jerry",
-            "Maod1e",
-            "bYcHhh",
-            "曹颢喆 Jerry"
-        ];
-
+        const { escapeHtml, parseMessageContent, getFreshAvatar, renderMessageAvatars } = ForumUI;
         let currentPage = 0;
         const PAGE_SIZE = 20;
         let hasMore = true;
@@ -669,49 +665,25 @@
         let activeSort = 'newest';
         let activeZone = 'all';
         let searchTimer = null;
-        const MESSAGE_ZONES = [
-            { label: '学习互助', keywords: ['学习', '作业', '考试', '课程', '笔记', '竞赛', '选课', '大学'] },
-            { label: '活动社团', keywords: ['活动', '社团', '比赛', '演出', '运动', '招新', '音乐', '篮球', '足球'] },
-            { label: '失物招领', keywords: ['失物', '招领', '丢了', '捡到', '寻找', '遗失', '找到'] }
-        ];
-
-        function parseMessageContent(content = '', storedZone = '') {
-            const marker = content.match(/^【([^】]+)】\s*/);
-            const validZones = ['日常分享', ...MESSAGE_ZONES.map(zone => zone.label)];
-            if (storedZone === '校园生活') storedZone = '日常分享';
-            const markerZone = marker?.[1] === '校园生活' ? '日常分享' : marker?.[1];
-            const explicitZone = validZones.includes(markerZone) ? markerZone : '';
-            const text = explicitZone ? content.replace(/^【[^】]+】\s*/, '') : content;
-            const inferredZone = MESSAGE_ZONES.find(zone => zone.keywords.some(word => text.includes(word)))?.label;
-            return { zone: validZones.includes(storedZone) ? storedZone : (explicitZone || inferredZone || '日常分享'), text };
-        }
-
         let notifyPage = 0;
+        let notifyCursor = null;
         const NOTIFY_PAGE_SIZE = 10;
         let notifyHasMore = true;
         let notifyLoading = false;
         const MAX_IMAGES = 5;
         const MAX_SIZE = 5 * 1024 * 1024;
         const SCROLL_THRESHOLD = 350;
-        let userMap = {};
+        let feedCursor = null;
         let currentUser = null;
         let currentUserEmail = '';
         let currentUserRealName = '';
         let userId = '';
 
-        const avatarCacheVersion = Date.now();
-        function getFreshAvatar(src) {
-            if (!src) return '';
-            // Content-addressed avatars are immutable; legacy paths refresh once per visit.
-            if (/\.[a-f0-9]{64}\.png(?:[?#]|$)/.test(src)) return src;
-            return src + (src.includes('?') ? '&' : '?') + 't=' + avatarCacheVersion;
-        }
-
         async function refreshNotificationDot() {
             if (!userId) return;
-            const response = await request('/api/notifications?unread=1&limit=1', { credentials: 'include', cache: 'no-store' });
-            const data = response.ok ? await response.json() : { notifications: [] };
-            const hasUnread = data.notifications?.length > 0;
+            const response = await request('/api/notifications?exists=1', { credentials: 'include', cache: 'no-store' });
+            if (!response.ok) return;
+            const { hasUnread } = await response.json();
             notificationDot.style.display = hasUnread ? "block" : "none";
             dropdownDot.style.display = hasUnread ? "inline-block" : "none";
         }
@@ -722,15 +694,18 @@
             const listEl = document.getElementById("notificationList");
             if (notifyLoading) return;
             notifyLoading = true;
+            const retry = document.getElementById('notificationRetry');
+            retry.hidden = true;
 
             if (!append) {
                 notifyPage = 0;
+                notifyCursor = null;
                 notifyHasMore = true;
                 listEl.innerHTML = '<div style="text-align:center;padding:20px 0;color:#aeb5ae;">加载通知中...</div>';
             }
 
             try {
-                const response = await request(`/api/notifications?page=${notifyPage}&limit=${NOTIFY_PAGE_SIZE}`, { credentials: 'include', cache: 'no-store' });
+                const response = await request(`/api/notifications?page=${notifyPage}&limit=${NOTIFY_PAGE_SIZE}&cursor=${encodeURIComponent(notifyCursor || '')}`, { credentials: 'include', cache: 'no-store' });
                 if (!response.ok) throw new Error('通知服务暂时不可用');
                 const result = await response.json();
                 const notes = result.notifications || [];
@@ -764,16 +739,26 @@
                 if (!append) listEl.innerHTML = "";
                 listEl.appendChild(htmlFragment);
 
+                notifyCursor = result.nextCursor;
                 notifyHasMore = result.hasMore === true;
 
+                notifyPage++;
                 if (!append) {
-                    await request('/api/notifications', { method: 'PATCH', credentials: 'include' });
-                    refreshNotificationDot();
+                    // Keep the fetched notifications visible when marking them read fails.
+                    const marked = await request(`/api/notifications?through=${encodeURIComponent(notes[0].id)}`, { method: 'PATCH', credentials: 'include' }).catch(() => null);
+                    if (marked?.ok) {
+                        const { hasUnread } = await marked.json().catch(() => ({}));
+                        if (typeof hasUnread !== 'boolean') return;
+                        notificationDot.style.display = hasUnread ? 'block' : 'none';
+                        dropdownDot.style.display = hasUnread ? 'inline-block' : 'none';
+                    }
                 }
 
-                notifyPage++;
-            } catch (err) {
-                listEl.innerHTML = `<div style="color:red;text-align:center;padding:20px;">加载失败：${err.message}</div>`;
+            } catch {
+                if (!append) listEl.textContent = '通知暂时无法加载。';
+                retry.textContent = append ? '下一页加载失败，点击重试' : '重新加载通知';
+                retry.onclick = () => openNotifications(append);
+                retry.hidden = false;
             } finally {
                 notifyLoading = false;
             }
@@ -804,52 +789,6 @@
             }
 
             refreshNotificationDot();
-        }
-
-        function compressImage(file, options = {}) {
-            return new Promise((resolve, reject) => {
-                if (!file.type.startsWith('image/')) {
-                    return resolve(file);
-                }
-                const defaultOpts = {
-                    maxWidth: 1920,
-                    maxHeight: 1080,
-                    quality: 0.6,
-                    mimeType: "image/webp"
-                };
-                const opts = { ...defaultOpts, ...options };
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = e => {
-                    const img = new Image();
-                    img.src = e.target.result;
-                    img.onload = () => {
-                        let width = img.width;
-                        let height = img.height;
-                        const scaleRatio = Math.min(opts.maxWidth / width, opts.maxHeight / height);
-                        if (scaleRatio < 1) {
-                            width = width * scaleRatio;
-                            height = height * scaleRatio;
-                        }
-                        const canvas = document.createElement("canvas");
-                        canvas.width = width;
-                        canvas.height = height;
-                        const ctx = canvas.getContext("2d");
-                        ctx.drawImage(img, 0, 0, width, height);
-                        canvas.toBlob(blob => {
-                            if (!blob) return reject("图片压缩失败");
-                            const suffixes = { "image/webp": ".webp", "image/png": ".png", "image/jpeg": ".jpg" };
-                            const suffix = suffixes[blob.type];
-                            if (!suffix) return reject(new Error("图片格式不受支持"));
-                            const newFileName = file.name.replace(/(\.\w+)$/, suffix);
-                            const compressedFile = new File([blob], newFileName, { type: blob.type });
-                            resolve(compressedFile);
-                        }, opts.mimeType, opts.quality);
-                    };
-                    img.onerror = () => reject("图片加载失败");
-                };
-                reader.onerror = () => reject("文件读取失败");
-            });
         }
 
         const pendingAvatarUploads = new WeakMap();
@@ -925,69 +864,6 @@
             }
         }
 
-        async function renderMessageAvatars() {
-            const items = document.querySelectorAll(".message-item");
-            items.forEach(el => {
-                const avatarUrl = el.dataset.avatarUrl;
-                const anonymous = el.dataset.anonymous === "true";
-                const box = el.querySelector(".message-avatar-box");
-                const username = el.querySelector(".message-author")?.textContent || "";
-                const firstChar = username.charAt(0) || "?";
-
-                const isDeveloper = el.dataset.official === "true" || DEVELOPER_NICKNAMES.includes(username);
-                const renderKey = JSON.stringify([avatarUrl, anonymous, username, isDeveloper]);
-                if (box.dataset.renderKey === renderKey) return;
-                box.dataset.renderKey = renderKey;
-
-                const devWrapStyle = isDeveloper
-                    ? `position:relative;padding:2px;border-radius:50%;background:linear-gradient(135deg,#ffd700,#ff9500);`
-                    : ``;
-                const devInnerStyle = isDeveloper
-                    ? `border-radius:50%;background:#fff;padding:1px;`
-                    : ``;
-
-                box.style.removeProperty("display");
-                box.style.removeProperty("flex-direction");
-                box.style.removeProperty("align-items");
-                box.style.removeProperty("gap");
-
-                if (anonymous) {
-                    box.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#000;"></div>`;
-                    return;
-                }
-
-                let avatarCore = "";
-
-                if (avatarUrl) {
-                    if (isDeveloper) {
-                        avatarCore = `
-                        <div style="${devWrapStyle}">
-                            <div style="${devInnerStyle}">
-                                <img src="${escapeHtml(getFreshAvatar(avatarUrl))}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:block;">
-                            </div>
-                            <span style="position:absolute;right:-6px;bottom:-2px;font-size:9px;font-weight:bold;color:#fff;background:#c28c00;padding:1px 4px;border-radius:6px;white-space:nowrap;z-index:2;">Dev</span>
-                        </div>`;
-                    } else {
-                        avatarCore = `<img src="${escapeHtml(getFreshAvatar(avatarUrl))}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">`;
-                    }
-                } else {
-                    if (isDeveloper) {
-                        avatarCore = `
-                        <div style="${devWrapStyle}">
-                            <div style="${devInnerStyle}">
-                                <div style="width:38px;height:38px;border-radius:50%;background:#ccc;display:flex;align-items:center;justify-content:center;color:#aeb5ae;">${escapeHtml(firstChar)}</div>
-                            </div>
-                            <span style="position:absolute;right:-6px;bottom:-2px;font-size:9px;font-weight:bold;color:#fff;background:#c28c00;padding:1px 4px;border-radius:6px;white-space:nowrap;z-index:2;">Dev</span>
-                        </div>`;
-                    } else {
-                        avatarCore = `<div style="width:38px;height:38px;border-radius:50%;background:#ccc;display:flex;align-items:center;justify-content:center;color:#aeb5ae;">${escapeHtml(firstChar)}</div>`;
-                    }
-                }
-
-                box.innerHTML = avatarCore;
-            });
-        }
-
         async function initAuth() {
             try {
                 const session = await RootedVoxAuth.getSession();
@@ -1024,6 +900,7 @@
 
         function initNicknameSelect() {
             const select = document.getElementById('nicknameSelect');
+            const wasAnonymous = select.value === '匿名用户';
             select.innerHTML = '';
             const optionReal = document.createElement('option');
             optionReal.value = currentUserRealName;
@@ -1033,7 +910,7 @@
             optionAnon.textContent = '匿名用户';
             select.appendChild(optionReal);
             select.appendChild(optionAnon);
-            select.value = currentUserRealName;
+            select.value = wasAnonymous ? '匿名用户' : currentUserRealName;
         }
 
         let previewObjectUrls = [];
@@ -1084,33 +961,61 @@
             uploadProgress.style.display = 'block';
             progressBar.style.width = '0%';
             try {
-                const compressedFiles = [];
-                for (const file of files) {
-                    if (file.size < 100 * 1024) {
-                        compressedFiles.push(file);
-                    } else {
-                        const compressFile = await compressImage(file, {
-                            maxWidth: 1920,
-                            maxHeight: 1080,
-                            quality: 0.6,
-                            mimeType: "image/webp"
-                        });
-                        compressedFiles.push(compressFile);
-                    }
-                }
-                const form = new FormData();
-                form.append('kind', 'message');
-                compressedFiles.forEach(file => form.append('files', file, file.name));
                 progressBar.style.width = '45%';
-                const response = await request('/api/uploads', { method: 'POST', credentials: 'include', body: form });
-                if (!response.ok) throw new Error('图片上传失败');
+                const urls = await ForumUI.uploadFiles(files);
                 progressBar.style.width = '100%';
-                return (await response.json()).urls || [];
-            } catch (error) {
-                throw error;
+                return urls;
             } finally {
                 uploadProgress.style.display = 'none';
             }
+        }
+
+        function savePostDraft() {
+            const text = document.getElementById('messageContent').value;
+            const fields = { text, zone: document.getElementById('zoneSelect').value,
+                anonymous: document.getElementById('nicknameSelect').value === '匿名用户' };
+            ForumDrafts.save('post', fields);
+            document.getElementById('discardDraft').hidden = !ForumDrafts.get('post');
+        }
+
+        function initPostDraft() {
+            ForumDrafts.bind(userId);
+            const text = document.getElementById('messageContent');
+            const zone = document.getElementById('zoneSelect');
+            const nickname = document.getElementById('nicknameSelect');
+            const discard = document.getElementById('discardDraft');
+            const draft = ForumDrafts.get('post');
+            if (draft) {
+                text.value = draft.text;
+                zone.value = draft.zone || zone.value;
+                if (draft.anonymous) nickname.value = '匿名用户';
+                document.getElementById('contentCount').textContent = text.value.length + ' / 1000';
+                showFormStatus(draft.attachments?.length ? '已恢复草稿和已上传的图片。' : '已恢复文字草稿。');
+                for (const src of draft.attachments || []) {
+                    const img = document.createElement('img');
+                    img.className = 'file-preview';
+                    img.src = src;
+                    img.alt = '已上传的图片';
+                    document.getElementById('previewContainer').append(img);
+                }
+                discard.hidden = false;
+            }
+            text.addEventListener('input', savePostDraft);
+            zone.addEventListener('change', savePostDraft);
+            nickname.addEventListener('change', savePostDraft);
+            document.getElementById('messagePicFile').addEventListener('change', () => {
+                ForumDrafts.save('post', { text: text.value, attachments: [] });
+                savePostDraft();
+            });
+            discard.onclick = () => {
+                ForumDrafts.clear('post');
+                text.value = '';
+                document.getElementById('messagePicFile').value = '';
+                clearImagePreviews();
+                document.getElementById('contentCount').textContent = '0 / 1000';
+                discard.hidden = true;
+                showFormStatus('');
+            };
         }
 
         async function postMessage() {
@@ -1124,25 +1029,37 @@
                 document.getElementById('messageContent').focus();
                 return;
             }
+            if (submitBtn.disabled) return;
             submitBtn.disabled = true;
             submitBtn.textContent = '发布中...';
             try {
-                const picUrls = await uploadImages(Array.from(files));
+                savePostDraft();
+                const picUrls = files.length ? await uploadImages(Array.from(files)) : ForumDrafts.get('post')?.attachments || [];
+                ForumDrafts.save('post', { text: content, attachments: picUrls });
+                const payload = { content, zone, anonymous, imageUrls: picUrls };
+                const lastSubmission = ForumDrafts.get('post')?.submissionId;
+                payload.submissionId = ForumDrafts.submission('post', payload);
+                payload.retry = payload.submissionId === lastSubmission;
                 showFormStatus('正在上传并提交…');
                 const response = await request('/api/messages', {
                     method: 'POST', credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ content, zone, anonymous, imageUrls: picUrls })
+                    body: JSON.stringify(payload)
                 });
-                if (response.status === 401) return RootedVoxAuth.handleLogin('/messages');
+                if (response.status === 401) return RootedVoxAuth.handleLogin('/messages' + location.search);
                 if (!response.ok) throw new Error('留言服务暂时不可用');
+                const result = await response.json();
+                ForumDrafts.clear('post');
+                document.getElementById('discardDraft').hidden = true;
                 showFormStatus('发布成功，审核结果会通过站内通知告知你。', 'success');
                 document.getElementById('messageContent').value = '';
                 document.getElementById('contentCount').textContent = '0 / 1000';
                 document.getElementById('messagePicFile').value = '';
                 clearImagePreviews();
-                loadMainMessages(false);
+                // A pending post is not yet part of the public feed.
+                if (result.published === true) loadMainMessages(false);
             } catch (error) {
+                if (error.message === 'login_required') return RootedVoxAuth.handleLogin('/messages' + location.search);
                 showFormStatus('发布失败：' + (error.message || error), 'error');
             } finally {
                 submitBtn.disabled = false;
@@ -1169,12 +1086,14 @@
             const signal = controller.signal;
             isLoadingMore = true;
             const container = document.getElementById('messageContainer');
+            document.querySelector('.feed-retry')?.remove();
             const loadMoreWrap = document.getElementById('loadMoreWrapper');
 
             if (!isLoadMore) {
                 container.innerHTML = '<div class="loading">加载留言中...</div>';
                 document.getElementById('messageFeed').scrollTop = 0;
                 currentPage = 0;
+                feedCursor = null;
                 hasMore = true;
                 if (loadMoreWrap) loadMoreWrap.remove();
                 document.querySelector('.no-more-tip')?.remove();
@@ -1187,7 +1106,7 @@
             try {
                 if (!window.RootedVoxPublicData) throw new Error('留言服务暂时不可用');
                 const result = await RootedVoxPublicData.listMessages({
-                    page: currentPage,
+                    page: currentPage, cursor: feedCursor,
                     limit: PAGE_SIZE,
                     sort: activeSort,
                     search: activeSearch,
@@ -1207,11 +1126,10 @@
                     }
                     hasMore = false;
                     showNoMoreTip();
-                    userMap = {};
                     return;
                 }
 
-                data.forEach(msg => { userMap[msg.id] = msg.username; });
+                feedCursor = result.nextCursor || null;
 
                 let html = '';
                 for (let msg of data) {
@@ -1260,7 +1178,7 @@
                     showNoMoreTip();
                 }
 
-                renderMessageAvatars();
+                renderMessageAvatars(data.map(msg => document.getElementById(`message-${msg.id}`)).filter(Boolean));
                 // A tall form can leave the first page shorter than the feed viewport.
                 requestAnimationFrame(() => {
                     const feed = document.getElementById('messageFeed');
@@ -1271,9 +1189,13 @@
             } catch (err) {
                 if (signal.aborted) return;
                 document.querySelector('.list-loading-tip')?.remove();
-                if (!isLoadMore) {
-                    container.innerHTML = `<div class="empty-message">加载失败：${err.message}</div>`;
-                }
+                if (!isLoadMore) container.innerHTML = '';
+                const retry = document.createElement('button');
+                retry.type = 'button';
+                retry.className = 'detail-btn feed-retry';
+                retry.textContent = isLoadMore ? '下一页加载失败，点击重试' : '加载失败，点击重试';
+                retry.onclick = () => loadMainMessages(isLoadMore);
+                container.append(retry);
             } finally {
                 if (abortController === controller) isLoadingMore = false;
             }
@@ -1290,12 +1212,6 @@
             }
         }
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text || '';
-            return div.innerHTML;
-        }
-
         document.addEventListener('DOMContentLoaded', async function () {
             const authReady = initAuth();
             document.getElementById('submitBtn').disabled = true;
@@ -1306,36 +1222,47 @@
                 if (document.getElementById('formStatus').classList.contains('error')) showFormStatus('');
             });
 
-            document.getElementById('messageSearch').addEventListener('input', (event) => {
+            const search = document.getElementById('messageSearch');
+            const sort = document.getElementById('messageSort');
+            const zone = document.getElementById('messageZoneFilter');
+            const params = new URLSearchParams(location.search);
+            const initialZone = params.get('zone') === '校园生活' ? '日常分享' : params.get('zone');
+            activeZone = [...zone.options].some(o => o.value === initialZone) ? initialZone : 'all';
+            activeSort = params.get('sort') === 'oldest' ? 'oldest' : 'newest';
+            activeSearch = (params.get('q') || '').trim().slice(0, 100);
+            zone.value = activeZone;
+            sort.value = activeSort;
+            search.value = activeSearch;
+
+            function applyFilters() {
                 clearTimeout(searchTimer);
-                searchTimer = setTimeout(() => { activeSearch = event.target.value.trim(); loadMainMessages(false); }, 280);
-            });
-
-            document.getElementById('messageSort').addEventListener('change', (event) => {
-                activeSort = event.target.value;
-                loadMainMessages(false);
-            });
-
-            const zoneFilter = document.getElementById('messageZoneFilter');
-            const zoneParam = new URLSearchParams(location.search).get('zone');
-            const requestedZone = zoneParam === '校园生活' ? '日常分享' : zoneParam;
-            if ([...zoneFilter.options].some(option => option.value === requestedZone)) {
-                activeZone = requestedZone;
-                zoneFilter.value = requestedZone;
-            }
-            zoneFilter.addEventListener('change', (event) => {
-                activeZone = event.target.value;
+                const text = search.value.trim();
+                if (text === activeSearch && zone.value === activeZone && sort.value === activeSort) return;
+                activeSearch = text;
+                activeSort = sort.value;
+                activeZone = zone.value;
                 const url = new URL(location.href);
-                if (activeZone === 'all') url.searchParams.delete('zone'); else url.searchParams.set('zone', activeZone);
-                history.replaceState(null, '', url);
+                for (const [key, value] of [['q', text], ['zone', activeZone === 'all' ? '' : activeZone],
+                    ['sort', activeSort === 'newest' ? '' : activeSort]]) {
+                    if (value) url.searchParams.set(key, value);
+                    else url.searchParams.delete(key);
+                }
+                history.replaceState(history.state, '', url);
                 loadMainMessages(false);
+            }
+            search.addEventListener('input', event => {
+                clearTimeout(searchTimer);
+                if (!event.isComposing) searchTimer = setTimeout(applyFilters, 280);
             });
+            search.addEventListener('compositionend', applyFilters);
+            zone.addEventListener('change', applyFilters);
+            sort.addEventListener('change', applyFilters);
 
             // Public browsing must not wait for session or profile requests.
             loadMainMessages(false);
             const messageFeed = document.getElementById('messageFeed');
             messageFeed.addEventListener('scroll', () => {
-                if (isLoadingMore || !hasMore) return;
+                if (isLoadingMore || !hasMore || document.querySelector('.feed-retry')) return;
                 clearTimeout(scrollTimeout);
                 scrollTimeout = setTimeout(() => {
                     if (messageFeed.scrollTop + messageFeed.clientHeight >= messageFeed.scrollHeight - SCROLL_THRESHOLD) {
@@ -1348,6 +1275,7 @@
             if (loggedIn) {
                 document.getElementById('contactEmail').value = currentUserEmail;
                 initNicknameSelect();
+                initPostDraft();
             } else {
                 initGuestMode();
             }
@@ -1357,6 +1285,7 @@
             ? async () => {
                 const ok = confirm("确定要退出登录吗？");
                 if(!ok) return;
+                ForumDrafts.logout();
                 await RootedVoxAuth.logout('/main');
             }
             : () => RootedVoxAuth.handleLogin();

@@ -1,9 +1,9 @@
 (function () {
   const zones = [
-    { key: 'life', label: '日常分享', icon: '日', description: '日常分享与生活见闻', keywords: ['校园', '食堂', '宿舍', '老师', '同学', '日常', '生活', '周末'] },
-    { key: 'study', label: '学习互助', icon: '学', description: '课程、考试与经验分享', keywords: ['学习', '作业', '考试', '课程', '笔记', '竞赛', '选课', '大学'] },
-    { key: 'clubs', label: '活动社团', icon: '动', description: '活动、比赛与社团招新', keywords: ['活动', '社团', '比赛', '演出', '运动', '招新', '音乐', '篮球', '足球'] },
-    { key: 'lost', label: '失物招领', icon: '寻', description: '寻找物品与归还线索', keywords: ['失物', '招领', '丢了', '捡到', '寻找', '遗失', '找到'] }
+    { key: 'life', label: '日常分享', icon: '日', description: '日常分享与生活见闻' },
+    { key: 'study', label: '学习互助', icon: '学', description: '课程、考试与经验分享' },
+    { key: 'clubs', label: '活动社团', icon: '动', description: '活动、比赛与社团招新' },
+    { key: 'lost', label: '失物招领', icon: '寻', description: '寻找物品与归还线索' }
   ];
 
   const escapeHtml = (value) => {
@@ -22,35 +22,23 @@
     const days = Math.floor(hours / 24);
     return days < 30 ? formatter.format(-days, 'day') : new Date(value).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
   };
-  const parseContent = (content = '') => {
-    const marker = content.match(/^【([^】]+)】\s*/);
-    const markerZone = marker?.[1] === '校园生活' ? '日常分享' : marker?.[1];
-    const label = zones.some((zone) => zone.label === markerZone) ? markerZone : '';
-    return { marker: label, text: label ? content.replace(/^【[^】]+】\s*/, '') : content };
-  };
-  const classify = (item) => {
-    const parsed = parseContent(item.content);
-    const stored = zones.find((zone) => zone.label === (item.zone === '校园生活' ? '日常分享' : item.zone));
-    if (stored) return stored.key;
-    const marked = zones.find((zone) => zone.label === parsed.marker);
-    if (marked) return marked.key;
-    return zones.find((zone) => zone.key !== 'life' && zone.keywords.some((word) => parsed.text.includes(word)))?.key || 'life';
-  };
-
   function renderZones(host, items = [], locked = false) {
     const groups = Object.fromEntries(zones.map((zone) => [zone.key, []]));
-    items.forEach((item) => groups[classify(item)].push(item));
+    items.forEach(item => {
+      const parsed = ForumUI.parseMessageContent(item.content, item.zone);
+      const zone = zones.find(zone => zone.label === parsed.zone);
+      if (zone) groups[zone.key].push({ ...item, text: parsed.text });
+    });
     host.innerHTML = zones.map((zone) => {
       const posts = groups[zone.key].slice(0, 2);
       const body = locked
         ? '<div class="zone-empty">登录后查看这个分区的最新动态。</div>'
         : posts.length
           ? posts.map((item) => {
-              const parsed = parseContent(item.content);
-              return `<a class="zone-post" href="details.html?id=${encodeURIComponent(item.id)}"><strong>${escapeHtml(parsed.text)}</strong><small>→</small><span>${escapeHtml(item.username || 'ISAer')} · ${relativeTime(item.created_at)}</span></a>`;
+              return `<a class="zone-post" href="details.html?id=${encodeURIComponent(item.id)}"><strong>${escapeHtml(item.text)}</strong><small>→</small><span>${escapeHtml(item.username || 'ISAer')} · ${relativeTime(item.created_at)}</span></a>`;
             }).join('')
           : '<div class="zone-empty">这个分区还没有新动态。</div>';
-      return `<article class="zone-card"><div class="zone-head"><div class="zone-title"><span class="zone-icon">${zone.icon}</span><div><h3>${zone.label}</h3><p>${zone.description}</p></div></div><span class="zone-count">${locked ? '需登录' : `${groups[zone.key].length} 条`}</span></div><div class="zone-posts">${body}</div><a class="zone-link" href="messages.html?zone=${encodeURIComponent(zone.label)}">进入${zone.label} →</a></article>`;
+      return `<article class="zone-card"><div class="zone-head"><div class="zone-title"><span class="zone-icon">${zone.icon}</span><div><h3>${zone.label}</h3><p>${zone.description}</p></div></div><span class="zone-count">${locked ? '需登录' : `最新 ${groups[zone.key].length} 条`}</span></div><div class="zone-posts">${body}</div><a class="zone-link" href="messages.html?zone=${encodeURIComponent(zone.label)}">进入${zone.label} →</a></article>`;
     }).join('');
   }
 
@@ -116,30 +104,12 @@
     if (!host) return;
     try {
       if (!window.RootedVoxPublicData) throw new Error('feed_unavailable');
-      const result = await RootedVoxPublicData.listMessages({ limit: 40, sort: 'newest' });
+      const result = await RootedVoxPublicData.overview();
       renderZones(host, result.messages || []);
     } catch (error) {
       host.innerHTML = '<div class="zone-card"><div class="zone-empty">暂时无法同步分区内容，请稍后重试。</div><a class="text-link" href="/messages">前往社区广场 →</a></div>';
     }
   }
-  async function loadNotices() {
-    const host = document.getElementById('latestNotices');
-    if (!host) return;
-    try {
-      const response = await fetch('./notice.html');
-      if (!response.ok) throw new Error();
-      const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
-      const notices = [...doc.querySelectorAll('.notice-item')].slice(0, 3);
-      host.innerHTML = notices.map((item) => {
-        const title = item.querySelector('h3')?.textContent.trim() || '站内公告';
-        const match = item.textContent.match(/20\d{2}年\d{1,2}月\d{1,2}日/);
-        return `<a class="notice-row" href="/notice"><span class="notice-date">${escapeHtml(match?.[0] || '最新')}</span><span class="notice-title">${escapeHtml(title)}</span><span aria-hidden="true">→</span></a>`;
-      }).join('');
-    } catch (error) {
-      host.innerHTML = '<a class="notice-row" href="/notice"><span class="notice-date">最新</span><span class="notice-title">前往公告页查看更新</span><span>→</span></a>';
-    }
-  }
-
   function protectHomeBack() {
     const navigation = performance.getEntriesByType('navigation')[0];
     if (navigation && navigation.type !== 'navigate') return;
@@ -163,7 +133,6 @@
     initGreeting();
     initCarousel();
     initMealEntry();
-    loadNotices();
     loadFeed();
   });
 })();
