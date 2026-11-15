@@ -24,7 +24,7 @@ const links = document.querySelectorAll("#navList a");
 links.forEach(link=>{
     link.classList.remove("active");
     let hrefRaw = link.getAttribute("href");
-    let hrefName = hrefRaw.replace(/\.html$/,'');
+    let hrefName = hrefRaw.split('/').pop().replace(/\.html$/,'');
     if(hrefName === currPage){
         link.classList.add("active");
         link.setAttribute("aria-current", "page");

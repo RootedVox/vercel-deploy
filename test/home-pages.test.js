@@ -12,6 +12,17 @@ test('every page that runs home.js also loads forum-ui.js', () => {
   for (const name of pages) assert.match(read(name), /<script src="\.\/forum-ui\.js"><\/script>/, name);
 });
 
+test('standalone HTML pages participate in the site theme', () => {
+  for (const name of readdirSync(root).filter(name => name.endsWith('.html'))) {
+    const html = read(name);
+    if (!/<!doctype html>/i.test(html)) continue; // Header and footer fragments inherit the host theme.
+    assert.match(html, /<script src="\/preferences\.js(?:\?[^"]*)?"><\/script>/, name);
+    assert.match(html, /<link rel="stylesheet" href="\.?\/common\.css(?:\?[^"]*)?">/, name);
+    assert.match(html, /<link rel="stylesheet" href="\/preferences\.css(?:\?[^"]*)?">/, name);
+    assert.doesNotMatch(html, /<html[^>]*style="[^"]*color-scheme:/i, name);
+  }
+});
+
 test('the two home pages stay identical', () => {
   assert.equal(read('index.html'), read('main.html'), 'edit both home pages together and rerun scripts/sync-home-notices.mjs');
 });

@@ -23,9 +23,6 @@
     <script defer src="./public-data.js"></script>
     <script src="/preferences.js"></script><script defer src="/english.js"></script><link rel="stylesheet" href="./common.css"><link rel="stylesheet" href="/preferences.css">
     <style>
-        :root {
-            --card-bg: #f9f9f9;
-        }
         .main-content {
             max-width: 1200px;
             margin: 80px auto 60px;
@@ -140,12 +137,12 @@
             height: 100px;
             object-fit: cover;
             border-radius: 8px;
-            border: 1px solid #eee;
+            border: 1px solid var(--line);
         }
         .upload-progress {
             margin-top: 10px;
             height: 6px;
-            background-color: #eee;
+            background-color: var(--line);
             border-radius: 3px;
             overflow: hidden;
             display: none;
@@ -163,7 +160,7 @@
         }
         .message-item {
             padding: 20px;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid var(--line);
             margin-bottom: 15px;
             scroll-margin-top: 80px;
             text-align: left !important;
@@ -337,7 +334,7 @@
         }
         .modal-header {
             padding: 16px;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid var(--line);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -408,8 +405,8 @@
             color: var(--muted);
             font-size: 13px;
         }
-        .profile-status.error { color: #ffa1a1; }
-        .profile-status.success { color: #5cff8a; }
+        .profile-status.error { color: var(--error-ink); }
+        .profile-status.success { color: var(--theme-color); }
         .dropdown-dot {
             width: 8px;
             height: 8px;
@@ -444,7 +441,7 @@
         .community-heading .page-title::after { display:none; }
         .community-heading p { max-width:440px; margin:10px 0 0; color:var(--muted); }
         .logout-bar { margin:0; }
-        .logout-btn { color:#ffa1aa !important; border:1px solid #ffd4dc !important; border-radius:12px !important; background:#2c161a !important; font-weight:700; }
+        .logout-btn { color:var(--error-ink); border:1px solid currentColor; border-radius:12px; background:var(--error-surface); padding:8px 18px; cursor:pointer; font-weight:700; }
         .community-layout { display:grid; grid-template-columns:minmax(300px,.8fr) minmax(0,1.35fr); gap:20px; align-items:stretch; }
         .message-form-section,.message-list-section { margin:0; border:1px solid var(--line); border-radius:22px; background:var(--surface); box-shadow:var(--shadow-sm); }
         .message-form-section { padding:26px; }
@@ -462,13 +459,13 @@
         .form-group label { color:var(--muted); font-weight:700; }
         .form-note { color:var(--muted); text-align:left; font-size:12px; }
         .textarea-meta { display:flex; justify-content:flex-end; margin-top:5px; color:var(--muted); font-size:12px; }
-        .file-upload { border-color:#c9d1e5; border-radius:14px; background:var(--surface); }
+        .file-upload { border-color:var(--line); border-radius:14px; background:var(--surface); }
         .file-upload:hover { background:var(--theme-soft); }
         .submit-btn { width:100%; height:48px; line-height:normal; border-radius:13px; background:var(--theme-color); box-shadow:0 10px 22px rgba(18,101,42,.22);color:var(--action-ink)}
         .submit-btn:hover { background:var(--action-hover); transform:translateY(-1px);color:var(--action-ink)}
         .form-status { min-height:24px; margin:10px 0 0; color:var(--muted); text-align:center; font-size:13px; }
-        .form-status.success { color:#5cff8a; }
-        .form-status.error { color:#ffa1a1; }
+        .form-status.success { color:var(--theme-color); }
+        .form-status.error { color:var(--error-ink); }
         .feed-toolbar { display:grid; grid-template-columns:1fr 140px 140px; gap:10px; margin:18px 0; }
         .feed-toolbar input,.feed-toolbar select { width:100%; min-height:44px; padding:9px 12px; border:1px solid var(--line); border-radius:12px; color:var(--ink); background:var(--surface); }
         .message-item { margin:0 0 12px; padding:20px; border:1px solid var(--line); border-radius:17px; background:var(--surface); transition:transform .2s,box-shadow .2s,border-color .2s; }
@@ -536,7 +533,7 @@
                         <div id="openNotifications">通知中心 <span class="dropdown-dot" id="dropdownDot" style="display:none"></span></div>
                     </div>
                 </div>
-                <button id="logoutBtn" class="logout-btn" style="background: #dc3545; color: white; border: none; padding: 8px 18px; border-radius: 8px; cursor: pointer;">退出登录</button>
+                <button id="logoutBtn" class="logout-btn">退出登录</button>
             </div>
         </div>
         <div class="community-layout">
@@ -566,7 +563,7 @@
                     <p class="form-note" style="margin-top: 5px;">站内通知将直接发送到您的账号</p>
                 </div>
                 <div class="form-group">
-                    <label for="messageContent">留言内容 <span style="color: red;">*</span></label>
+                    <label for="messageContent">留言内容 <span style="color: var(--error-ink);">*</span></label>
                     <textarea id="messageContent" class="form-control" maxlength="1000" placeholder="分享日常趣事、心情或疑问……"></textarea>
                     <div class="textarea-meta"><button type="button" id="discardDraft" hidden>清除草稿</button><span id="contentCount">0 / 1000</span></div>
                 </div>
@@ -701,7 +698,7 @@
                 notifyPage = 0;
                 notifyCursor = null;
                 notifyHasMore = true;
-                listEl.innerHTML = '<div style="text-align:center;padding:20px 0;color:#aeb5ae;">加载通知中...</div>';
+                listEl.innerHTML = '<div style="text-align:center;padding:20px 0;color:var(--muted);">加载通知中...</div>';
             }
 
             try {
@@ -716,9 +713,9 @@
                 if (!notes || notes.length === 0) {
                     notifyHasMore = false;
                     if (!append) {
-                        listEl.innerHTML = `<div style='text-align:center;padding:30px;color:#999;'>暂无通知</div>`;
+                        listEl.innerHTML = `<div style='text-align:center;padding:30px;color:var(--muted);'>暂无通知</div>`;
                     } else {
-                        listEl.insertAdjacentHTML('beforeend', `<div style="text-align:center;padding:15px 0;color:#aaa;font-size:13px;">没有更多通知了</div>`);
+                        listEl.insertAdjacentHTML('beforeend', `<div style="text-align:center;padding:15px 0;color:var(--muted);font-size:13px;">没有更多通知了</div>`);
                     }
                     notifyLoading = false;
                     return;
@@ -731,7 +728,7 @@
                     itemDiv.innerHTML = `
                       <h4>${escapeHtml(n.title)}</h4>
                       <p>${escapeHtml(n.content)}</p>
-                      <p style='font-size:12px;color:#999;margin:5px 0 0 0;'>${new Date(n.created_at).toLocaleString()}</p>
+                      <p style='font-size:12px;color:var(--muted);margin:5px 0 0 0;'>${new Date(n.created_at).toLocaleString()}</p>
                     `;
                     htmlFragment.appendChild(itemDiv);
                 });
