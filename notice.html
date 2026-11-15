@@ -69,7 +69,7 @@ Licensed under the MIT License.
             line-height: 1.6;
             font-size: 1rem;
         }
-        .notice-container{width:min(920px,calc(100% - 32px));margin:0 auto;padding:112px 0 0}.notice-title{margin:0;color:var(--ink);border:0;font-size:clamp(38px,7vw,64px);line-height:1;letter-spacing:-.05em}.notice-lead{margin:14px 0 28px;color:var(--muted);font-size:16px}.notice-search{width:100%;min-height:50px;margin-bottom:18px;padding:12px 16px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:var(--shadow-sm)}.notice-search:focus{border-color:var(--theme-color);outline:3px solid rgba(18,101,42,.13)}.notice-list{display:grid;gap:12px;margin:0;padding:0}.notice-item{margin:0;padding:0;border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow-sm);transform:none!important}.notice-toggle{display:flex;width:100%;align-items:center;justify-content:space-between;gap:20px;padding:20px 22px;border:0;color:var(--ink);background:transparent;text-align:left;font-weight:750;cursor:pointer}.notice-toggle span:last-child{display:grid;flex:0 0 30px;width:30px;height:30px;place-items:center;border-radius:50%;background:var(--theme-soft);color:var(--theme-color);transition:transform .2s}.notice-toggle[aria-expanded="true"] span:last-child{transform:rotate(45deg)}.notice-item p{display:none;margin:0;padding:0 22px 22px;color:var(--muted);line-height:1.8}.notice-item.open p{display:block}.notice-empty{padding:40px;text-align:center;color:var(--muted)}
+        .notice-container{width:min(920px,calc(100% - 32px));margin:0 auto;padding:112px 0 0}.notice-title{margin:0;color:var(--ink);border:0;font-size:clamp(38px,7vw,64px);line-height:1;letter-spacing:-.05em}.notice-lead{margin:14px 0 28px;color:var(--muted);font-size:16px}.notice-search{width:100%;min-height:50px;margin-bottom:18px;padding:12px 16px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:var(--shadow-sm)}.notice-search:focus{border-color:var(--theme-color);outline:3px solid rgba(18,101,42,.13)}.notice-list{display:grid;gap:12px;margin:0;padding:0}.notice-item{margin:0;padding:0;border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow-sm);transform:none!important}.notice-toggle{display:flex;width:100%;align-items:center;justify-content:space-between;gap:20px;padding:20px 22px;border:0;color:var(--ink);background:transparent;text-align:left;font-weight:750;cursor:pointer}.notice-toggle span:last-child{display:grid;flex:0 0 30px;width:30px;height:30px;place-items:center;border-radius:50%;background:var(--theme-soft);color:var(--theme-color);transition:transform .2s}.notice-toggle[aria-expanded="true"] span:last-child{transform:rotate(45deg)}.notice-item p{display:none;margin:0;padding:0 22px 22px;color:var(--muted);line-height:1.8}.notice-item.open p{display:block}.notice-empty{padding:40px;text-align:center;color:var(--muted)}.notice-toggle time{margin-left:auto;color:var(--muted);font-size:13px;font-weight:500;white-space:nowrap}
     </style>
     <!-- favicon图标固定保留不动 -->
     <link rel="icon" type="image/png" href="/images/favicon-96x96.png" sizes="96x96" />
@@ -87,23 +87,23 @@ Licensed under the MIT License.
     <div class="notice-container">
         <h1 class="notice-title">站内公告</h1><p class="notice-lead">版本变化、使用说明与社区规则，都在这里。</p><input class="notice-search" id="noticeSearch" type="search" placeholder="搜索公告" aria-label="搜索公告">
         <ul class="notice-list" id="noticeList">
-            <li class="notice-item">
+            <li class="notice-item" data-date="2026-11-15">
                 <h3>RootedVox 4.3.0 · 浅色主题与英文界面</h3>
                 <p>现在可在导航栏切换浅色、深色或跟随系统，也可以切换英文界面。语言和外观偏好会保存在当前浏览器中。</p>
             </li>
-            <li class="notice-item">
+            <li class="notice-item" data-date="2026-11-15">
                 <h3>RootedVox 4.2.0 · 社区广场更新</h3>
                 <p>长帖可按页浏览，通知可直接打开对应回复。发帖失败后可以重试，也可以恢复未提交的草稿。此次更新同时改进了后台审核和附件权限。</p>
             </li>
-            <li class="notice-item">
+            <li class="notice-item" data-date="2026-11-13">
                 <h3>RootedVox 4.1.1 · 补丁更新</h3>
                 <p>留言详情现在每次加载显示 20 条回复，向下滚动可继续阅读。此次更新也修复了匿名访问的权限配置。</p>
             </li>
-            <li class="notice-item open">
+            <li class="notice-item open" data-date="2026-11-12">
                 <h3>脱钩通告与新规</h3>
                 <p>这里是 RootedVox 官方，团队已于2026年11月12日终止ISA Spectrum项目。因为这里不接受这样一个打闹、说真话的乌托邦。没有关系，我们出来便是，我们不要求正能量，更不要求Academic，世界上哪有那么多正能量和学术，我们知道。在这里，大家只需要以自己的角度把自己的观点表达出来，不会有人阻止大家做自己。</p>
             </li>
-            <li class="notice-item open">
+            <li class="notice-item open" data-date="2026-11-11">
                 <h3>RootedVox 4.1.0 · 新版上线</h3>
                 <p>社区现以 RootedVox 的名称提供服务。新版换上了黑底终端绿界面和新的声纹标志，社区广场、公告和内容审核继续开放。<br><br>
                 原有账号和社区内容沿用，进入新版后请使用原账号重新登录。欢迎收藏新地址 <a href="https://rv.celestivast.com/">rv.celestivast.com</a>，也可以直接<a href="/messages">前往社区广场</a>。</p>

@@ -86,19 +86,6 @@
     schedule();
   }
 
-  async function initMealEntry() {
-    const link = document.getElementById('mealEntryLink');
-    const note = document.getElementById('mealEntryNote');
-    if (!link || !note || !window.RootedVoxAuth) return;
-    try {
-      const session = await RootedVoxAuth.getSession();
-      if (!session?.authenticated) return;
-      link.href = 'meal-rating.html';
-      link.textContent = '进入今日评分 →';
-      note.textContent = '反馈会与当前登录账号绑定';
-    } catch {}
-  }
-
   async function loadFeed() {
     const host = document.getElementById('latestFeed');
     if (!host) return;
@@ -132,7 +119,6 @@
     protectHomeBack();
     initGreeting();
     initCarousel();
-    initMealEntry();
     loadFeed();
   });
 })();
