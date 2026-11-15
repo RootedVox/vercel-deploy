@@ -8,28 +8,56 @@
 .site-preferences {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
   padding-inline-start: 12px;
   border-inline-start: 1px solid var(--line);
 }
 
-.site-preferences label {
+.preference-control {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
   color: var(--muted);
-  font-size: 13px;
-  white-space: nowrap;
 }
 
-.site-preferences select {
-  min-height: 36px;
-  padding: 4px 6px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--ink);
+.preference-control svg {
+  position: absolute;
+  inset-inline-start: 8px;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
 }
+
+.preference-control::after {
+  content: "";
+  position: absolute;
+  inset-inline-end: 9px;
+  width: 5px;
+  height: 5px;
+  border: solid currentColor;
+  border-width: 0 1.5px 1.5px 0;
+  transform: translateY(-2px) rotate(45deg);
+  pointer-events: none;
+}
+
+.preference-label { display: none; }
+
+.preference-control select {
+  appearance: none;
+  min-height: 40px;
+  padding: 0 23px 0 31px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.preference-control select:hover,
+.preference-control select:focus-visible { background: var(--theme-soft); }
+.preference-control option { background: var(--surface); color: var(--ink); }
 
 :root[data-theme="light"] {
   color-scheme: light;
@@ -65,21 +93,18 @@
 :root[data-theme="light"] .hero.rv-hero { --accent: #5cff8a; --action-ink: #071109; color-scheme: dark; }
 :root[data-theme="light"] .notice-intro { background: var(--theme-soft); }
 
-@media (max-width: 1040px) {
-  .site-preferences label span { display: none; }
-}
-
 @media (max-width: 860px) {
   .site-preferences {
     display: grid;
+    gap: 0;
+    margin-top: 6px;
+    padding: 6px 4px 0;
     border: 0;
     border-top: 1px solid var(--line);
-    padding: 10px 14px 4px;
-    margin-top: 6px;
   }
-  .site-preferences label { justify-content: space-between; }
-  .site-preferences label span { display: inline; }
-  .site-preferences select { min-width: 120px; }
+  .preference-control { justify-content: space-between; padding-inline-start: 32px; }
+  .preference-label { display: inline; font-size: 14px; }
+  .preference-control select { min-height: 44px; padding-inline-start: 8px; text-align: end; }
   .nav-links:not(.show) { visibility: hidden; }
   :root[data-theme="light"] .nav-links { background: var(--surface); }
 }
