@@ -29,11 +29,14 @@
 /favicon*
   Cache-Control: public, max-age=604800, s-maxage=604800
 
+# Scripts and styles have no version in their URLs, so browsers must revalidate them
+# (a cheap 304 when unchanged). A long browser cache mixed a new page or home.js with
+# an old forum-ui.js after each release.
 /*.js
-  Cache-Control: public, max-age=259200, s-maxage=259200
+  Cache-Control: public, max-age=0, must-revalidate, s-maxage=259200
 
 /*.css
-  Cache-Control: public, max-age=259200, s-maxage=259200
+  Cache-Control: public, max-age=0, must-revalidate, s-maxage=259200
 
 # These must never be cached, but /*.js and /* match them too, so detach first.
 /sw.js
