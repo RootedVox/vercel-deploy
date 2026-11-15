@@ -67,15 +67,20 @@ export async function onRequestPut({ request, env }) {
 
   if (!Object.keys(patch).length) return json({ error: 'invalid_request' }, 400, auth.headers);
   try {
-    await requestBusinessData(env, auth.session, `business_users?user_id=eq.${encodeURIComponent(auth.session.user_id)}`, {
-      method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(patch)
+    const fields = Object.keys(patch).join(',');
+    const rows = await requestBusinessData(env, auth.session, `business_users?user_id=eq.${encodeURIComponent(auth.session.user_id)}&select=${fields}`, {
+      method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(patch)
     });
+    if (!Array.isArray(rows) || rows.length !== 1) return json({ error: 'profile_not_updated' }, 409, auth.headers);
     return json({
       ok: true,
-      nickname: patch.nickname,
-      avatarUrl: patch.avatar_url
+      nickname: rows[0].nickname,
+      avatarUrl: rows[0].avatar_url
     }, 200, auth.headers);
-  } catch { return json({ error: 'profile_save_failed' }, 503, auth.headers); }
+  } catch (error) {
+    if (error.code === 'P0001' && error.message.includes('avatar_object_missing')) return json({ error: 'avatar_object_missing' }, 409, auth.headers);
+    return json({ error: 'profile_save_failed' }, 503, auth.headers);
+  }
 }
 
 export function onRequest() {

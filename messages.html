@@ -789,33 +789,74 @@
         }
 
         const pendingAvatarUploads = new WeakMap();
-        async function uploadAvatar(file) {
+        async function avatarRequest(path, options, stage) {
+            let response;
             try {
-                let publicUrl = pendingAvatarUploads.get(file);
-                if (!publicUrl) {
-                    const form = new FormData();
-                    form.append('kind', 'avatar');
-                    form.append('files', file, file.name);
-                    const upload = await request('/api/uploads', { method: 'POST', credentials: 'include', body: form });
-                    if (!upload.ok) throw new Error(upload.status === 429 ? '头像更换过于频繁，请稍后重试' : '上传失败');
-                    publicUrl = (await upload.json()).urls[0];
-                    if (typeof publicUrl !== 'string') throw new Error('上传响应无效');
-                    pendingAvatarUploads.set(file, publicUrl);
-                }
-                const saved = await request('/api/profile', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ avatarUrl: publicUrl }) });
-                if (!saved.ok) throw new Error('头像保存失败');
-                const result = await saved.json();
-                if (result.avatarUrl !== publicUrl) throw new Error('头像保存结果不一致');
-                avatarImg.src = publicUrl;
-                avatarImg.style.display = 'block';
-                avatarPlaceholder.style.display = 'none';
-                const preview = document.getElementById('profileAvatarPreview');
-                preview.src = publicUrl; preview.hidden = false;
-                document.getElementById('profileAvatarFallback').hidden = true;
-                showProfileStatus('头像更新成功。', 'success');
-            } catch (err) {
-                throw new Error('头像上传/保存失败：' + (err.message || err));
+                response = await request(path, options);
+            } catch {
+                throw new Error(stage + '：网络连接中断或请求超时，请再次保存');
             }
+            const result = await response.json().catch(() => null);
+            if (response.ok && result) return result;
+            const messages = {
+                authentication_required: '登录已过期，请重新登录',
+                invalid_origin: '当前站点未获准提交，请从论坛主页重新进入',
+                invalid_request: '服务器未能读取提交的数据',
+                invalid_avatar: '账号与头像地址不匹配，请重新上传',
+                invalid_upload: '服务器未能读取上传文件',
+                invalid_avatar_image: '服务器未能验证裁切后的 PNG 图片',
+                avatar_storage_limit: '头像存储数量已达上限，请稍后再试',
+                avatar_storage_denied: '头像存储权限不足，请联系管理员',
+                avatar_bucket_missing: '头像存储桶不存在，请联系管理员',
+                avatar_storage_auth_failed: '头像存储认证失败，请联系管理员',
+                avatar_storage_unavailable: '头像存储服务暂不可用',
+                configuration_error: '论坛服务配置不完整，请联系管理员',
+                session_unavailable: '登录服务暂不可用',
+                avatar_object_missing: '已上传的头像不可用，请再次保存以重新上传',
+                profile_not_updated: '账号资料未更新，请重新登录后再试',
+                profile_save_failed: '账号资料写入失败'
+            };
+            const reason = Object.hasOwn(messages, result?.error) ? messages[result.error] : '服务未能完成请求';
+            const error = new Error(stage + '：' + reason + '（HTTP ' + response.status + '）');
+            error.code = result?.error;
+            throw error;
+        }
+
+        async function persistAvatar(file) {
+            let publicUrl = pendingAvatarUploads.get(file);
+            if (!publicUrl) {
+                const form = new FormData();
+                form.append('kind', 'avatar');
+                form.append('files', file, file.name);
+                const result = await avatarRequest('/api/uploads', { method: 'POST', credentials: 'include', body: form }, '上传头像');
+                publicUrl = result.urls?.[0];
+                if (typeof publicUrl !== 'string' || !publicUrl) throw new Error('服务器未返回头像地址');
+                pendingAvatarUploads.set(file, publicUrl);
+            }
+            const result = await avatarRequest('/api/profile', { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ avatarUrl: publicUrl }) }, '保存账号资料');
+            if (result.avatarUrl !== publicUrl) throw new Error('头像保存结果不一致');
+            return publicUrl;
+        }
+
+        async function uploadAvatar(file) {
+            let publicUrl;
+            for (let attempt = 0; attempt < 2; attempt++) {
+                try {
+                    publicUrl = await persistAvatar(file);
+                    break;
+                } catch (error) {
+                    if (error.code !== 'avatar_object_missing' && error.code !== 'invalid_avatar') throw error;
+                    pendingAvatarUploads.delete(file);
+                    if (attempt === 1) throw error;
+                }
+            }
+            avatarImg.src = publicUrl;
+            avatarImg.style.display = 'block';
+            avatarPlaceholder.style.display = 'none';
+            const preview = document.getElementById('profileAvatarPreview');
+            preview.src = publicUrl; preview.hidden = false;
+            document.getElementById('profileAvatarFallback').hidden = true;
+            showProfileStatus('头像更新成功。', 'success');
         }
 
         function showProfileStatus(message, type = '') {

@@ -30,8 +30,29 @@ test('the page uploads the editor File unchanged and only retries profile persis
     }
   });
   vm.runInContext(code+'\nglobalThis.save=uploadAvatar;',context);
-  await assert.rejects(context.save(file),/保存失败/);
+  await assert.rejects(context.save(file),/保存账号资料.*HTTP 503/);
   await context.save(file);
   assert.deepEqual(calls.map(call=>call.path),['/api/uploads','/api/profile','/api/profile']);
   assert.equal(avatarImg.src,good);
+});
+
+test('a zero-row profile update cannot report a saved avatar', async t => {
+  const key = await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']);
+  const jwk = await crypto.subtle.exportKey('jwk',key.privateKey);
+  const env = {
+    AUTH_ISSUER:'https://auth.example',AUTH_CLIENT_ID:'client',AUTH_REDIRECT_URI:'https://site.example/auth/callback',
+    BUSINESS_SUPABASE_URL:'https://db.example',BUSINESS_SUPABASE_PUBLISHABLE_KEY:'public',
+    BUSINESS_SUPABASE_SIGNING_JWK:JSON.stringify({...jwk,kid:'test'}),
+    AUTH_DB:{prepare(){return {bind(){return {first:async()=>({user_id:uid,last_seen_at:new Date().toISOString()})}}}}}
+  };
+  t.mock.method(globalThis,'fetch',async (url,init)=>{
+    assert.equal(new URL(url).searchParams.get('select'),'avatar_url');
+    assert.equal(init.headers.Prefer,'return=representation');
+    return Response.json([]);
+  });
+  const response = await saveProfile({env,request:new Request('https://site.example/api/profile',{
+    method:'PUT',headers:{Origin:'https://site.example',Cookie:'__Secure-rv_session=test'},body:JSON.stringify({avatarUrl:good})
+  })});
+  assert.equal(response.status,409);
+  assert.deepEqual(await response.json(),{error:'profile_not_updated'});
 });

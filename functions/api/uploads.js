@@ -10,13 +10,34 @@ function extensionFor(type) {
   return ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' })[type];
 }
 
+function avatarStorageError(error) {
+  const status = error.storageStatus || error.status;
+  const text = `${error.code || ''} ${error.reason || ''}`.toLowerCase();
+  if (['NoSuchBucket', 'BucketNotFound'].includes(error.code) || text.includes('bucket not found')) return 'avatar_bucket_missing';
+  // Checked before 403: Storage reports a bad signature as 403 "Unauthorized".
+  if (status === 401 || ['InvalidJWT', 'InvalidSignature'].includes(error.code) || /invalid signature|jwt/.test(text)) return 'avatar_storage_auth_failed';
+  if (status === 403 || ['AccessDenied', 'Unauthorized', '42501'].includes(error.code) || text.includes('row-level security')) return 'avatar_storage_denied';
+  return 'avatar_storage_unavailable';
+}
+
+async function ownAvatarObjects(env, session) {
+  const own = [];
+  for (let offset = 0; ; offset += 100) {
+    const page = await listAvatarObjects(env, session, offset);
+    if (!Array.isArray(page)) throw new Error('invalid_storage_response');
+    own.push(...page.filter(item => item.name?.startsWith(session.user_id + '.')));
+    if (page.length < 100) return own;
+    if (offset >= 900) throw new Error('avatar_storage_limit');
+  }
+}
+
 export async function onRequestPost({ request, env }) {
   const auth = await authenticateApi(request, env);
   if (auth.response) return auth.response;
   let form;
   try { form = await request.formData(); } catch { return json({ error: 'invalid_request' }, 400, auth.headers); }
   const kind = form.get('kind') === 'avatar' ? 'avatar' : 'message';
-  const files = form.getAll('files').filter(value => value instanceof File);
+  const files = form.getAll('files').filter(value => typeof value !== 'string');
   const maxFiles = kind === 'avatar' ? 1 : 5;
   if (!files.length || files.length > maxFiles || files.some(file => !file.size || !ALLOWED_TYPES.has(file.type) || file.size > 5 * 1024 * 1024)) {
     return json({ error: 'invalid_upload' }, 400, auth.headers);
@@ -29,31 +50,34 @@ export async function onRequestPost({ request, env }) {
     catch { return json({ error: 'invalid_avatar_image' }, 400, auth.headers); }
     avatarPath = `business/${auth.session.user_id}.${hash}.png`;
     try {
-      const all = [];
-      for (let offset = 0; ; offset += 100) {
-        const page = await listAvatarObjects(env, auth.session, offset);
-        if (!Array.isArray(page)) throw new Error('invalid_storage_response');
-        all.push(...page);
-        if (page.length < 100) break;
-        if (all.length >= 1000) return json({ error: 'avatar_storage_limit' }, 429, auth.headers);
+      const own = await ownAvatarObjects(env, auth.session);
+      if (own.some(item => 'business/' + item.name === avatarPath)) {
+        const base = String(env.BUSINESS_SUPABASE_URL).replace(/\/$/, '');
+        return json({ urls: [base + '/storage/v1/object/public/avatars/' + avatarPath] }, 201, auth.headers);
       }
-      const own = all.filter(item => item.name?.startsWith(auth.session.user_id + '.'));
-      const rows = await requestBusinessData(env, auth.session, `business_users?user_id=eq.${encodeURIComponent(auth.session.user_id)}&select=avatar_url&limit=1`);
-      let currentPath = null;
-      try { currentPath = new URL(rows?.[0]?.avatar_url).pathname; } catch {}
-      const prefix = '/storage/v1/object/public/avatars/business/';
-      const obsolete = own.filter(item => {
-        const created = Date.parse(item.created_at);
-        return Number.isFinite(created) && Date.now() - created > AVATAR_RETENTION_MS && prefix + item.name !== currentPath && 'business/' + item.name !== avatarPath;
-      });
-      // The accompanying database policies serialize deletion with profile saves
-      // and refuse removal of any object currently referenced by a profile.
-      if (obsolete.length) {
-        await deleteAvatarObjects(env, auth.session, obsolete.map(item => 'business/' + item.name));
+      const expired = own.filter(item => Date.now() - Date.parse(item.created_at) > AVATAR_RETENTION_MS);
+      let remaining = own.length;
+      if (expired.length) {
+        try {
+          const rows = await requestBusinessData(env, auth.session, `business_users?user_id=eq.${encodeURIComponent(auth.session.user_id)}&select=avatar_url&limit=1`);
+          if (!Array.isArray(rows) || rows.length !== 1) throw new Error('profile_unavailable');
+          const currentPath = rows[0].avatar_url ? new URL(rows[0].avatar_url).pathname : null;
+          const obsolete = expired.filter(item => '/storage/v1/object/public/avatars/business/' + item.name !== currentPath);
+          if (obsolete.length) {
+            await deleteAvatarObjects(env, auth.session, obsolete.map(item => 'business/' + item.name));
+            // A successful delete can still affect zero rows under a Storage policy.
+            if (remaining >= AVATAR_LIMIT) remaining = (await ownAvatarObjects(env, auth.session)).length;
+          }
+        } catch (error) {
+          // Below quota, housekeeping can wait until the next upload.
+          if (remaining >= AVATAR_LIMIT) throw error;
+        }
       }
-      if (own.some(item => 'business/' + item.name === avatarPath)) return json({ urls: [String(env.BUSINESS_SUPABASE_URL).replace(/\/$/, '') + '/storage/v1/object/public/avatars/' + avatarPath] }, 201, auth.headers);
-      if (own.length - obsolete.length >= AVATAR_LIMIT && !own.some(item => 'business/' + item.name === avatarPath)) return json({ error: 'avatar_storage_limit' }, 429, auth.headers);
-    } catch { return json({ error: 'avatar_storage_unavailable' }, 503, auth.headers); }
+      if (remaining >= AVATAR_LIMIT) return json({ error: 'avatar_storage_limit' }, 429, auth.headers);
+    } catch (error) {
+      if (error.message === 'avatar_storage_limit') return json({ error: 'avatar_storage_limit' }, 429, auth.headers);
+      return json({ error: avatarStorageError(error) }, 503, auth.headers);
+    }
   }
   const urls = [];
   try {
@@ -78,8 +102,8 @@ export async function onRequestPost({ request, env }) {
       urls.push(await uploadBusinessObject(env, auth.session, bucket, path, file, false, true));
     }
     return json({ urls }, 201, auth.headers);
-  } catch {
-    return json({ error: 'upload_failed' }, 503, auth.headers);
+  } catch (error) {
+    return json({ error: kind === 'avatar' ? avatarStorageError(error) : 'upload_failed' }, 503, auth.headers);
   }
 }
 
