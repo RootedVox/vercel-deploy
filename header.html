@@ -4,6 +4,17 @@
     <button class="menu-toggle" id="menuBtn" type="button" aria-expanded="false" aria-controls="navList" aria-label="打开导航菜单"><span></span><span></span><span></span></button>
     <nav class="site-nav" aria-label="主导航"><ul class="nav-links" id="navList">
       <li><a href="/main">首页</a></li><li><a href="/messages">社区广场</a></li><li><a href="/notice">公告</a></li><li><a href="/about">关于</a></li><li><a href="/contact">联系</a></li>
+      <li class="site-preferences">
+        <label><span>语言</span><select id="languageChoice" aria-label="语言">
+          <option value="zh-CN">简中</option>
+          <option value="en">English</option>
+        </select></label>
+        <label><span>外观</span><select id="themeChoice" aria-label="外观">
+          <option value="auto">跟随系统</option>
+          <option value="light">浅色</option>
+          <option value="dark">深色</option>
+        </select></label>
+      </li>
     </ul></nav>
   </div>
 </header>

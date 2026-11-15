@@ -24,7 +24,7 @@ Licensed under the MIT License.
   <meta name="twitter:image" content="https://rv.celestivast.com/images/logo.png">
 
     <!-- 全局公共样式（和全站共用导航、页脚样式） -->
-    <link rel="stylesheet" href="./common.css">
+    <script src="/preferences.js"></script><script defer src="/english.js"></script><link rel="stylesheet" href="./common.css"><link rel="stylesheet" href="/preferences.css">
     <style>
         /* 本页面独有样式 */
         .main-content {
@@ -80,13 +80,13 @@ Licensed under the MIT License.
             display: inline-block;
             padding: 10px 30px;
             background-color: var(--theme-color);
-            color: #071109;
+            color:var(--action-ink);
             border-radius: 8px;
             text-decoration: none;
             font-weight: bold;
         }
         .back-btn:hover {
-            background-color: #83ff9f;
+            background-color:var(--action-hover);
         }
         .back-btn:focus-visible {
             outline: 2px solid var(--accent);

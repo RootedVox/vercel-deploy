@@ -1,0 +1,83 @@
+:root {
+  --action-ink: #071109;
+  --action-hover: #83ff9f;
+}
+
+.site-preferences {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-inline-start: 12px;
+  border-inline-start: 1px solid var(--line);
+}
+
+.site-preferences label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.site-preferences select {
+  min-height: 36px;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --surface-alt: #f5f7f6;
+  --surface: #fff;
+  --card-bg: #fff;
+  --ink: #17201b;
+  --muted: #526159;
+  --text-gray: #3e4e45;
+  --text-light-gray: #526159;
+  --line: #d8e0db;
+  --theme-color: #146c38;
+  --accent: #146c38;
+  --theme-soft: #e5f1e9;
+  --theme-deep: #eaf2ed;
+  --footer-bg: #eaf0ec;
+  --footer-text: #3e4e45;
+  --action-ink: #fff;
+  --action-hover: #0e582c;
+}
+
+:root[data-theme="light"] body { background: var(--surface-alt); }
+:root[data-theme="light"] .header { background: #f5f7f6f2; }
+:root[data-theme="light"] .header.scrolled { border-color: var(--line); }
+:root[data-theme="light"] .nav-links a { color: var(--muted); }
+:root[data-theme="light"] .nav-links a.active { color: #fff; }
+:root[data-theme="light"] .menu-toggle { background: var(--surface); }
+:root[data-theme="light"] :is(input, textarea)::placeholder { color: var(--muted); }
+:root[data-theme="light"] :is(.footer-brand strong, .footer-brand p, .footer-links a, .footer-email, .footer-bottom) { color: var(--footer-text); }
+:root[data-theme="light"] :is(.footer-email, .footer-bottom) { border-color: var(--line); }
+:root[data-theme="light"] .hero.rv-hero { --accent: #5cff8a; --action-ink: #071109; color-scheme: dark; }
+:root[data-theme="light"] .notice-intro { background: var(--theme-soft); }
+
+@media (max-width: 1040px) {
+  .site-preferences label span { display: none; }
+}
+
+@media (max-width: 860px) {
+  .site-preferences {
+    display: grid;
+    border: 0;
+    border-top: 1px solid var(--line);
+    padding: 10px 14px 4px;
+    margin-top: 6px;
+  }
+  .site-preferences label { justify-content: space-between; }
+  .site-preferences label span { display: inline; }
+  .site-preferences select { min-width: 120px; }
+  .nav-links:not(.show) { visibility: hidden; }
+  :root[data-theme="light"] .nav-links { background: var(--surface); }
+}
+:root[data-theme="light"] .form-status.success { color: #146c38; }
+:root[data-theme="light"] .form-status.error { color: #a42b3b; }

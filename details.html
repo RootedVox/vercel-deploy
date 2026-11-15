@@ -8,7 +8,7 @@
     <script defer src="./auth-client.js"></script>
     <script defer src="./public-data.js"></script>
     <!-- 引入全局公共样式 -->
-    <link rel="stylesheet" href="./common.css">
+    <script src="/preferences.js"></script><script defer src="/english.js"></script><link rel="stylesheet" href="./common.css"><link rel="stylesheet" href="/preferences.css">
     <style>
         /* 移除全局通用、导航、页脚CSS，只保留页面独有样式 */
         .main-content {
@@ -29,7 +29,7 @@
         }
         .back-btn:hover {
             background-color: var(--theme-color);
-            color: white;color:#071109}
+            color: white;color:var(--action-ink)}
         .main-message-card {
             background-color: var(--card-bg);
             border-radius: 10px;
@@ -105,7 +105,7 @@
             color: var(--text-gray);
         }
         .message-content {
-            color: #aeb5ae;
+            color: var(--muted);
             line-height: 1.8;
             margin-bottom: 15px;
             white-space: pre-line;
@@ -166,7 +166,7 @@
         }
         #allCommentsLink[hidden], #moreComments[hidden] { display: none; }
         .reply-btn:hover, .comment-btn:hover {
-            background: #171717;
+            background: var(--surface);
         }
         .comment-input-container {
             display: none;
@@ -202,10 +202,10 @@
         }
         .image-upload-container:hover {
             border-color: var(--theme-color);
-            background-color: #171717;
+            background-color: var(--surface);
         }
         .image-upload-text {
-            color: #aeb5ae;
+            color: var(--muted);
             font-size: 14px;
         }
         .image-upload-input {
@@ -236,7 +236,7 @@
         }
         .anonymous-label {
             font-size: 14px;
-            color: #aeb5ae;
+            color: var(--muted);
             cursor: pointer;
         }
         .comment-submit-btn {
@@ -247,14 +247,14 @@
             padding: 8px 20px;
             font-size: 14px;
             cursor: pointer;
-            transition: background-color 0.2s ease;color:#071109}
+            transition: background-color 0.2s ease;color:var(--action-ink)}
         .comment-submit-btn:hover {
             background-color: #15408f;
         }
         .cancel-comment-btn {
             background: none;
             border: 1px solid #ddd;
-            color: #aeb5ae;
+            color: var(--muted);
             border-radius: 8px;
             padding: 8px 20px;
             font-size: 14px;
@@ -263,7 +263,7 @@
             transition: background-color 0.2s ease;
         }
         .cancel-comment-btn:hover {
-            background-color: #171717;
+            background-color: var(--surface);
         }
         .empty-comment {
             text-align: center;

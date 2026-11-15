@@ -23,7 +23,7 @@ Licensed under the MIT License.
   <meta name="twitter:description" content="查看 RootedVox的联系与反馈渠道，向开发团队提出平台使用问题、建议和合作意向。">
   <meta name="twitter:image" content="https://rv.celestivast.com/images/logo.png">
 
-    <link rel="stylesheet" href="./common.css">
+    <script src="/preferences.js"></script><script defer src="/english.js"></script><link rel="stylesheet" href="./common.css"><link rel="stylesheet" href="/preferences.css">
     <style>
         /* 仅保留页面独有样式，导航、页脚、全局样式移入common.css */
         .main-content {
@@ -54,7 +54,7 @@ Licensed under the MIT License.
             align-items: center;
             gap: 50px;
             margin-bottom: 40px;
-            background: var(--card-bg, #171717);
+            background: var(--card-bg, var(--surface));
             padding: 50px 30px;
             border-radius: 16px;
             box-shadow: 0 4px 18px rgba(0, 0, 0, 0.07);
@@ -80,7 +80,7 @@ Licensed under the MIT License.
 
         .contact-info p {
             margin-bottom: 12px;
-            color: #aeb5ae;
+            color: var(--muted);
         }
 
         .contact-info strong {
@@ -99,7 +99,7 @@ Licensed under the MIT License.
             transition: 0.25s;
             margin-top: 25px;
             border: none;
-            cursor: pointer;color:#071109}
+            cursor: pointer;color:var(--action-ink)}
 
         .contact-button:hover {
             background: #15408f;
@@ -109,7 +109,7 @@ Licensed under the MIT License.
         .contact-note {
             text-align: center;
             font-size: 16px;
-            color: #aeb5ae;
+            color: var(--muted);
             max-width: 800px;
             margin: 0 auto 40px;
             line-height: 1.8;
@@ -117,7 +117,7 @@ Licensed under the MIT License.
 
         .backup-tip {
             font-size: 14px;
-            color: #aeb5ae;
+            color: var(--muted);
             margin-top: 15px;
         }
     </style>
