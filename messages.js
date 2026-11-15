@@ -188,6 +188,8 @@
                 avatar_bucket_missing: '头像存储桶不存在，请联系管理员',
                 avatar_storage_auth_failed: '头像存储认证失败，请联系管理员',
                 avatar_storage_unavailable: '头像存储服务暂不可用',
+                avatar_type_rejected: '头像存储桶不接受 PNG 图片，请联系管理员',
+                avatar_too_large: '头像超过存储桶的大小上限，请联系管理员',
                 configuration_error: '论坛服务配置不完整，请联系管理员',
                 session_unavailable: '登录服务暂不可用',
                 avatar_object_missing: '已上传的头像不可用，请再次保存以重新上传',
