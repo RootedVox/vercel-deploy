@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 
-const messages = readFileSync(new URL('../messages.html', import.meta.url), 'utf8');
-const details = readFileSync(new URL('../details.html', import.meta.url), 'utf8');
+const messages = readFileSync(new URL('../messages.html', import.meta.url), 'utf8') + readFileSync(new URL('../messages.js', import.meta.url), 'utf8');
+const details = readFileSync(new URL('../details.html', import.meta.url), 'utf8') + readFileSync(new URL('../details.js', import.meta.url), 'utf8');
 const tick = () => new Promise(resolve => setImmediate(resolve));
 function node() {
   return { value: '', textContent: '', innerHTML: '', disabled: false, style: {}, options: [],
@@ -15,8 +15,10 @@ test('public feed and scrolling initialize while authentication is pending; prof
   const nodes = new Map();
   const get = id => { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); };
   let initialize, finishAuth, feedCalls = 0, status = '';
+  const windowListeners = {};
   const context = vm.createContext({
     document: { getElementById: get, addEventListener(type, callback) { if (type === 'DOMContentLoaded') initialize = callback; } },
+    window: { addEventListener(type, callback) { windowListeners[type] = callback; } },
     location: { search: '' }, URLSearchParams,
     initAuth: () => new Promise(resolve => { finishAuth = resolve; }),
     loadMainMessages() { feedCalls++; return new Promise(() => {}); },
@@ -30,6 +32,9 @@ test('public feed and scrolling initialize while authentication is pending; prof
   assert.equal(feedCalls, 1);
   assert.equal(typeof get('messageSearch').listeners.input, 'function');
   assert.equal(typeof get('messageFeed').listeners.scroll, 'function');
+  // Phones scroll the page instead of the feed box, so both are watched.
+  assert.equal(typeof windowListeners.scroll, 'function');
+  assert.equal(typeof get('submitBtn').onclick, 'function');
   assert.equal(get('submitBtn').disabled, true);
   finishAuth(true);
   await ready;
@@ -57,7 +62,7 @@ function threadHarness(read) {
   const start = details.indexOf('async function loadMainMessage()');
   vm.runInContext('let mainMsgId, allMessages, authReady, threadCursor, replyParentName; const replyId = "2", messageIdPattern = /^\\d+$/;\n' + details.slice(start, details.indexOf('function renderMainMessage(', start)) + '\nglobalThis.retry = retryThread;', context);
   const init = details.indexOf("document.addEventListener('DOMContentLoaded'");
-  vm.runInContext(details.slice(init, details.indexOf('</script>', init)), context);
+  vm.runInContext(details.slice(init), context);
   return { main, comments, retry: context.retry, initialize: () => initialize(), renders: () => renders, jumps: () => jumps, observations: () => observations };
 }
 

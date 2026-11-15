@@ -167,5 +167,36 @@
       }
       return selected.map(file => uploads.get(file).url);
   }
+  // Thumbnails open in an in-page viewer instead of a new tab. The listeners are
+  // delegated because feeds and threads add images after the page has loaded.
+  let viewer;
+  function openImage(image) {
+      const source = image.currentSrc || image.src;
+      if (!viewer) {
+          viewer = document.createElement('dialog');
+          viewer.className = 'image-viewer';
+          const close = document.createElement('button');
+          close.type = 'button';
+          close.textContent = '×';
+          close.setAttribute('aria-label', '关闭图片');
+          viewer.append(close, document.createElement('img'));
+          viewer.addEventListener('click', () => viewer.close());
+          document.body.append(viewer);
+      }
+      if (typeof viewer.showModal !== 'function') return window.open(source, '_blank', 'noopener');
+      const full = viewer.querySelector('img');
+      full.src = source;
+      full.alt = image.alt;
+      viewer.showModal();
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+      document.addEventListener('click', event => {
+          const image = event.target.closest?.('img.message-image');
+          if (image) openImage(image);
+      });
+      document.addEventListener('keydown', event => {
+          if (event.key === 'Enter' && event.target.matches?.('img.message-image')) openImage(event.target);
+      });
+  }
   window.ForumUI = { parseMessageContent, escapeHtml, renderMessageAvatars, getFreshAvatar, uploadFiles };
 })();

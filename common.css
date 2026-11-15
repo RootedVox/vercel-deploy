@@ -68,3 +68,11 @@ body { background-color: #0b0b0b; }
 input, select, textarea { color: var(--ink); }
 input::placeholder, textarea::placeholder { color: #a9b1ab; opacity: 1; }
 a { color: var(--theme-color); }
+
+/* In-page image viewer opened by forum-ui.js. */
+.message-image { cursor: zoom-in; }
+.image-viewer { width: 100vw; height: 100vh; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: rgba(0, 0, 0, .9); }
+.image-viewer[open] { display: grid; place-items: center; }
+.image-viewer::backdrop { background: rgba(0, 0, 0, .9); }
+.image-viewer img { max-width: 96vw; max-height: 92vh; max-height: 92dvh; border-radius: 8px; object-fit: contain; }
+.image-viewer button { position: fixed; top: 14px; right: 14px; width: 44px; height: 44px; border: 0; border-radius: 50%; color: #fff; background: rgba(255, 255, 255, .18); cursor: pointer; font-size: 24px; line-height: 1; }

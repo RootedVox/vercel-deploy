@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
-const page = readFileSync(new URL('../messages.html', import.meta.url), 'utf8');
+const page = readFileSync(new URL('../messages.html', import.meta.url), 'utf8') + readFileSync(new URL('../messages.js', import.meta.url), 'utf8');
 const loader = page.slice(page.indexOf('            let avatarAssetsPromise;'), page.indexOf("            const changeAvatar = document.getElementById('profileAvatarButton');"));
 
 function harness() {

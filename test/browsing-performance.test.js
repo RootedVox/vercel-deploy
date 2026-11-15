@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 
-const page = readFileSync(new URL('../messages.html', import.meta.url), 'utf8');
+const page = readFileSync(new URL('../messages.html', import.meta.url), 'utf8') + readFileSync(new URL('../messages.js', import.meta.url), 'utf8');
 
 test('new picture selections keep order and release old previews without allocating invalid selections', () => {
   const allocated = [], revoked = [], images = [];

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
 import { onRequestPut as saveProfile } from '../functions/api/profile.js';
-const source = await readFile(new URL('../messages.html', import.meta.url), 'utf8');
+const source = await readFile(new URL('../messages.html', import.meta.url), 'utf8') + await readFile(new URL('../messages.js', import.meta.url), 'utf8');
 const uid='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const good=`https://db.example/storage/v1/object/public/avatars/business/${uid}.${'a'.repeat(64)}.png`;
 test('profile refuses untrusted, decorated or non-content-addressed avatar URLs', async () => {

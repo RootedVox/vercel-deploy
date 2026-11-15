@@ -9,12 +9,17 @@
 #
 # Broad rules come first so that the "!" detach in the specific rules below applies.
 
+# The policy runs same-origin scripts only, so pages must not use inline <script> or
+# on* attributes (test/forum-pages.test.js enforces this). Inline styles stay allowed:
+# pages and rendered markup still use style attributes. Images come from Supabase
+# Storage, whose host differs per environment, hence "https:". connect-src lists both
+# deployments because the failover client calls its peer directly.
 /*
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: no-referrer
   Permissions-Policy: camera=(), microphone=(), geolocation=()
-  Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; object-src 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://rv.celestivast.com https://rv-vc.celestivast.com; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'
   Strict-Transport-Security: max-age=31536000; includeSubDomains
 
 /*.html
