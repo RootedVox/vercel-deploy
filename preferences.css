@@ -1,6 +1,8 @@
 :root {
   --action-ink: #071109;
   --action-hover: #83ff9f;
+  --error-ink: #ffa1a1;
+  --error-surface: #2c161a;
 }
 
 .site-preferences {
@@ -47,6 +49,8 @@
   --footer-text: #3e4e45;
   --action-ink: #fff;
   --action-hover: #0e582c;
+  --error-ink: #a42b3b;
+  --error-surface: #fff0f3;
 }
 
 :root[data-theme="light"] body { background: var(--surface-alt); }
@@ -79,5 +83,3 @@
   .nav-links:not(.show) { visibility: hidden; }
   :root[data-theme="light"] .nav-links { background: var(--surface); }
 }
-:root[data-theme="light"] .form-status.success { color: #146c38; }
-:root[data-theme="light"] .form-status.error { color: #a42b3b; }

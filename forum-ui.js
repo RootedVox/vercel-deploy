@@ -77,7 +77,7 @@
                       <div style="${devInnerStyle}">
                           <img loading="lazy" decoding="async" width="38" height="38" alt="" src="${escapeHtml(getFreshAvatar(avatarUrl))}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:block;">
                       </div>
-                      <span style="position:absolute;right:-6px;bottom:-2px;font-size:9px;font-weight:bold;color:#fff;background:#c28c00;padding:1px 4px;border-radius:6px;white-space:nowrap;z-index:2;">Dev</span>
+                      <span style="position:absolute;right:-6px;bottom:-2px;font-size:9px;font-weight:bold;color:#171000;background:#e3ac21;padding:1px 4px;border-radius:6px;white-space:nowrap;z-index:2;">Dev</span>
                   </div>`;
               } else {
                   avatarCore = `<img loading="lazy" decoding="async" width="38" height="38" alt="" src="${escapeHtml(getFreshAvatar(avatarUrl))}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">`;
@@ -87,12 +87,12 @@
                   avatarCore = `
                   <div style="${devWrapStyle}">
                       <div style="${devInnerStyle}">
-                          <div style="width:38px;height:38px;border-radius:50%;background:#ccc;display:flex;align-items:center;justify-content:center;color:#aeb5ae;">${escapeHtml(firstChar)}</div>
+                          <div style="width:38px;height:38px;border-radius:50%;background:var(--theme-soft);display:flex;align-items:center;justify-content:center;color:var(--ink);">${escapeHtml(firstChar)}</div>
                       </div>
-                      <span style="position:absolute;right:-6px;bottom:-2px;font-size:9px;font-weight:bold;color:#fff;background:#c28c00;padding:1px 4px;border-radius:6px;white-space:nowrap;z-index:2;">Dev</span>
+                      <span style="position:absolute;right:-6px;bottom:-2px;font-size:9px;font-weight:bold;color:#171000;background:#e3ac21;padding:1px 4px;border-radius:6px;white-space:nowrap;z-index:2;">Dev</span>
                   </div>`;
               } else {
-                  avatarCore = `<div style="width:38px;height:38px;border-radius:50%;background:#ccc;display:flex;align-items:center;justify-content:center;color:#aeb5ae;">${escapeHtml(firstChar)}</div>`;
+                  avatarCore = `<div style="width:38px;height:38px;border-radius:50%;background:var(--theme-soft);display:flex;align-items:center;justify-content:center;color:var(--ink);">${escapeHtml(firstChar)}</div>`;
               }
           }
 
