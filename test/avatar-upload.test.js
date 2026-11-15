@@ -106,6 +106,8 @@ test('Storage errors reported inside an HTTP 400 body are classified by their re
     [{statusCode:'403', error:'Unauthorized', message:'new row violates row-level security policy'}, 'avatar_storage_denied'],
     [{statusCode:'403', error:'Unauthorized', message:'invalid signature'}, 'avatar_storage_auth_failed'],
     [{statusCode:'400', error:'InvalidJWT', message:'jwt expired'}, 'avatar_storage_auth_failed'],
+    [{statusCode:'415', error:'invalid_mime_type', message:'mime type image/png is not supported'}, 'avatar_type_rejected'],
+    [{statusCode:'413', error:'Payload too large', message:'The object exceeded the maximum allowed size'}, 'avatar_too_large'],
     [{statusCode:'500', error:'internal', message:'boom'}, 'avatar_storage_unavailable']
   ]) {
     await t.test(body.message, async t => {
@@ -131,8 +133,8 @@ test('an unnamed Storage failure reports the failed step and what Storage answer
   for (const [stage, path, reply, expected] of [
     ['list', '/storage/v1/object/list/avatars', () => Response.json({statusCode:'500', error:'DatabaseTimeout', message:'statement <b>timeout</b>'}, {status:400}),
       {stage:'list', status:500, code:'DatabaseTimeout', reason:'statement b timeout /b'}],
-    ['upload', '/storage/v1/object/avatars/', () => Response.json({statusCode:'415', error:'invalid_mime_type', message:'mime type image/png is not supported'}, {status:400}),
-      {stage:'upload', status:415, code:'invalid_mime_type', reason:'mime type image/png is not supported'}],
+    ['upload', '/storage/v1/object/avatars/', () => Response.json({statusCode:'409', error:'ResourceLocked', message:'object is locked'}, {status:400}),
+      {stage:'upload', status:409, code:'ResourceLocked', reason:'object is locked'}],
     ['upload', '/storage/v1/object/avatars/', () => { throw new TypeError('fetch failed'); },
       {stage:'upload', status:null, code:'fetch failed', reason:null}]
   ]) {
@@ -153,4 +155,15 @@ test('a failed cleanup at quota is reported as the cleanup step', async t => {
   const result = await h.send();
   assert.equal(result.status, 503);
   assert.deepEqual(await result.json(), {error:'avatar_storage_denied', detail:{stage:'cleanup', status:403, code:'AccessDenied', reason:'not allowed'}});
+});
+
+test('the bucket migration only widens the avatars bucket to the editor output', async () => {
+  const sql = await readFile(new URL('../supabase/20261116_avatar_bucket_png.sql', import.meta.url), 'utf8');
+  const statements = sql.replace(/--.*$/gm, '').split(';').map(part => part.trim()).filter(Boolean);
+  assert.deepEqual(statements.map(part => part.split(/\s+/)[0]), ['begin', 'update', 'update', 'commit']);
+  for (const update of statements.slice(1, 3)) assert.match(update, /^update storage\.buckets\b[\s\S]*where id = 'avatars'/);
+  assert.match(statements[1], /array_append\(allowed_mime_types, 'image\/png'\)/);
+  assert.match(statements[2], /file_size_limit = 1048576[\s\S]*file_size_limit < 1048576/);
+  // The server accepts avatars up to 1 MB; the bucket must accept the same.
+  assert.match(await readFile(new URL('../functions/_lib/avatar.js', import.meta.url), 'utf8'), /file\.size > 1024 \* 1024/);
 });

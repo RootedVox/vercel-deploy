@@ -17,6 +17,9 @@ function avatarStorageError(error) {
   // Checked before 403: Storage reports a bad signature as 403 "Unauthorized".
   if (status === 401 || ['InvalidJWT', 'InvalidSignature'].includes(error.code) || /invalid signature|jwt/.test(text)) return 'avatar_storage_auth_failed';
   if (status === 403 || ['AccessDenied', 'Unauthorized', '42501'].includes(error.code) || text.includes('row-level security')) return 'avatar_storage_denied';
+  // The bucket's own limits. Both are fixed by supabase/20261116_avatar_bucket_png.sql.
+  if (status === 415 || error.code === 'invalid_mime_type' || text.includes('mime type')) return 'avatar_type_rejected';
+  if (status === 413 || ['EntityTooLarge', 'Payload too large'].includes(error.code) || text.includes('exceeded the maximum allowed size')) return 'avatar_too_large';
   return 'avatar_storage_unavailable';
 }
 
