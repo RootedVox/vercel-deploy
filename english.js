@@ -1,4 +1,6 @@
 window.rvEnglish = new Map(Object.entries({
+  "RootedVox 4.3.4 · 头像上传修复": "RootedVox 4.3.4 · Avatar upload fix",
+  "修复部分情况下无法上传新头像的问题。头像保存失败时，页面会区分上传与资料保存错误，并提示具体原因。": "Fixed an issue that could prevent new avatar uploads. If saving an avatar fails, the page explains whether the upload or the profile update failed and why.",
   "RootedVox 4.3.3 · 头像编辑器外观修复": "RootedVox 4.3.3 · Avatar editor theme fix",
   "更改头像时，弹窗、预览和按钮现在会跟随当前主题。账号页面、留言详情、通知和审核导航的配色也已统一。": "The avatar editor dialog, previews, and buttons now follow the active theme. Account pages, threads, notifications, and moderation navigation also use consistent theme colors.",
   "RootedVox 4.3.2 · 审核端外观修复": "RootedVox 4.3.2 · Moderation theme fix",
