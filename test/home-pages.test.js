@@ -22,3 +22,11 @@ test('unversioned scripts and styles are revalidated by browsers', () => {
     assert.match(headers, new RegExp(`/\\*\\.${type}\\n  Cache-Control: public, max-age=0, must-revalidate`));
   }
 });
+
+test('pages show the small logo instead of the 1600px PNG', () => {
+  for (const page of ['login.html', 'contact.html']) {
+    assert.doesNotMatch(read(page), /<img[^>]+logo\.png/, page);
+    assert.match(read(page), /<img src="\.\/images\/logo-512-v1\.webp"/, page);
+  }
+  assert.ok(readFileSync(new URL('images/logo-512-v1.webp', root)).length < 40_000);
+});
