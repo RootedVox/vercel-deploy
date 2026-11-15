@@ -30,3 +30,12 @@ test('pages show the small logo instead of the 1600px PNG', () => {
   }
   assert.ok(readFileSync(new URL('images/logo-512-v1.webp', root)).length < 40_000);
 });
+
+test('every notice has a date and the home pages show real dates', () => {
+  const notices = [...read('notice.html').matchAll(/<li class="notice-item[^"]*"([^>]*)>/g)];
+  assert.ok(notices.length >= 3);
+  for (const [, attributes] of notices) assert.match(attributes, /data-date="20\d{2}-\d{2}-\d{2}"/);
+  const dates = [...read('main.html').matchAll(/<time class="notice-date" datetime="(20\d{2}-\d{2}-\d{2})">\1<\/time>/g)];
+  assert.equal(dates.length, 3);
+  assert.doesNotMatch(read('main.html'), /notice-date">最新</);
+});
