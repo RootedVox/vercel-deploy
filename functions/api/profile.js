@@ -1,6 +1,6 @@
 import { authenticateApi, cleanText } from '../_lib/api.js';
 import { json, methodNotAllowed } from '../_lib/http.js';
-import { isOfficialNickname, OFFICIAL_USER_ID, resolveProfileNickname } from '../_lib/official-profile.js';
+import { isOfficialNickname, nicknameKey, OFFICIAL_USER_ID, resolveProfileNickname } from '../_lib/official-profile.js';
 import { requestBusinessData } from '../_lib/supabase.js';
 
 const MAX_NICKNAME_LENGTH = 40;
@@ -18,11 +18,12 @@ export function normalizeNickname(value) {
 }
 
 function validNickname(value, userId) {
-  return value.length >= 1
+  const key = nicknameKey(value);
+  return key.length >= 1
     && value.length <= MAX_NICKNAME_LENGTH
     && !/[\u0000-\u001f\u007f]/.test(value)
     && (!isOfficialNickname(value) || userId === OFFICIAL_USER_ID)
-    && !RESERVED_NICKNAMES.has(value.toLocaleLowerCase('zh-CN'));
+    && !RESERVED_NICKNAMES.has(key);
 }
 
 export async function onRequestGet({ request, env }) {
@@ -47,6 +48,7 @@ export async function onRequestPut({ request, env }) {
   if (auth.response) return auth.response;
   let body;
   try { body = await request.json(); } catch { return json({ error: 'invalid_request' }, 400, auth.headers); }
+  if (!body || typeof body !== 'object') return json({ error: 'invalid_request' }, 400, auth.headers);
   const patch = {};
 
   if (Object.hasOwn(body, 'nickname')) {

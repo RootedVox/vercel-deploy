@@ -98,16 +98,21 @@ export async function exchangeCode(discovery, config, code, codeVerifier) {
   };
   tokenAuth(discovery, config, body, headers);
 
+  // The deadline covers the body read too: a provider that accepts the connection and
+  // then stalls would otherwise hold the login callback open until the platform kills it.
   let response;
   try {
-    response = await fetch(discovery.token_endpoint, { method: 'POST', headers, body });
+    response = await withDeadline(async signal => {
+      const result = await fetch(discovery.token_endpoint, { method: 'POST', headers, body, signal });
+      return { ok: result.ok, status: result.status, text: await result.text() };
+    });
   } catch {
     throw new Error('authorization_server_unavailable');
   }
   if (!response.ok) {
     let codeName = '';
     try {
-      const failure = await response.json();
+      const failure = JSON.parse(response.text);
       codeName = failure.error || '';
       // Log only fixed categories, never the provider response or authorization code.
       const description = String(failure.error_description || '');
@@ -126,8 +131,8 @@ export async function exchangeCode(discovery, config, code, codeVerifier) {
     throw new Error('token_endpoint_failure');
   }
   let tokenSet;
-  try { tokenSet = await response.json(); } catch { throw new Error('token_endpoint_failure'); }
-  if (!tokenSet.id_token) throw new Error('invalid_id_token');
+  try { tokenSet = JSON.parse(response.text); } catch { throw new Error('token_endpoint_failure'); }
+  if (!tokenSet || !tokenSet.id_token) throw new Error('invalid_id_token');
   if (tokenSet.access_token && String(tokenSet.token_type || '').toLowerCase() !== 'bearer') {
     throw new Error('token_endpoint_failure');
   }
@@ -259,17 +264,18 @@ export async function verifyIdToken(idToken, discovery, config, nonce, accessTok
 
 export async function fetchUserInfo(discovery, tokenSet, expectedSubject) {
   if (!discovery.userinfo_endpoint || !tokenSet.access_token) return null;
-  let response;
+  let profile;
   try {
-    response = await fetch(discovery.userinfo_endpoint, {
-      headers: { Accept: 'application/json', Authorization: `Bearer ${tokenSet.access_token}` }
+    profile = await withDeadline(async signal => {
+      const response = await fetch(discovery.userinfo_endpoint, {
+        headers: { Accept: 'application/json', Authorization: `Bearer ${tokenSet.access_token}` }, signal
+      });
+      return response.ok ? await response.json() : null;
     });
   } catch {
     return null;
   }
-  if (!response.ok) return null;
-  let profile;
-  try { profile = await response.json(); } catch { return null; }
+  if (!profile || typeof profile !== 'object') return null;
   if (profile.sub !== expectedSubject) throw new Error('userinfo_subject_mismatch');
   return profile;
 }

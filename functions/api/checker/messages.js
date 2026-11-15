@@ -37,6 +37,7 @@ export async function onRequestPatch({ request, env }) {
   if (auth.response) return auth.response;
   let body;
   try { body = await request.json(); } catch { return json({ error: 'invalid_request' }, 400, auth.headers); }
+  if (!body || typeof body !== 'object') return json({ error: 'invalid_request' }, 400, auth.headers);
   const id = String(body.id || '');
   const action = String(body.action || '');
   const reason = cleanText(body.reason, 1000);
