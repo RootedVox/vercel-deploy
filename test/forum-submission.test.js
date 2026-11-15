@@ -78,5 +78,27 @@ test('lost response, concurrent submissions, edited payload, separate accounts a
   user='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
   assert.equal((await post()).status,201);
   assert.equal(rows.size,4);
+  const long = await post(crypto.randomUUID(), '文'.repeat(1001));
+  assert.equal(long.status, 400);
+  assert.equal((await long.json()).error, 'content_too_long');
+  assert.equal((await post(crypto.randomUUID(), '文'.repeat(1000))).status, 201);
   assert.equal((await post('broken')).status,400);
+});
+
+test('an edit during upload or submission retains the newer draft', () => {
+  const context = { window: {}, crypto, sessionStorage: { getItem() {}, setItem() {}, removeItem() {} } };
+  vm.runInNewContext(readFileSync(new URL('../forum-drafts.js', import.meta.url), 'utf8'), context);
+  const drafts = context.window.ForumDrafts;
+  drafts.bind('account');
+  drafts.save('post', { text: 'first' });
+  const original = drafts.get('post');
+  const payload = { content: 'first', anonymous: false, imageUrls: [] };
+  drafts.save('post', { text: 'updated while uploading' });
+  assert.equal(drafts.prepare('post', original, { ...payload }), null);
+  assert.equal(drafts.get('post').text, 'updated while uploading');
+  const current = drafts.get('post');
+  const submitted = drafts.prepare('post', current, { ...payload, content: current.text });
+  assert.equal(drafts.get('post'), submitted);
+  drafts.save('post', { text: 'updated while posting' });
+  assert.notEqual(drafts.get('post'), submitted);
 });

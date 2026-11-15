@@ -496,12 +496,10 @@
             submitBtn.textContent = '发布中...';
             try {
                 savePostDraft();
-                const picUrls = files.length ? await uploadImages(Array.from(files)) : ForumDrafts.get('post')?.attachments || [];
-                ForumDrafts.save('post', { text: content, attachments: picUrls });
+                const original = ForumDrafts.get('post');
+                const picUrls = files.length ? await uploadImages(Array.from(files)) : original?.attachments || [];
                 const payload = { content, zone, anonymous, imageUrls: picUrls };
-                const lastSubmission = ForumDrafts.get('post')?.submissionId;
-                payload.submissionId = ForumDrafts.submission('post', payload);
-                payload.retry = payload.submissionId === lastSubmission;
+                const submitted = ForumDrafts.prepare('post', original, payload);
                 showFormStatus('正在上传并提交…');
                 const response = await request('/api/messages', {
                     method: 'POST', credentials: 'include',
@@ -511,15 +509,15 @@
                 if (response.status === 401) return RootedVoxAuth.handleLogin('/messages' + location.search);
                 if (!response.ok) throw new Error('留言服务暂时不可用');
                 const result = await response.json();
+                showFormStatus('发布成功，审核结果会通过站内通知告知你。', 'success');
+                if (result.published === true) loadMainMessages(false);
+                if (!submitted || ForumDrafts.get('post') !== submitted) return;
                 ForumDrafts.clear('post');
                 document.getElementById('discardDraft').hidden = true;
-                showFormStatus('发布成功，审核结果会通过站内通知告知你。', 'success');
                 document.getElementById('messageContent').value = '';
                 document.getElementById('contentCount').textContent = '0 / 1000';
                 document.getElementById('messagePicFile').value = '';
                 clearImagePreviews();
-                // A pending post is not yet part of the public feed.
-                if (result.published === true) loadMainMessages(false);
             } catch (error) {
                 if (error.message === 'login_required') return RootedVoxAuth.handleLogin('/messages' + location.search);
                 showFormStatus('发布失败：' + (error.message || error), 'error');
@@ -795,23 +793,24 @@
 
             const avatarBtn = document.getElementById('avatarBtn');
             const avatarDropdown = document.getElementById('avatarDropdown');
+            function setAvatarMenu(open) {
+                avatarDropdown.style.display = open ? 'block' : 'none';
+                avatarBtn.setAttribute('aria-expanded', String(open));
+            }
             avatarBtn.onclick = (e) => {
                 e.stopPropagation();
-                const open = avatarDropdown.style.display !== "block";
-                avatarDropdown.style.display = open ? "block" : "none";
-                avatarBtn.setAttribute('aria-expanded', String(open));
+                setAvatarMenu(avatarDropdown.style.display !== 'block');
             };
 
             document.addEventListener('click', (e) => {
                 if (!avatarBtn.contains(e.target) && !avatarDropdown.contains(e.target)) {
-                    avatarDropdown.style.display = "none";
-                    avatarBtn.setAttribute('aria-expanded', 'false');
+                    setAvatarMenu(false);
                 }
             });
 
             document.getElementById('openProfile').onclick = () => {
                 showModal(document.getElementById('profileModal'), null, avatarBtn);
-                avatarDropdown.style.display = "none";
+                setAvatarMenu(false);
                 const nicknameInput = document.getElementById('profileNickname');
                 nicknameInput.value = currentUserRealName;
                 nicknameInput.focus();
@@ -839,8 +838,8 @@
 
 
             document.getElementById('openNotifications').onclick = async () => {
+                setAvatarMenu(false);
                 await openNotifications(false);
-                avatarDropdown.style.display = "none";
             };
 
             document.getElementById('closeModal').onclick = () => {

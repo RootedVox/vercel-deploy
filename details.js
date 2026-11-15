@@ -258,7 +258,10 @@ function bindReplyDraft(tid, box) {
         }
     }
     const save = () => ForumDrafts.save(key, { text: text.value, anonymous: anon.checked });
-    text.oninput = save;
+    const counter = box.querySelector('.reply-count');
+    const updateCount = () => { counter.textContent = text.value.length + ' / 1000'; };
+    updateCount();
+    text.oninput = () => { updateCount(); save(); };
     anon.onchange = save;
     box.querySelector('.cancel-comment-btn').onclick = () => {
         ForumDrafts.clear(key);
@@ -271,7 +274,8 @@ function showMainCommentBox(tid) {
     if (!b) return;
     b.style.display = 'block';
     b.innerHTML = `
-    <textarea class="comment-input" id="mainCommentInput" placeholder="写下你的评论..."></textarea>
+    <textarea maxlength="1000" class="comment-input" id="mainCommentInput" placeholder="写下你的评论..."></textarea>
+    <small class="reply-count"></small>
     <div class="image-upload-container" data-action="pick" data-id="${tid}">
         <div class="image-upload-text">🖼️ 点击选择图片（可选）</div>
         <input type="file" id="imageUpload-${tid}" class="image-upload-input" accept="image/*" multiple data-id="${tid}">
@@ -294,7 +298,8 @@ function showReplyBox(tid) {
     const name = userMap[tid] || '用户';
     b.style.display = 'block';
     b.innerHTML = `
-    <textarea class="comment-input" id="replyInput-${tid}" placeholder="回复 @${escapeHtml(name)}"></textarea>
+    <textarea maxlength="1000" class="comment-input" id="replyInput-${tid}" placeholder="回复 @${escapeHtml(name)}"></textarea>
+    <small class="reply-count"></small>
     <div class="image-upload-container" data-action="pick" data-id="${tid}">
         <div class="image-upload-text">🖼️ 点击选择图片（可选）</div>
         <input type="file" id="imageUpload-${tid}" class="image-upload-input" accept="image/*" multiple data-id="${tid}">
@@ -326,15 +331,14 @@ async function submitComment(rid, type) {
             : document.getElementById(`replyInput-${rid}`);
         const content = el?.value.trim();
         if (!content) { notify('内容不能为空', 'error'); el?.focus(); return; }
+        if (content.length > 1000) { notify('回复最多 1000 字，请缩短后再发布。', 'error'); el.focus(); return; }
         const ano = document.getElementById(`anonymous-${rid}`)?.checked || false;
         const files = document.getElementById(`imageUpload-${rid}`)?.files;
         const key = 'reply-' + rid;
-        const urls = files?.length ? await uploadImages(files, rid) : ForumDrafts.get(key)?.attachments || [];
-        ForumDrafts.save(key, { text: content, anonymous: ano, attachments: urls });
+        const original = ForumDrafts.get(key);
+        const urls = files?.length ? await uploadImages(files, rid) : original?.attachments || [];
         const payload = { content, anonymous: ano, imageUrls: urls, replyTo: rid };
-        const lastSubmission = ForumDrafts.get(key)?.submissionId;
-        payload.submissionId = ForumDrafts.submission(key, payload);
-        payload.retry = payload.submissionId === lastSubmission;
+        const submitted = ForumDrafts.prepare(key, original, payload);
         const response = await request('/api/messages', {
             method: 'POST', credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
@@ -342,13 +346,16 @@ async function submitComment(rid, type) {
         });
         if (response.status === 401) throw new Error('login_required');
         if (!response.ok) throw new Error('comment_failed');
+        notify('发布成功，审核通过后会公开。', 'success');
+        if (!submitted || ForumDrafts.get(key) !== submitted) return;
         ForumDrafts.clear(key);
+        if (!el.isConnected) return;
         el.value = '';
         const input = document.getElementById(`imageUpload-${rid}`);
         if (input) input.value = '';
         document.getElementById(`preview-${rid}`)?.replaceChildren();
-        notify('发布成功，审核通过后会公开。', 'success');
-        closeAllCommentBoxes();
+        releasePreviews(rid);
+        document.getElementById('reply-box-' + rid).style.display = 'none';
     } catch (error) {
         if (error.message === 'login_required') {
             const url = new URL('/details', location.origin);

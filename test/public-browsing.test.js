@@ -88,25 +88,27 @@ test('thread content renders without waiting for authentication', async () => {
 
 function commentHarness(upload = async () => ['https://example.invalid/picture.webp']) {
   const button = { disabled: false, textContent: '发布评论' };
-  const input = { value: '保留的评论' }, file = { files: [{}], value: 'picture.png' };
+  const input = { isConnected: true, value: '保留的评论' }, file = { files: [{}], value: 'picture.png' };
   const alerts = [], writes = [];
-  let clears = 0, closes = 0;
+  let clears = 0;
+  const box = {style: { display:'block' }}, draft = {};
   const context = { submit: runPageScript('details.js', {
     location: { search: '?id=1' },
     document: { querySelector: () => button, getElementById(id) {
+      if (id === 'reply-box-1') return box;
       if (id === 'mainCommentInput') return input;
       if (id === 'imageUpload-1') return file;
       if (id === 'preview-1') return { replaceChildren() { clears++; } };
       return null;
     } },
-    ForumDrafts: { get() {}, save() {}, clear() {}, submission: () => 'receipt' },
+    ForumDrafts: { get: () => draft, clear() {}, prepare: () => draft },
     ForumUI: { notify(message) { alerts.push(message); } },
     request: () => new Promise((resolve, reject) => writes.push({ resolve, reject }))
   }, { replace: {
     authReady: Promise.resolve(), currentUser: { id: 'test' }, uploadImages: upload,
-    closeAllCommentBoxes() { closes++; }, loadAllComments() {}
+    loadAllComments() {}
   }, expose: ['submitComment'] }).submitComment };
-  return { button, input, file, writes, alerts, submit: context.submit, clears: () => clears, closes: () => closes };
+  return { button, input, file, writes, alerts, submit: context.submit, clears: () => clears, closed: () => box.style.display === 'none' };
 }
 
 test('double-clicking a comment sends one write; network failure preserves draft and unlocks retry', async () => {
@@ -130,7 +132,7 @@ test('double-clicking a comment sends one write; network failure preserves draft
   assert.equal(h.input.value, '');
   assert.equal(h.file.value, '');
   assert.equal(h.clears(), 1);
-  assert.equal(h.closes(), 1);
+  assert.equal(h.closed(), true);
 });
 
 test('upload failure reports an error and releases the comment submit button', async () => {
