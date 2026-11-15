@@ -76,7 +76,10 @@ function requestToken(env, session) {
 async function databaseError(response, route, method) {
   const body = await response.text().catch(() => '');
   let code;
-  try { code = JSON.parse(body)?.code; } catch {}
+  try {
+    const parsed = JSON.parse(body);
+    code = parsed?.code || parsed?.error;
+  } catch {}
   const detail = body.replace(/\s+/g, ' ').slice(0, 200);
   if (route) {
     // Never log the query string: it carries user ids and filters.
@@ -138,7 +141,7 @@ export async function requestPublicData(env, path, init = {}) {
 export async function uploadBusinessObject(env, session, bucket, path, file, upsert = false, reuseExisting = false) {
   const { url, publishableKey } = publicSupabaseConfig(env);
   const token = await requestToken(env, session);
-  const response = await withDeadline(async signal => {
+  await withDeadline(async signal => {
     const result = await fetch(`${url}/storage/v1/object/${bucket}/${path}`, {
       signal, method: 'POST',
       headers: {
@@ -150,13 +153,16 @@ export async function uploadBusinessObject(env, session, bucket, path, file, ups
     const text = await result.text();
     let error;
     try { error = JSON.parse(text); } catch {}
-    const duplicate = result.status === 409 || (result.status === 400 && (
-      ['Duplicate', 'ResourceAlreadyExists', 'KeyAlreadyExists'].includes(error?.code || error?.error) ||
-      ['The resource already exists', 'Asset already exists'].includes(error?.message)
-    ));
-    return { ok: result.ok, duplicate };
+    if (result.ok) return;
+    const code = error?.code || error?.error;
+    const duplicate = ['Duplicate', 'ResourceAlreadyExists', 'KeyAlreadyExists'].includes(code)
+      || ['The resource already exists', 'Asset already exists'].includes(error?.message);
+    if (reuseExisting && (result.status === 400 || result.status === 409) && duplicate) return;
+    const failure = new Error('upload_failed');
+    failure.code = code;
+    failure.status = result.status;
+    throw failure;
   });
-  if (!response.ok && !(reuseExisting && response.duplicate)) throw new Error('upload_failed');
   return `${url}/storage/v1/object/public/${bucket}/${path}`;
 }
 
