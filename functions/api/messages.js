@@ -248,10 +248,16 @@ async function createMessage(request, env, waitUntil) {
   }
 
   if (replyTo) {
-    const target = await requestPublicData(
-      env,
-      `approved_messages_public?id=eq.${encodeURIComponent(replyTo)}&select=id&limit=1`
-    );
+    let target;
+    try {
+      target = await requestPublicData(
+        env,
+        `approved_messages_public?id=eq.${encodeURIComponent(replyTo)}&select=id&limit=1`
+      );
+    } catch {
+      // Nothing was written yet, so the client can simply retry.
+      return json({ error: 'message_save_failed' }, 503, auth.headers);
+    }
     if (!target.length) return json({ error: 'reply_target_not_found' }, 404, auth.headers);
   }
 

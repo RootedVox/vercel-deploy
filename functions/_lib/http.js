@@ -84,9 +84,12 @@ export function businessSessionCookieDomain(request, env = {}) {
   return host === bare || host.endsWith(`.${bare}`) ? `.${bare}` : null;
 }
 
+// rv and rv-vc share the registrable domain celestivast.com, so they are the same
+// site and Lax still sends the session cookie between them. Lax also keeps it off
+// cross-site requests, adding to the Origin check on writes.
 export function setCookie(name, value, maxAge, secure, domain = null) {
   const isSession = name.includes('session');
-  const sameSite = isSession && secure ? 'None' : 'Lax';
+  const sameSite = 'Lax';
   const domainAttr = isSession && domain ? `; Domain=${domain}` : '';
 
   return `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=${sameSite}${secure ? '; Secure' : ''}${domainAttr}`;
@@ -94,7 +97,7 @@ export function setCookie(name, value, maxAge, secure, domain = null) {
 
 export function clearCookie(name, secure, domain = null) {
   const isSession = name.includes('session');
-  const sameSite = isSession && secure ? 'None' : 'Lax';
+  const sameSite = 'Lax';
   const domainAttr = isSession && domain ? `; Domain=${domain}` : '';
 
   return `${name}=; Path=/; Max-Age=0; HttpOnly; SameSite=${sameSite}${secure ? '; Secure' : ''}${domainAttr}`;

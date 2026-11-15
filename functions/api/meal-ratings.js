@@ -21,6 +21,7 @@ export async function onRequestPut({ request, env }) {
   if (auth.response) return auth.response;
   let body;
   try { body = await request.json(); } catch { return json({ error: 'invalid_request' }, 400, auth.headers); }
+  if (!body || typeof body !== 'object') return json({ error: 'invalid_request' }, 400, auth.headers);
   const scores = ['breakfastScore', 'lunchScore', 'dinnerScore'].map(key => Number(body[key]));
   if (scores.some(score => !Number.isInteger(score) || score < 1 || score > 5)) {
     return json({ error: 'invalid_scores' }, 400, auth.headers);

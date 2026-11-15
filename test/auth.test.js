@@ -54,7 +54,8 @@ test('business session cookie is shared only across the configured business doma
   assert.equal(names.session, '__Secure-rv_session');
   assert.match(cookie, /HttpOnly/);
   assert.match(cookie, /Secure/);
-  assert.match(cookie, /SameSite=None/);
+  assert.match(cookie, /SameSite=Lax/);
+  assert.doesNotMatch(cookie, /SameSite=None/);
   assert.match(cookie, /Domain=\.celestivast\.com/);
 
   const preview = new Request('https://preview-example.vercel.app/auth/session');
