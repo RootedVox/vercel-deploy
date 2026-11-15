@@ -1,29 +1,20 @@
 import { authenticateApi, cleanText } from '../_lib/api.js';
 import { json, methodNotAllowed } from '../_lib/http.js';
-import { isOfficialNickname, nicknameKey, OFFICIAL_USER_ID, resolveProfileNickname } from '../_lib/official-profile.js';
+import { isOfficialNickname, isReservedNickname, nicknameKey, OFFICIAL_USER_ID, resolveProfileNickname } from '../_lib/official-profile.js';
 import { requestBusinessData } from '../_lib/supabase.js';
 
 const MAX_NICKNAME_LENGTH = 40;
-const RESERVED_NICKNAMES = new Set([
-  '匿名用户',
-  'sam.li',
-  'jerry',
-  'maod1e',
-  'bychhh',
-  '曹颢喆 jerry'
-]);
 
 export function normalizeNickname(value) {
   return String(value ?? '').normalize('NFKC').replace(/\s+/g, ' ').trim();
 }
 
 function validNickname(value, userId) {
-  const key = nicknameKey(value);
-  return key.length >= 1
+  return nicknameKey(value).length >= 1
     && value.length <= MAX_NICKNAME_LENGTH
     && !/[\u0000-\u001f\u007f]/.test(value)
     && (!isOfficialNickname(value) || userId === OFFICIAL_USER_ID)
-    && !RESERVED_NICKNAMES.has(key);
+    && !isReservedNickname(value);
 }
 
 export async function onRequestGet({ request, env }) {
