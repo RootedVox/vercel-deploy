@@ -8,7 +8,7 @@
   function escapeHtml(value) {
     const node = document.createElement('div');
     node.textContent = value || '';
-    return node.innerHTML;
+    return node.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   function login() {
@@ -41,12 +41,30 @@
     return `<button class="btn btn-approve" data-action="restore" data-id="${id}">恢复</button>`;
   }
 
-  async function load() {
-    list.innerHTML = '<div class="empty">加载中…</div>';
+  let cursor = null;
+  let busy = false;
+  const more = document.createElement('button');
+  more.type = 'button';
+  more.className = 'btn';
+  more.textContent = '加载更多';
+  more.hidden = true;
+  list.after(more);
+  more.addEventListener('click', () => load(true));
+
+  async function load(append = false) {
+    if (busy) return;
+    busy = true;
+    more.disabled = true;
+    if (!append) list.textContent = '加载中…';
     try {
-      const data = await api(`/api/checker/messages?status=${encodeURIComponent(status)}`);
-      if (!data.messages.length) return list.innerHTML = '<div class="empty">当前没有留言</div>';
-      list.innerHTML = data.messages.map(message => `
+      const params = new URLSearchParams({ status });
+      if (append && cursor) params.set('cursor', cursor);
+      const data = await api('/api/checker/messages?' + params);
+      cursor = data.nextCursor;
+      more.hidden = !data.hasMore;
+      if (!append) list.replaceChildren();
+      if (!data.messages.length && !list.children.length) list.textContent = '当前没有留言';
+      const cards = data.messages.map(message => `
         <article class="item">
           <div class="item-header"><strong>${escapeHtml(message.username)}</strong><time>${new Date(message.created_at).toLocaleString('zh-CN')}</time></div>
           <div class="zone">${escapeHtml(message.zone && message.zone !== '校园生活' ? message.zone : '日常分享')}</div>
@@ -56,8 +74,15 @@
           ${status === 'deleted' ? `<div class="reason">原因：${escapeHtml(message.reject_reason || '未填写')}</div>` : ''}
           <div class="item-actions">${actionMarkup(message.id)}</div>
         </article>`).join('');
+      list.insertAdjacentHTML('beforeend', cards);
     } catch (error) {
-      if (!['authentication_required', 'forbidden'].includes(error.message)) list.innerHTML = '<div class="empty">审核服务暂时不可用</div>';
+      if (!['authentication_required', 'forbidden'].includes(error.message)) {
+        if (!append) list.textContent = '审核服务暂时不可用';
+        else alert('下一页加载失败，请重试');
+      }
+    } finally {
+      busy = false;
+      more.disabled = false;
     }
   }
 
@@ -66,7 +91,11 @@
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, action: nextAction, reason })
     });
-    await load();
+    list.querySelector(`[data-id="${id}"]`)?.closest('article')?.remove();
+    if (!list.children.length) {
+      if (cursor) await load(true);
+      else list.textContent = '当前没有留言';
+    }
   }
 
   list.addEventListener('click', async event => {
@@ -88,7 +117,7 @@
       return;
     }
     button.disabled = true;
-    try { await moderate(button.dataset.id, nextAction); } catch (error) { if (!['authentication_required', 'forbidden'].includes(error.message)) alert('操作失败，请刷新后重试'); }
+    try { await moderate(button.dataset.id, nextAction); } catch (error) { if (!['authentication_required', 'forbidden'].includes(error.message)) alert('操作失败，请重试'); } finally { button.disabled = false; }
   });
 
   document.getElementById('cancelReason')?.addEventListener('click', () => {

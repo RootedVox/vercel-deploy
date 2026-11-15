@@ -45,8 +45,7 @@ export async function identityUserId(issuer, subject) {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-export async function createDatabaseToken(env, identity) {
-  const { url, jwk } = supabaseConfig(env);
+export async function createDatabaseToken(env, identity, { url, jwk } = supabaseConfig(env)) {
   const now = Math.floor(Date.now() / 1000);
   const header = base64UrlEncode(utf8(JSON.stringify({ alg: 'ES256', kid: jwk.kid, typ: 'JWT' })));
   const payload = base64UrlEncode(utf8(JSON.stringify({
@@ -67,9 +66,35 @@ export async function createDatabaseToken(env, identity) {
   return `${input}.${base64UrlEncode(signature)}`;
 }
 
+// Session objects are created for one inbound request by the session store.
+const requestTokens = new WeakMap();
+function requestToken(env, session) {
+  if (!requestTokens.has(session)) requestTokens.set(session, createDatabaseToken(env, session));
+  return requestTokens.get(session);
+}
+
+async function databaseError(response, route, method) {
+  const body = await response.text().catch(() => '');
+  let code;
+  try { code = JSON.parse(body)?.code; } catch {}
+  const detail = body.replace(/\s+/g, ' ').slice(0, 200);
+  if (route) {
+    // Never log the query string: it carries user ids and filters.
+    console.error(`[supabase] ${method || 'GET'} ${route.split('?')[0]} -> ${response.status} ${detail}`);
+  }
+  const error = new Error(route ? `business_store_failure:${response.status}:${detail}` : 'business_store_failure');
+  error.code = code;
+  error.status = response.status;
+  return error;
+}
+
+export function isMissingRpc(error) {
+  return error?.status === 404 && error.code === 'PGRST202';
+}
+
 async function requestSupabase(env, session, route, init = {}) {
-  const { url, publishableKey } = supabaseConfig(env);
-  const token = await createDatabaseToken(env, session);
+  const { url, publishableKey } = publicSupabaseConfig(env);
+  const token = await requestToken(env, session);
   return withDeadline(async signal => {
     const response = await fetch(`${url}/${route}`, {
       ...init,
@@ -80,20 +105,11 @@ async function requestSupabase(env, session, route, init = {}) {
         'Content-Type': 'application/json',
         ...init.headers
       }
-  });
-  if (!response.ok) {
-    // Keep the HTTP status and the PostgREST error code. A 42501 "permission denied"
-    // means a missing column grant, while PGRST301 means the project does not trust our
-    // signing key. Both used to collapse into one indistinguishable failure.
-    let detail = '';
-    try { detail = (await response.text()).replace(/\s+/g, ' ').slice(0, 200); } catch {}
-    // Never log the query string: it carries user ids and filters.
-    console.error(`[supabase] ${init.method || 'GET'} ${String(route).split('?')[0]} -> ${response.status} ${detail}`);
-    throw new Error(`business_store_failure:${response.status}:${detail}`);
-  }
-  if (response.status === 204) return null;
-  const text = await response.text();
-  return text ? JSON.parse(text) : null;
+    });
+    if (!response.ok) throw await databaseError(response, route, init.method);
+    if (response.status === 204) return null;
+    const text = await response.text();
+    return text ? JSON.parse(text) : null;
   });
 }
 
@@ -103,23 +119,25 @@ export function requestBusinessData(env, session, path, init = {}) {
 
 export async function requestPublicData(env, path, init = {}) {
   const { url, publishableKey } = publicSupabaseConfig(env);
-  const response = await fetch(`${url}/rest/v1/${path}`, {
-    ...init,
-    headers: {
-      apikey: publishableKey,
-      'Content-Type': 'application/json',
-      ...init.headers
-    }
+  return withDeadline(async signal => {
+    const response = await fetch(`${url}/rest/v1/${path}`, {
+      ...init, signal,
+      headers: {
+        apikey: publishableKey,
+        'Content-Type': 'application/json',
+        ...init.headers
+      }
+    });
+    if (!response.ok) throw await databaseError(response);
+    if (response.status === 204) return null;
+    const text = await response.text();
+    return text ? JSON.parse(text) : null;
   });
-  if (!response.ok) throw new Error('business_store_failure');
-  if (response.status === 204) return null;
-  const text = await response.text();
-  return text ? JSON.parse(text) : null;
 }
 
 export async function uploadBusinessObject(env, session, bucket, path, file, upsert = false, reuseExisting = false) {
-  const { url, publishableKey } = supabaseConfig(env);
-  const token = await createDatabaseToken(env, session);
+  const { url, publishableKey } = publicSupabaseConfig(env);
+  const token = await requestToken(env, session);
   const response = await withDeadline(async signal => {
     const result = await fetch(`${url}/storage/v1/object/${bucket}/${path}`, {
       signal, method: 'POST',

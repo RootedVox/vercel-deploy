@@ -1,0 +1,32 @@
+name: Forum checks
+on: [pull_request, push]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: if [ -f package-lock.json ]; then npm ci; fi
+      - run: npm test && npm run check && node scripts/sync-home-notices.mjs --check
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare paired deployment
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          HEAD_OWNER: ${{ github.event.pull_request.head.repo.owner.login || github.repository_owner }}
+        run: |
+          peer=cf-deploy
+          if [ "${GITHUB_REPOSITORY##*/}" = cf-deploy ]; then peer=vercel-deploy; fi
+          peer_url="https://github.com/${HEAD_OWNER}/${peer}.git"
+          if git ls-remote --exit-code --heads "$peer_url" "refs/heads/$BRANCH" >/dev/null; then
+            git clone --depth=1 --branch "$BRANCH" "$peer_url" "$RUNNER_TEMP/peer"
+          else
+            git clone --depth=1 "https://github.com/RootedVox/${peer}.git" "$RUNNER_TEMP/peer"
+          fi
+          node scripts/check-deployment-parity.mjs "$RUNNER_TEMP/peer"

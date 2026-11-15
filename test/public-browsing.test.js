@@ -21,7 +21,7 @@ test('public feed and scrolling initialize while authentication is pending; prof
     initAuth: () => new Promise(resolve => { finishAuth = resolve; }),
     loadMainMessages() { feedCalls++; return new Promise(() => {}); },
     initUserExtra: async () => { throw new Error('offline'); },
-    initNicknameSelect() {}, currentUserEmail: 'test@example.invalid',
+    initPostDraft() {}, initNicknameSelect() {}, currentUserEmail: 'test@example.invalid',
     showFormStatus(message) { status = message; }, saveProfileNickname() {}, closeProfileModal() {}
   });
   const start = messages.indexOf("        document.addEventListener('DOMContentLoaded'");
@@ -45,17 +45,17 @@ function threadHarness(read) {
   const main = node(), comments = node();
   let renders = 0, jumps = 0, observations = 0, initialize;
   const context = vm.createContext({
-    window: { RootedVoxPublicData: {} }, RootedVoxPublicData: { getThread: read },
+    window: { RootedVoxPublicData: {} }, RootedVoxPublicData: { threadPage: async id => ({ messages: await read(id) }) },
     document: { getElementById: id => id === 'mainMessageCard' ? main : comments,
       addEventListener(_type, callback) { initialize = callback; } },
-    getMsgIdFromUrl: () => '1', location: { replace() {} },
+    URLSearchParams, getMsgIdFromUrl: () => '1', location: { replace() {} },
     renderMainMessage() { renders++; main.innerHTML = 'loaded'; },
-    loadAllComments() { comments.innerHTML = 'comments'; }, autoJumpFromUrl() { jumps++; },
+    loadAllComments() { comments.innerHTML = 'comments'; }, jumpToComment() { jumps++; },
     observeMoreComments() { observations++; },
     initAuth: () => new Promise(() => {})
   });
   const start = details.indexOf('async function loadMainMessage()');
-  vm.runInContext('let mainMsgId, allMessages, authReady;\n' + details.slice(start, details.indexOf('function renderMainMessage(', start)) + '\nglobalThis.retry = retryThread;', context);
+  vm.runInContext('let mainMsgId, allMessages, authReady, threadCursor, replyParentName; const replyId = "2", messageIdPattern = /^\\d+$/;\n' + details.slice(start, details.indexOf('function renderMainMessage(', start)) + '\nglobalThis.retry = retryThread;', context);
   const init = details.indexOf("document.addEventListener('DOMContentLoaded'");
   vm.runInContext(details.slice(init, details.indexOf('</script>', init)), context);
   return { main, comments, retry: context.retry, initialize: () => initialize(), renders: () => renders, jumps: () => jumps, observations: () => observations };
@@ -101,6 +101,7 @@ function commentHarness(upload = async () => ['https://example.invalid/picture.w
       if (id === 'preview-1') return { replaceChildren() { clears++; } };
       return null;
     } },
+    ForumDrafts: { get() {}, save() {}, clear() {}, submission: () => 'receipt' },
     uploadImages: upload,
     request: () => new Promise((resolve, reject) => writes.push({ resolve, reject })),
     alert(message) { alerts.push(message); }, closeAllCommentBoxes() { closes++; }, loadAllComments() {}

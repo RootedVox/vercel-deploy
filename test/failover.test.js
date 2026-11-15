@@ -7,7 +7,7 @@ import { createTransaction, readSession } from '../functions/_lib/store-supabase
 const source = await readFile(new URL('../request.js', import.meta.url), 'utf8');
 function client(fetch) {
   const window = {};
-  vm.runInNewContext(source, { window, location: { origin: 'https://rv.celestivast.com' }, fetch, AbortController, DOMException, setTimeout, clearTimeout });
+  vm.runInNewContext(source, { window, location: { origin: 'https://rv.celestivast.com' }, fetch, Response, AbortController, DOMException, setTimeout, clearTimeout });
   return window.request;
 }
 test('a route error falls back for that read but the next request tries Cloudflare', async () => {

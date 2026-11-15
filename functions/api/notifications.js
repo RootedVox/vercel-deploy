@@ -1,6 +1,7 @@
+import { applyPage, pageResult } from '../_lib/pagination.js';
 import { authenticateApi, integerParam } from '../_lib/api.js';
 import { json, methodNotAllowed } from '../_lib/http.js';
-import { requestBusinessData } from '../_lib/supabase.js';
+import { isMissingRpc, requestBusinessData } from '../_lib/supabase.js';
 
 export async function onRequestGet({ request, env }) {
   const auth = await authenticateApi(request, env);
@@ -11,15 +12,22 @@ export async function onRequestGet({ request, env }) {
   const unreadOnly = url.searchParams.get('unread') === '1';
   const params = new URLSearchParams({
     user_id: `eq.${auth.session.user_id}`,
-    select: 'id,title,content,type,related_id,read,created_at',
-    order: 'created_at.desc',
-    offset: String(page * limit),
-    limit: String(limit + 1)
+    select: 'id,title,content,type,related_id,read,created_at'
   });
+  if (!applyPage(params, url, page, limit)) return json({ error: 'invalid_cursor' }, 400, auth.headers);
+  if (url.searchParams.get('exists') === '1') {
+    params.set('select', 'id');
+    params.set('limit', '1');
+    params.set('read', 'eq.false');
+    try {
+      const rows = await requestBusinessData(env, auth.session, `business_notifications?${params}`);
+      return json({ hasUnread: rows.length > 0 }, 200, auth.headers);
+    } catch { return json({ error: 'notifications_unavailable' }, 503, auth.headers); }
+  }
   if (unreadOnly) params.set('read', 'eq.false');
   try {
     const rows = await requestBusinessData(env, auth.session, `business_notifications?${params}`);
-    return json({ notifications: rows.slice(0, limit), hasMore: rows.length > limit }, 200, auth.headers);
+    return json(pageResult(rows, limit, 'notifications'), 200, auth.headers);
   } catch { return json({ error: 'notifications_unavailable' }, 503, auth.headers); }
 }
 
@@ -27,10 +35,26 @@ export async function onRequestPatch({ request, env }) {
   const auth = await authenticateApi(request, env);
   if (auth.response) return auth.response;
   try {
-    await requestBusinessData(env, auth.session, `business_notifications?user_id=eq.${encodeURIComponent(auth.session.user_id)}&read=eq.false`, {
-      method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ read: true })
-    });
-    return json({ ok: true }, 200, auth.headers);
+    const through = new URL(request.url).searchParams.get('through');
+    if (through !== null && !/^\d{1,19}$/.test(through)) return json({ error: 'invalid_request' }, 400, auth.headers);
+    try {
+      const hasUnread = await requestBusinessData(env, auth.session, 'rpc/read_forum_notifications', {
+        method: 'POST', body: JSON.stringify({ through_id: through })
+      });
+      return json({ ok: true, hasUnread }, 200, auth.headers);
+    } catch (error) {
+      if (!isMissingRpc(error)) throw error;
+      const unread = new URLSearchParams({ user_id: `eq.${auth.session.user_id}`, read: 'eq.false' });
+      const shown = new URLSearchParams(unread);
+      if (through !== null) shown.set('id', `lte.${through}`);
+      await requestBusinessData(env, auth.session, `business_notifications?${shown}`, {
+        method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ read: true })
+      });
+      unread.set('select', 'id');
+      unread.set('limit', '1');
+      const remaining = await requestBusinessData(env, auth.session, `business_notifications?${unread}`);
+      return json({ ok: true, hasUnread: remaining.length > 0 }, 200, auth.headers);
+    }
   } catch { return json({ error: 'notifications_update_failed' }, 503, auth.headers); }
 }
 

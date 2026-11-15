@@ -45,3 +45,7 @@ BUSINESS_SUPABASE_SIGNING_JWK={"kty":"EC","crv":"P-256","kid":"...","x":"...","y
 
 # --- Inner test gate (only active when the request hostname contains "test") ---
 INNER_TEST_PASSWORD=change-me
+
+# Same worker secret as the scheduler. Provide the same newline-delimited lexicon as Cloudflare.
+FORUM_WORKER_SECRET=
+FORUM_LEXICON_WORDS=

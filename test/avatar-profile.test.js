@@ -15,7 +15,7 @@ test('profile refuses untrusted, decorated or non-content-addressed avatar URLs'
 });
 test('the page uploads the editor File unchanged and only retries profile persistence', async () => {
   const start=source.indexOf('        const pendingAvatarUploads =');
-  const code=source.slice(start,source.indexOf('        async function renderMessageAvatars',start));
+  const code=source.slice(start,source.indexOf('        function showProfileStatus',start));
   const file=new File(['encoded-output'],'isa-avatar-256.png',{type:'image/png'}), calls=[];
   const avatarImg={style:{}},avatarPlaceholder={style:{}};
   const context=vm.createContext({

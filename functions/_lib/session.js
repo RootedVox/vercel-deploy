@@ -56,18 +56,16 @@ export async function getBusinessSession(request, env, config, rotate = false) {
   const expiresAt = new Date(Math.min(Date.now() + config.sessionTtl * 1000, absoluteExpiry)).toISOString();
   const rotated = await rotateSession(env, currentHash, nextHash, expiresAt);
   if (!rotated) {
-    return {
-      session: null,
-      setCookie: clearCookie(names.session, names.secure, businessSessionCookieDomain(request, env))
-    };
+    // Another request may already have rotated this token within its grace period.
+    return { session: await readSession(env, currentHash), setCookie: null };
   }
   session.last_seen_at = new Date().toISOString();
   session.expires_at = expiresAt;
   const cookieTtl = Math.max(1, Math.ceil((Date.parse(expiresAt) - Date.now()) / 1000));
-    return {
-      session,
-      setCookie: setCookie(names.session, nextToken, cookieTtl, names.secure, businessSessionCookieDomain(request, env))
-    };
+  return {
+    session,
+    setCookie: setCookie(names.session, nextToken, cookieTtl, names.secure, businessSessionCookieDomain(request, env))
+  };
 }
 
 export async function destroyBusinessSession(request, env, strict = false) {
