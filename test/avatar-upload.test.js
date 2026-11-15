@@ -99,3 +99,29 @@ test('the upload API distinguishes a missing bucket from lack of write permissio
     });
   }
 });
+
+test('Storage errors reported inside an HTTP 400 body are classified by their real cause', async t => {
+  for (const [body, expected] of [
+    [{statusCode:'404', error:'Bucket not found', message:'Bucket not found'}, 'avatar_bucket_missing'],
+    [{statusCode:'403', error:'Unauthorized', message:'new row violates row-level security policy'}, 'avatar_storage_denied'],
+    [{statusCode:'403', error:'Unauthorized', message:'invalid signature'}, 'avatar_storage_auth_failed'],
+    [{statusCode:'400', error:'InvalidJWT', message:'jwt expired'}, 'avatar_storage_auth_failed'],
+    [{statusCode:'500', error:'internal', message:'boom'}, 'avatar_storage_unavailable']
+  ]) {
+    await t.test(body.message, async t => {
+      const h = await fixture(t, [], 409, path => path.startsWith('/storage/v1/object/avatars/')
+        ? Response.json(body, {status:400}) : null);
+      const result = await h.send();
+      assert.equal(result.status,503);
+      assert.deepEqual(await result.json(),{error:expected});
+    });
+  }
+});
+
+test('a Storage listing failure inside an HTTP 400 body names the missing bucket', async t => {
+  const h = await fixture(t, [], 409, path => path.startsWith('/storage/v1/object/list/avatars')
+    ? Response.json({statusCode:'404', error:'Bucket not found', message:'Bucket not found'}, {status:400}) : null);
+  const result = await h.send();
+  assert.equal(result.status,503);
+  assert.deepEqual(await result.json(),{error:'avatar_bucket_missing'});
+});

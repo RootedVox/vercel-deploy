@@ -11,9 +11,12 @@ function extensionFor(type) {
 }
 
 function avatarStorageError(error) {
-  if (['NoSuchBucket', 'BucketNotFound'].includes(error.code)) return 'avatar_bucket_missing';
-  if (error.status === 403 || ['AccessDenied', 'Unauthorized', '42501'].includes(error.code)) return 'avatar_storage_denied';
-  if (error.status === 401 || ['InvalidJWT', 'InvalidSignature'].includes(error.code)) return 'avatar_storage_auth_failed';
+  const status = error.storageStatus || error.status;
+  const text = `${error.code || ''} ${error.reason || ''}`.toLowerCase();
+  if (['NoSuchBucket', 'BucketNotFound'].includes(error.code) || text.includes('bucket not found')) return 'avatar_bucket_missing';
+  // Checked before 403: Storage reports a bad signature as 403 "Unauthorized".
+  if (status === 401 || ['InvalidJWT', 'InvalidSignature'].includes(error.code) || /invalid signature|jwt/.test(text)) return 'avatar_storage_auth_failed';
+  if (status === 403 || ['AccessDenied', 'Unauthorized', '42501'].includes(error.code) || text.includes('row-level security')) return 'avatar_storage_denied';
   return 'avatar_storage_unavailable';
 }
 

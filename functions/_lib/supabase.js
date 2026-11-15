@@ -75,10 +75,13 @@ function requestToken(env, session) {
 
 async function databaseError(response, route, method) {
   const body = await response.text().catch(() => '');
-  let code;
+  let code, storageStatus, reason;
   try {
     const parsed = JSON.parse(body);
     code = parsed?.code || parsed?.error;
+    // Storage often answers HTTP 400 and puts the real status and reason in the body.
+    storageStatus = Number(parsed?.statusCode) || undefined;
+    reason = parsed?.message || parsed?.error;
   } catch {}
   const detail = body.replace(/\s+/g, ' ').slice(0, 200);
   if (route) {
@@ -88,6 +91,8 @@ async function databaseError(response, route, method) {
   const error = new Error(route ? `business_store_failure:${response.status}:${detail}` : 'business_store_failure');
   error.code = code;
   error.status = response.status;
+  error.storageStatus = storageStatus;
+  error.reason = reason;
   return error;
 }
 
@@ -161,6 +166,8 @@ export async function uploadBusinessObject(env, session, bucket, path, file, ups
     const failure = new Error('upload_failed');
     failure.code = code;
     failure.status = result.status;
+    failure.storageStatus = Number(error?.statusCode) || undefined;
+    failure.reason = error?.message || error?.error;
     throw failure;
   });
   return `${url}/storage/v1/object/public/${bucket}/${path}`;
