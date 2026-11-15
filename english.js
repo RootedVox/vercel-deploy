@@ -51,6 +51,7 @@ window.rvEnglish = new Map(Object.entries({
   '查看开源项目': 'View the open-source project', '。如果想支持我们，就star一下我们的仓库吧～': '. You can support us by starring our repository.',
   '项目开发团队': 'Development team', '沧海四象Celestivast': 'Celestivast', '｜总工程师': ' | Lead engineer',
   '｜执行官': ' | Executive', '｜安全顾问': ' | Security adviser', '｜UI设计师': ' | UI designer',
+  '｜维护工程师': ' | Sustaining Engineer',
   '（按加入项目的时间次序排名）': '(Listed in the order they joined)', '同时，也欢迎更多有兴趣的开发者加入我们！': 'Developers who want to contribute are welcome!',
   '联系我们与意见反馈｜RootedVox 根源之声': 'Contact & Feedback | RootedVox',
   '如果发现问题、想加入我们、提供建议、举报违规行为或有其他相关需要，欢迎联系我们，我们会尽力为大家服务，请通过以下方式联系我们：': 'Contact us to report a problem or rule violation, suggest an improvement, or ask about joining the project.',
