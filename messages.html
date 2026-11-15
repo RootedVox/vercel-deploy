@@ -817,7 +817,10 @@
                 profile_save_failed: '账号资料写入失败'
             };
             const reason = Object.hasOwn(messages, result?.error) ? messages[result.error] : '服务未能完成请求';
-            const error = new Error(stage + '：' + reason + '（HTTP ' + response.status + '）');
+            // The server names the step that failed and what Storage answered.
+            const detail = result?.detail;
+            const cause = detail ? [detail.stage, detail.status, detail.code, detail.reason].filter(Boolean).join(' · ') : '';
+            const error = new Error(stage + '：' + reason + '（HTTP ' + response.status + (cause ? '；' + cause : '') + '）');
             error.code = result?.error;
             throw error;
         }
