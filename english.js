@@ -1,4 +1,6 @@
 window.rvEnglish = new Map(Object.entries({
+  "RootedVox 4.3.1 · 首页留言加载修复": "RootedVox 4.3.1 · Home feed fix",
+  "修复首页社区广场分区无法显示最新留言的问题。两个首页也会同步显示最新公告及发布日期。": "The forum sections on the home page now show recent posts. Both home pages also show the latest announcements with their publication dates.",
   'RootedVox 4.3.0 · 浅色主题与英文界面': 'RootedVox 4.3.0 · Light theme and English interface',
   '现在可在导航栏切换浅色、深色或跟随系统，也可以切换英文界面。语言和外观偏好会保存在当前浏览器中。': 'Use the navigation menu to choose Light, Dark or System and switch to English. Your browser remembers both preferences.',
   '首页': 'Home', '社区广场': 'Forum', '公告': 'Announcements', '关于': 'About', '联系': 'Contact',
