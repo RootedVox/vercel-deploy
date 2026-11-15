@@ -36,6 +36,27 @@ async function forumOverview(env) {
   return groups.flat().map(normalizeMessageZone);
 }
 
+// Indexed paging (20261115_forum_feed_paging.sql). Returns null when the database has
+// not been migrated or still uses numeric IDs, so the caller falls back to the view.
+async function forumFeed(env, url, { page, limit, zone, search, ascending }) {
+  const args = { p_ascending: ascending, p_page_size: limit + 1, p_skip: page * limit };
+  const cursor = url.searchParams.get('cursor');
+  if (cursor) {
+    const [time, id] = cursor.split('|');
+    if (/^\d+$/.test(id)) return null;
+    Object.assign(args, { p_after_time: time, p_after_id: id.toLowerCase(), p_skip: 0 });
+  }
+  if (zone === DAILY_ZONE || zone === LEGACY_DAILY_ZONE) args.p_zones = [DAILY_ZONE, LEGACY_DAILY_ZONE];
+  else if (ZONES.has(zone)) args.p_zones = [zone];
+  if (search) args.p_search = search;
+  try {
+    return await requestPublicData(env, 'rpc/public_forum_feed', { method: 'POST', body: JSON.stringify(args) });
+  } catch (error) {
+    if (isMissingRpc(error)) return null;
+    throw error;
+  }
+}
+
 function isMissingColumn(error) {
   return error?.status === 400 && ['42703', 'PGRST204'].includes(error.code);
 }
@@ -110,6 +131,8 @@ async function listMessages(request, env) {
   params.set('reply_to', 'is.null');
   const direction = url.searchParams.get('sort') === 'oldest' ? 'asc' : 'desc';
   if (!applyPage(params, url, page, limit, direction)) return json({ error: 'invalid_cursor' }, 400);
+  const feed = await forumFeed(env, url, { page, limit, zone, search, ascending: direction === 'asc' });
+  if (feed) return json({ ...pageResult(feed.map(normalizeMessageZone), limit, 'messages'), page });
   const filter = zoneFilter(zone);
   if (filter) params.set('zone', filter);
   if (search) params.set('content', `ilike.*${search.replace(/[,*()]/g, ' ')}*`);

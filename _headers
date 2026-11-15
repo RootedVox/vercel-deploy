@@ -61,10 +61,6 @@
   ! Cache-Control
   Cache-Control: no-cache, no-store, must-revalidate
 
-/meal-rating.js
-  ! Cache-Control
-  Cache-Control: no-cache, no-store, must-revalidate
-
 /checker-ui.js
   ! Cache-Control
   Cache-Control: no-cache, no-store, must-revalidate

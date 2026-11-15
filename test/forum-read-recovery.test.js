@@ -43,6 +43,7 @@ test('feed falls back to the old projection when optional columns are missing', 
   let calls = 0;
   t.mock.method(globalThis, 'fetch', async url => {
     calls++;
+    if (new URL(url).pathname.endsWith('/rpc/public_forum_feed')) return Response.json({ code: 'PGRST202' }, { status: 404 });
     if (new URL(url).searchParams.get('select').includes('avatar_url')) {
       return Response.json({ code: '42703' }, { status: 400 });
     }
@@ -51,7 +52,43 @@ test('feed falls back to the old projection when optional columns are missing', 
   const result = await messages('limit=2');
   assert.equal(result.status, 200);
   assert.deepEqual((await result.json()).messages, [{ id: 1, zone: '日常分享' }]);
-  assert.equal(calls, 3);
+  assert.equal(calls, 4);
+});
+
+test('feed pages through the indexed RPC when it exists', async t => {
+  const bodies = [];
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    assert.ok(new URL(url).pathname.endsWith('/rpc/public_forum_feed'));
+    bodies.push(JSON.parse(init.body));
+    return Response.json([
+      { id: 'b0000000-0000-4000-8000-000000000002', zone: '校园生活', created_at: '2026-11-15T02:00:00+00:00' },
+      { id: 'b0000000-0000-4000-8000-000000000001', zone: '学习互助', created_at: '2026-11-15T01:00:00+00:00' }
+    ]);
+  });
+  const first = await (await messages('limit=1&page=3&zone=' + encodeURIComponent('日常分享') + '&search=' + encodeURIComponent('100%'))).json();
+  assert.deepEqual(bodies[0], {
+    p_ascending: false, p_page_size: 2, p_skip: 3,
+    p_zones: ['日常分享', '校园生活'], p_search: '100%'
+  });
+  assert.deepEqual(first.messages.map(row => row.zone), ['日常分享']);
+  assert.equal(first.hasMore, true);
+  assert.equal(first.nextCursor, '2026-11-15T02:00:00+00:00|b0000000-0000-4000-8000-000000000002');
+
+  await messages('limit=20&sort=oldest&cursor=' + encodeURIComponent('2026-11-15T02:00:00+00:00|B0000000-0000-4000-8000-000000000002'));
+  assert.deepEqual(bodies[1], {
+    p_ascending: true, p_page_size: 21, p_skip: 0,
+    p_after_time: '2026-11-15T02:00:00+00:00', p_after_id: 'b0000000-0000-4000-8000-000000000002'
+  });
+});
+
+test('numeric legacy cursors skip the RPC and use the view', async t => {
+  const paths = [];
+  t.mock.method(globalThis, 'fetch', async url => {
+    paths.push(new URL(url).pathname);
+    return Response.json([]);
+  });
+  assert.equal((await messages('cursor=' + encodeURIComponent('2026-11-15T02:00:00Z|42'))).status, 200);
+  assert.deepEqual(paths.map(path => path.split('/').pop()), ['approved_messages_public']);
 });
 
 async function markNotifications(t, rpcResponse) {
