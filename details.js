@@ -1,5 +1,5 @@
 // ===================== 开发者昵称白名单，与messages.html保持同步 =====================
-const { escapeHtml, parseMessageContent, renderMessageAvatars } = ForumUI;
+const { escapeHtml, parseMessageContent, renderMessageAvatars, notify } = ForumUI;
 // Identity and data writes are handled by the business backend.
 let mainMsgId = null;
 let currentUser = null;
@@ -34,7 +34,7 @@ async function initAuth() {
     }
 }
 // ==================== 图片上传【改造：先压缩再上传】 ====================
-const uploadImages = files => ForumUI.uploadFiles(files);
+function uploadImages(files) { return ForumUI.uploadFiles(files); }
 const previewUrls = new Map();
 function releasePreviews(id) {
     for (const url of previewUrls.get(id) || []) URL.revokeObjectURL(url);
@@ -50,7 +50,7 @@ function previewImages(id) {
     const files = Array.from(input.files);
     if (files.length > 5 || files.some(file => !file.type.startsWith('image/') || file.size > 5 * 1024 * 1024)) {
         input.value = '';
-        alert('最多选择 5 张图片，每张不超过 5MB');
+        notify('最多选择 5 张图片，每张不超过 5MB', 'error');
         return;
     }
     const urls = files.map(file => URL.createObjectURL(file));
@@ -161,7 +161,7 @@ function renderComment(r) {
     const parentName = escapeHtml(userMap[r.reply_to] || replyParentName || '用户');
     const parentInfo = replyId
         ? `<a class="reply-info" href="?id=${encodeURIComponent(mainMsgId)}&amp;replyId=${encodeURIComponent(r.reply_to)}">↳ 回复 @${parentName}</a>`
-        : `<div class="reply-info" data-action="jump" data-id="${escapeHtml(r.reply_to)}">↳ 回复 @${parentName}</div>`;
+        : `<button type="button" class="reply-info" data-action="jump" data-id="${escapeHtml(r.reply_to)}">↳ 回复 @${parentName}</button>`;
     return `
         <div class="message-item ${nested ? 'level-2' : 'level-1'}" id="msg-${r.id}" data-avatar-url="${escapeHtml(r.avatar_url || '')}" data-official="${r.is_official === true}">
             <div class="message-avatar-box"></div>
@@ -325,7 +325,7 @@ async function submitComment(rid, type) {
             ? document.getElementById('mainCommentInput')
             : document.getElementById(`replyInput-${rid}`);
         const content = el?.value.trim();
-        if (!content) { alert('内容不能为空'); return; }
+        if (!content) { notify('内容不能为空', 'error'); el?.focus(); return; }
         const ano = document.getElementById(`anonymous-${rid}`)?.checked || false;
         const files = document.getElementById(`imageUpload-${rid}`)?.files;
         const key = 'reply-' + rid;
@@ -347,7 +347,7 @@ async function submitComment(rid, type) {
         const input = document.getElementById(`imageUpload-${rid}`);
         if (input) input.value = '';
         document.getElementById(`preview-${rid}`)?.replaceChildren();
-        alert('发布成功！等待审核');
+        notify('发布成功，审核通过后会公开。', 'success');
         closeAllCommentBoxes();
     } catch (error) {
         if (error.message === 'login_required') {
@@ -357,7 +357,7 @@ async function submitComment(rid, type) {
             if (rid !== mainMsgId) url.searchParams.set('replyId', rid);
             return RootedVoxAuth.handleLogin(url.pathname + url.search);
         }
-        alert('发布失败，请检查网络后重试。内容和图片已保留。');
+        notify('发布失败，请检查网络后重试。内容和图片已保留。', 'error');
     } finally {
         commentSubmitting = false;
         if (button) { button.disabled = false; button.textContent = originalLabel; }

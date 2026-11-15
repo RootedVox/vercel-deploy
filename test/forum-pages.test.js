@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import { runPageScript } from './page-script.js';
 
 const root = new URL('../', import.meta.url);
 const read = name => readFileSync(new URL(name, root), 'utf8');
@@ -54,12 +57,10 @@ test('the forum pages load their own stylesheet and script as cacheable files', 
 });
 
 function feed(overflowY, { bottom = 0, clientHeight = 600, scrollHeight = 1200 } = {}) {
-  const page = read('messages.js');
-  const loader = page.slice(page.indexOf('        async function loadMainMessages('), page.indexOf('        function showNoMoreTip()'));
   const calls = [], frames = [];
   const box = { scrollTop: 0, clientHeight, scrollHeight, getBoundingClientRect: () => ({ bottom }) };
   const container = { innerHTML: '', append() {}, insertAdjacentHTML(_where, html) { this.innerHTML += html; } };
-  const context = vm.createContext({
+  const { loadMainMessages } = runPageScript('messages.js', {
     document: {
       createElement: () => ({}), querySelector: () => null,
       getElementById: id => id === 'messageContainer' ? container : id === 'messageFeed' ? box : null
@@ -68,10 +69,9 @@ function feed(overflowY, { bottom = 0, clientHeight = 600, scrollHeight = 1200 }
     getComputedStyle: () => ({ overflowY }),
     window: { innerHeight: 800, RootedVoxPublicData: {} },
     RootedVoxPublicData: { listMessages: options => new Promise(resolve => calls.push({ options, resolve })) },
-    parseMessageContent: () => ({ zone: '日常分享', text: '留言' }),
-    escapeHtml: value => value || '', renderMessageAvatars() {}, showNoMoreTip() {}
-  });
-  vm.runInContext(`let currentPage=0, PAGE_SIZE=20, hasMore=true, isLoadingMore=false, abortController=null, activeSearch='', activeSort='newest', activeZone='all', feedCursor=null;\n${loader}\nglobalThis.load=loadMainMessages;`, context);
+    ForumUI: { parseMessageContent: () => ({ zone: '日常分享', text: '留言' }), escapeHtml: value => value || '', renderMessageAvatars() {} }
+  }, { replace: { showNoMoreTip() {} }, expose: ['loadMainMessages'] });
+  const context = { load: loadMainMessages };
   return { calls, frames, container, load: context.load };
 }
 const post = { id: '1', username: '测试', content: '留言', created_at: '2026-01-01T00:00:00Z', pic_url: ['https://db.example/a.webp'] };
@@ -146,4 +146,102 @@ test('the compose form is foldable on phones and guests get a sign-in button', (
   assert.match(phone, /\.message-feed \{ overflow:visible;/);
   // Outside the phone layout the toggle is hidden, so the form is always open.
   assert.match(css.slice(0, css.lastIndexOf('@media (max-width: 768px)')), /\.compose-toggle \{ display:none;/);
+});
+
+test('every page carries the current shared header and footer', () => {
+  // Fails when header.html, header-checker.html or footer.html changed without a sync.
+  execFileSync(process.execPath, [fileURLToPath(new URL('scripts/sync-layout.mjs', root)), '--check'], { stdio: 'pipe' });
+  for (const name of ['main.html', 'messages.html', 'details.html', 'notice.html']) {
+    assert.match(read(name), /<div id="headerBox"><header class="header" id="siteHeader">[\s\S]+<!--\/headerBox--><\/div>/, name);
+    assert.match(read(name), /<div id="footerBox"><footer class="footer">[\s\S]+<!--\/footerBox--><\/div>/, name);
+  }
+  assert.match(read('checker-pending.html'), /<header id="checkHeader"><header class="header">[\s\S]+<!--\/checkHeader--><\/header>/);
+});
+
+test('the English table is requested only for English, without a flash of untranslated text', () => {
+  for (const name of pages) assert.doesNotMatch(read(name), /english\.js/, name);
+  function load(saved) {
+    const written = [], appended = [];
+    const document = {
+      documentElement: { dataset: {} }, addEventListener() {}, write: html => written.push(html),
+      createElement: () => ({}), head: { append: node => appended.push(node.src) }
+    };
+    vm.runInNewContext(read('preferences.js'), {
+      document, window: {}, Node: {}, WeakMap,
+      matchMedia: () => ({ matches: false, addEventListener() {} }),
+      localStorage: { getItem: key => key === 'rv-language' ? saved : null, setItem() {} }
+    });
+    return { written, appended, lang: document.documentElement.lang };
+  }
+  assert.deepEqual(load(null).written, []);
+  const english = load('en');
+  assert.equal(english.lang, 'en');
+  // Written while the parser is blocked, so the table is ready before the first paint.
+  assert.deepEqual(english.written, ['<script src="/english.js"></script>']);
+});
+
+test('on phones a button takes over after two automatic pages so the footer stays reachable', async () => {
+  const nodes = new Map();
+  const get = id => {
+    if (!nodes.has(id)) nodes.set(id, { value: '', textContent: '', style: {}, options: [], hidden: true, setAttribute() {}, addEventListener() {}, getBoundingClientRect: () => ({ bottom: 0 }) });
+    return nodes.get(id);
+  };
+  let initialize, scroll, loads = 0;
+  runPageScript('messages.js', {
+    document: { getElementById: get, querySelector: () => null, addEventListener(type, callback) { if (type === 'DOMContentLoaded') initialize = callback; } },
+    window: { innerHeight: 800, addEventListener(type, callback) { if (type === 'scroll') scroll = callback; } },
+    getComputedStyle: () => ({ overflowY: 'visible' }), setTimeout: callback => callback(), clearTimeout() {}
+  }, { replace: { initAuth: async () => false, loadMainMessages: async () => { loads++; } } });
+  await initialize();
+  assert.equal(loads, 1);
+  scroll(); scroll();
+  assert.equal(loads, 3);
+  assert.equal(get('feedMore').hidden, true);
+  scroll();
+  assert.equal(loads, 3, 'the third page waits for the button');
+  assert.equal(get('feedMore').hidden, false);
+  await get('feedMore').onclick();
+  assert.equal(loads, 4);
+  assert.equal(get('feedMore').hidden, true);
+  scroll();
+  assert.equal(loads, 5, 'pressing the button allows automatic pages again');
+});
+
+test('status messages appear in the page and are announced, instead of alert()', () => {
+  for (const name of ['messages.js', 'details.js']) assert.doesNotMatch(read(name), /\b(?:alert|confirm)\(/, name);
+  const appended = [];
+  const window = {};
+  vm.runInNewContext(read('forum-ui.js'), {
+    window, Date, setTimeout: () => 1, clearTimeout() {},
+    document: {
+      addEventListener() {}, body: { append: node => appended.push(node) },
+      createElement: () => ({ attributes: {}, setAttribute(name, value) { this.attributes[name] = value; } })
+    }
+  });
+  window.ForumUI.notify('发布失败', 'error');
+  window.ForumUI.notify('发布成功', 'success');
+  assert.equal(appended.length, 1);
+  assert.equal(appended[0].textContent, '发布成功');
+  assert.equal(appended[0].attributes.role, 'status');
+  assert.equal(appended[0].className, 'forum-toast show success');
+});
+
+test('menu items and reply links are buttons, and dialogs take and return focus', () => {
+  const html = read('messages.html');
+  assert.match(html, /<div class="avatar-dropdown" id="avatarDropdown" role="menu"/);
+  assert.match(html, /<button type="button" role="menuitem" id="openProfile">/);
+  assert.match(html, /<button type="button" role="menuitem" id="openNotifications">/);
+  assert.match(read('details.js'), /<button type="button" class="reply-info" data-action="jump"/);
+
+  const focused = [];
+  const control = name => ({ focus: () => focused.push(name) });
+  const modal = { style: {} };
+  const { showModal, hideModal } = runPageScript('messages.js', {}, { expose: ['showModal', 'hideModal'] });
+  showModal(modal, control('close button'), control('menu button'));
+  assert.equal(modal.style.display, 'flex');
+  showModal(modal, control('again'), control('other'));
+  hideModal(modal);
+  hideModal(modal);
+  assert.equal(modal.style.display, 'none');
+  assert.deepEqual(focused, ['close button', 'menu button']);
 });

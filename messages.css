@@ -284,12 +284,20 @@
             display: none;
             overflow: hidden;
         }
-        .avatar-dropdown > div {
+        .avatar-dropdown > button {
+            display: block;
+            width: 100%;
             padding: 10px 14px;
+            border: 0;
+            color: inherit;
+            background: none;
             cursor: pointer;
+            font: inherit;
+            text-align: left;
         }
-        .avatar-dropdown > div:hover {
-            background: var(--surface);
+        .avatar-dropdown > button:hover,
+        .avatar-dropdown > button:focus-visible {
+            background: var(--theme-soft);
         }
         .notification-modal {
             position: fixed;
@@ -451,6 +459,8 @@
         .notification-modal { backdrop-filter:blur(6px); }
         .avatar-btn { border:1px solid var(--line); background:var(--surface); }
         .detail-btn { text-decoration:none; }
+        .feed-more { display:block; margin:6px auto 18px; padding:10px 22px; border:0; cursor:pointer; font-size:14px; }
+        .feed-more[hidden] { display:none; }
         .message-header { gap:10px; }
         .message-author { min-width:0; overflow-wrap:anywhere; }
         .message-time { flex:none; white-space:nowrap; }

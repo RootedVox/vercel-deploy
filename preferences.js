@@ -14,6 +14,18 @@
   };
   applyTheme();
   root.lang = language;
+  // The translation table is only needed in English. It is written into the document
+  // while this script blocks the parser, so the page never paints untranslated first.
+  if (language === 'en') document.write('<script src="/english.js"><\/script>');
+  let englishRequested = language === 'en';
+  function loadEnglish() {
+    if (englishRequested) return;
+    englishRequested = true;
+    const script = document.createElement('script');
+    script.src = '/english.js';
+    script.onload = () => { localize(document.head.querySelector('title')); localize(document.body); };
+    document.head.append(script);
+  }
   system.addEventListener('change', applyTheme);
 
   const originals = new WeakMap();
@@ -60,15 +72,20 @@
   document.addEventListener('DOMContentLoaded', () => {
     localize(document.head.querySelector('title'));
     localize(document.body);
+    // The selectors may already be in the page or arrive later with a fetched header.
+    const syncChoices = () => {
+      const themeChoice = document.querySelector('#themeChoice');
+      if (themeChoice && themeChoice.value !== theme) themeChoice.value = theme;
+      const languageChoice = document.querySelector('#languageChoice');
+      if (languageChoice && languageChoice.value !== language) languageChoice.value = language;
+    };
+    syncChoices();
     const observer = new MutationObserver(records => {
       for (const record of records) {
         if (record.type === 'childList') record.addedNodes.forEach(localize);
         else localize(record.target);
       }
-      const themeChoice = document.querySelector('#themeChoice');
-      if (themeChoice && themeChoice.value !== theme) themeChoice.value = theme;
-      const languageChoice = document.querySelector('#languageChoice');
-      if (languageChoice && languageChoice.value !== language) languageChoice.value = language;
+      syncChoices();
     });
     observer.observe(document.body, {
       subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: attributes,
@@ -83,6 +100,7 @@
         language = event.target.value;
         write('language', language);
         root.lang = language;
+        if (language === 'en') loadEnglish();
         localize(document.head.querySelector('title'));
         localize(document.body);
       }

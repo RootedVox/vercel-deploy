@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 
-const page = readFileSync(new URL('../messages.html', import.meta.url), 'utf8') + readFileSync(new URL('../messages.js', import.meta.url), 'utf8');
+import { runPageScript } from './page-script.js';
 
 test('new picture selections keep order and release old previews without allocating invalid selections', () => {
   const allocated = [], revoked = [], images = [];
@@ -11,16 +11,14 @@ test('new picture selections keep order and release old previews without allocat
     replaceChildren() { images.length = 0; },
     appendChild(fragment) { images.push(...fragment.items); }
   };
-  const context = vm.createContext({
-    MAX_IMAGES: 5, MAX_SIZE: 5 * 1024 * 1024, alert() {}, showFormStatus() {},
+  const page = runPageScript('messages.js', {
     URL: { createObjectURL(file) { allocated.push(file); return 'blob:' + allocated.length; }, revokeObjectURL(url) { revoked.push(url); } },
     document: {
       getElementById() { return container; }, createElement() { return {}; },
       createDocumentFragment() { return { items: [], appendChild(img) { this.items.push(img); } }; }
     }
-  });
-  const start = page.indexOf('        let previewObjectUrls =');
-  vm.runInContext(page.slice(start, page.indexOf('        async function uploadImages', start)) + '\nglobalThis.preview = previewImages;globalThis.clear = clearImagePreviews;', context);
+  }, { replace: { showFormStatus() {} }, expose: ['previewImages', 'clearImagePreviews'] });
+  const context = { preview: page.previewImages, clear: page.clearImagePreviews };
   const image = name => ({ name, type: 'image/png', size: 1024 });
   context.preview({ files: [image('first.png'), image('second.png')] });
   assert.deepEqual(images.map(img => img.alt), ['first.png', 'second.png']);

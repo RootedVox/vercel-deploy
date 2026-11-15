@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import vm from 'node:vm';
+import { runPageScript } from './page-script.js';
 import { readFile } from 'node:fs/promises';
 import { onRequestPut as saveProfile } from '../functions/api/profile.js';
 const source = await readFile(new URL('../messages.html', import.meta.url), 'utf8') + await readFile(new URL('../messages.js', import.meta.url), 'utf8');
@@ -14,12 +14,10 @@ test('profile refuses untrusted, decorated or non-content-addressed avatar URLs'
   }
 });
 test('the page uploads the editor File unchanged and only retries profile persistence', async () => {
-  const start=source.indexOf('        const pendingAvatarUploads =');
-  const code=source.slice(start,source.indexOf('        function showProfileStatus',start));
   const file=new File(['encoded-output'],'isa-avatar-256.png',{type:'image/png'}), calls=[];
   const avatarImg={style:{}},avatarPlaceholder={style:{}};
-  const context=vm.createContext({
-    WeakMap,FormData,avatarImg,avatarPlaceholder,Error, document: {getElementById: () => ({})}, showProfileStatus() {},
+  const context={save:runPageScript('messages.js',{
+    FormData,avatarImg,avatarPlaceholder, document: {getElementById: () => ({})},
     request:async(path,options)=>{
       calls.push({path,options});
       if(path==='/api/uploads'){
@@ -28,8 +26,7 @@ test('the page uploads the editor File unchanged and only retries profile persis
       }
       return calls.length===2 ? new Response('',{status:503}) : Response.json({avatarUrl:good});
     }
-  });
-  vm.runInContext(code+'\nglobalThis.save=uploadAvatar;',context);
+  },{replace:{showProfileStatus() {}},expose:['uploadAvatar']}).uploadAvatar};
   await assert.rejects(context.save(file),/保存账号资料.*HTTP 503/);
   await context.save(file);
   assert.deepEqual(calls.map(call=>call.path),['/api/uploads','/api/profile','/api/profile']);

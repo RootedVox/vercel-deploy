@@ -8,7 +8,7 @@
     <script defer src="./auth-client.js"></script>
     <script defer src="./public-data.js"></script>
     <!-- 引入全局公共样式 -->
-    <script src="/preferences.js"></script><script defer src="/english.js?v=4.3.4"></script><link rel="stylesheet" href="./common.css"><link rel="stylesheet" href="/preferences.css?v=4.3.3">
+    <script src="/preferences.js"></script><link rel="stylesheet" href="./common.css"><link rel="stylesheet" href="/preferences.css?v=4.3.3">
     <link rel="stylesheet" href="./details.css">
     <link rel="icon" type="image/png" href="./images/favicon-96x96.png" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="./images/favicon.svg" />
@@ -21,7 +21,34 @@
 </head>
 <body>
     <!-- 公共头部挂载容器 -->
-    <div id="headerBox"></div>
+    <div id="headerBox"><header class="header" id="siteHeader">
+  <div class="nav-container">
+    <a href="/main" class="logo" aria-label="RootedVox 根源之声首页"><img src="./images/logo-96-v1.webp" srcset="./images/logo-96-v1.webp 96w, ./images/logo-192-v1.webp 192w" sizes="48px" alt="" width="42" height="42"><span class="brand-copy"><strong>RootedVox</strong><small>根源之声</small></span></a>
+    <button class="menu-toggle" id="menuBtn" type="button" aria-expanded="false" aria-controls="navList" aria-label="打开导航菜单"><span></span><span></span><span></span></button>
+    <nav class="site-nav" aria-label="主导航"><ul class="nav-links" id="navList">
+      <li><a href="/main">首页</a></li><li><a href="/messages">社区广场</a></li><li><a href="/notice">公告</a></li><li><a href="/about">关于</a></li><li><a href="/contact">联系</a></li>
+      <li class="site-preferences">
+        <label class="preference-control">
+          <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="10" cy="10" r="7.5"/><ellipse cx="10" cy="10" rx="3.3" ry="7.5"/><path d="M2.5 10h15"/></svg>
+          <span class="preference-label">语言</span>
+          <select id="languageChoice" aria-label="语言" title="语言">
+          <option value="zh-CN">简体中文</option>
+          <option value="en">English</option>
+        </select>
+        </label>
+        <label class="preference-control">
+          <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="10" cy="10" r="7.5"/><path d="M10 2.5a7.5 7.5 0 0 1 0 15z" fill="currentColor" stroke="none"/></svg>
+          <span class="preference-label">外观</span>
+          <select id="themeChoice" aria-label="外观" title="外观">
+          <option value="auto">跟随系统</option>
+          <option value="light">浅色</option>
+          <option value="dark">深色</option>
+        </select>
+        </label>
+      </li>
+    </ul></nav>
+  </div>
+</header><!--/headerBox--></div>
     <main class="main-content">
         <a href="/messages" class="back-btn">← 返回社区广场</a>
         <h1 class="page-title" style="text-align:center; font-size:28px; color:var(--theme-color); margin-bottom:20px;">留言详情</h1>
@@ -36,7 +63,14 @@
         </div>
     </main>
     <!-- 公共页脚挂载容器 -->
-    <div id="footerBox"></div>
+    <div id="footerBox"><footer class="footer">
+  <div class="footer-container">
+    <div class="footer-brand"><img class="footer-logo" src="./images/logo-96-v1.webp" srcset="./images/logo-96-v1.webp 96w, ./images/logo-192-v1.webp 192w" sizes="48px" alt="" width="48" height="48"><div><strong>RootedVox · 根源之声</strong><p>分享日常与想法</p></div></div>
+    <div class="footer-links" aria-label="页脚导航"><a href="/community-rules">社区公约</a><a href="/contact">联系我们</a></div>
+    <a class="footer-email" href="mailto:contact@celestivast.com">contact@celestivast.com</a>
+  </div>
+  <div class="footer-bottom"><p>© 2026 RootedVox · 沧海四象开发 · Apache-2.0</p></div>
+</footer><!--/footerBox--></div>
     <!-- 全局导航JS -->
     <script src="./common.js"></script>
     <!-- 页面业务JS完整保留 -->

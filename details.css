@@ -124,6 +124,9 @@
             cursor: pointer;
         }
         .reply-info {
+            border: 0;
+            font-family: inherit;
+            text-decoration: none;
             font-size: 13px;
             color: var(--theme-color);
             background: var(--theme-soft);

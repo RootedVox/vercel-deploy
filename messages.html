@@ -21,7 +21,7 @@
     <script defer src="./request.js?v=20261101"></script>
     <script defer src="./auth-client.js"></script>
     <script defer src="./public-data.js"></script>
-    <script src="/preferences.js"></script><script defer src="/english.js?v=4.3.4"></script><link rel="stylesheet" href="./common.css"><link rel="stylesheet" href="/preferences.css?v=4.3.3">
+    <script src="/preferences.js"></script><link rel="stylesheet" href="./common.css"><link rel="stylesheet" href="/preferences.css?v=4.3.3">
     <link rel="stylesheet" href="./messages.css">
     <link rel="icon" type="image/png" href="./images/favicon-96x96.png" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="./images/favicon.svg" />
@@ -33,7 +33,34 @@
 <script defer src="./forum-drafts.js"></script>
 </head>
 <body>
-    <div id="headerBox"></div>
+    <div id="headerBox"><header class="header" id="siteHeader">
+  <div class="nav-container">
+    <a href="/main" class="logo" aria-label="RootedVox 根源之声首页"><img src="./images/logo-96-v1.webp" srcset="./images/logo-96-v1.webp 96w, ./images/logo-192-v1.webp 192w" sizes="48px" alt="" width="42" height="42"><span class="brand-copy"><strong>RootedVox</strong><small>根源之声</small></span></a>
+    <button class="menu-toggle" id="menuBtn" type="button" aria-expanded="false" aria-controls="navList" aria-label="打开导航菜单"><span></span><span></span><span></span></button>
+    <nav class="site-nav" aria-label="主导航"><ul class="nav-links" id="navList">
+      <li><a href="/main">首页</a></li><li><a href="/messages">社区广场</a></li><li><a href="/notice">公告</a></li><li><a href="/about">关于</a></li><li><a href="/contact">联系</a></li>
+      <li class="site-preferences">
+        <label class="preference-control">
+          <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="10" cy="10" r="7.5"/><ellipse cx="10" cy="10" rx="3.3" ry="7.5"/><path d="M2.5 10h15"/></svg>
+          <span class="preference-label">语言</span>
+          <select id="languageChoice" aria-label="语言" title="语言">
+          <option value="zh-CN">简体中文</option>
+          <option value="en">English</option>
+        </select>
+        </label>
+        <label class="preference-control">
+          <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="10" cy="10" r="7.5"/><path d="M10 2.5a7.5 7.5 0 0 1 0 15z" fill="currentColor" stroke="none"/></svg>
+          <span class="preference-label">外观</span>
+          <select id="themeChoice" aria-label="外观" title="外观">
+          <option value="auto">跟随系统</option>
+          <option value="light">浅色</option>
+          <option value="dark">深色</option>
+        </select>
+        </label>
+      </li>
+    </ul></nav>
+  </div>
+</header><!--/headerBox--></div>
     <main class="main-content">
         <div class="community-heading">
             <div>
@@ -47,9 +74,9 @@
                         <div class="avatar-placeholder" id="avatarPlaceholder">+</div>
                         <div class="notification-dot" id="notificationDot"></div>
                     </button>
-                    <div class="avatar-dropdown" id="avatarDropdown">
-                        <div id="openProfile">个人资料</div>
-                        <div id="openNotifications">通知中心 <span class="dropdown-dot" id="dropdownDot" style="display:none"></span></div>
+                    <div class="avatar-dropdown" id="avatarDropdown" role="menu" aria-label="个人菜单">
+                        <button type="button" role="menuitem" id="openProfile">个人资料</button>
+                        <button type="button" role="menuitem" id="openNotifications">通知中心 <span class="dropdown-dot" id="dropdownDot" style="display:none"></span></button>
                     </div>
                 </div>
                 <button id="logoutBtn" class="logout-btn">退出登录</button>
@@ -127,6 +154,7 @@
                     </div>
                     <div id="messageFeed" class="message-feed" role="region" aria-label="留言列表" tabindex="0">
                         <div id="messageContainer" class="loading">加载留言中...</div>
+                        <button type="button" id="feedMore" class="detail-btn feed-more" hidden>加载更多留言</button>
                     </div>
                 </div>
             </section>
@@ -170,7 +198,14 @@
             <button id="notificationRetry" type="button" hidden></button>
         </div>
     </div>
-    <div id="footerBox"></div>
+    <div id="footerBox"><footer class="footer">
+  <div class="footer-container">
+    <div class="footer-brand"><img class="footer-logo" src="./images/logo-96-v1.webp" srcset="./images/logo-96-v1.webp 96w, ./images/logo-192-v1.webp 192w" sizes="48px" alt="" width="48" height="48"><div><strong>RootedVox · 根源之声</strong><p>分享日常与想法</p></div></div>
+    <div class="footer-links" aria-label="页脚导航"><a href="/community-rules">社区公约</a><a href="/contact">联系我们</a></div>
+    <a class="footer-email" href="mailto:contact@celestivast.com">contact@celestivast.com</a>
+  </div>
+  <div class="footer-bottom"><p>© 2026 RootedVox · 沧海四象开发 · Apache-2.0</p></div>
+</footer><!--/footerBox--></div>
     <script src="./common.js"></script>
     <script src="./messages.js"></script>
 </body>

@@ -1,4 +1,4 @@
-        const { escapeHtml, parseMessageContent, getFreshAvatar, renderMessageAvatars } = ForumUI;
+        const { escapeHtml, parseMessageContent, getFreshAvatar, renderMessageAvatars, notify } = ForumUI;
         let currentPage = 0;
         const PAGE_SIZE = 20;
         let hasMore = true;
@@ -18,6 +18,8 @@
         const MAX_SIZE = 5 * 1024 * 1024;
         const SCROLL_THRESHOLD = 350;
         let feedCursor = null;
+        const PAGE_AUTO_LOADS = 2;
+        let pageAutoLoads = 0;
         let currentUser = null;
         let currentUserEmail = '';
         let currentUserRealName = '';
@@ -32,9 +34,38 @@
             dropdownDot.style.display = hasUnread ? "inline-block" : "none";
         }
 
+        // Dialog focus: move it inside on open, keep Tab inside, and return it on close.
+        let modalOpener = null;
+        function showModal(modal, focusTarget, opener = document.activeElement) {
+            if (modal.style.display === 'flex') return;
+            modalOpener = opener;
+            modal.style.display = 'flex';
+            focusTarget?.focus();
+        }
+
+        function hideModal(modal) {
+            if (modal.style.display !== 'flex') return;
+            modal.style.display = 'none';
+            modalOpener?.focus?.();
+            modalOpener = null;
+        }
+
+        function trapModalFocus(event) {
+            const modal = [...document.querySelectorAll('.notification-modal')].find(node => node.style.display === 'flex');
+            if (!modal) return;
+            const items = [...modal.querySelectorAll('button, input, select, textarea, a[href]')]
+                .filter(node => !node.disabled && node.offsetParent !== null);
+            if (!items.length) return;
+            const first = items[0], last = items.at(-1);
+            const inside = modal.contains(document.activeElement);
+            if (event.shiftKey && (!inside || document.activeElement === first)) { event.preventDefault(); last.focus(); }
+            else if (!event.shiftKey && (!inside || document.activeElement === last)) { event.preventDefault(); first.focus(); }
+        }
+
         async function openNotifications(append = false) {
             const modal = document.getElementById("notificationModal");
-            modal.style.display = "flex";
+            // The menu item that opened it is hidden again, so focus returns to the menu button.
+            showModal(modal, document.getElementById('closeModal'), document.getElementById('avatarBtn'));
             const listEl = document.getElementById("notificationList");
             if (notifyLoading) return;
             notifyLoading = true;
@@ -164,7 +195,10 @@
                 profile_save_failed: '账号资料写入失败'
             };
             const reason = Object.hasOwn(messages, result?.error) ? messages[result.error] : '服务未能完成请求';
-            const error = new Error(stage + '：' + reason + '（HTTP ' + response.status + '）');
+            // The server names the step that failed and what Storage answered.
+            const detail = result?.detail;
+            const cause = detail ? [detail.stage, detail.status, detail.code, detail.reason].filter(Boolean).join(' · ') : '';
+            const error = new Error(stage + '：' + reason + '（HTTP ' + response.status + (cause ? '；' + cause : '') + '）');
             error.code = result?.error;
             throw error;
         }
@@ -206,6 +240,36 @@
             showProfileStatus('头像更新成功。', 'success');
         }
 
+        // The editor and Cropper are only fetched when someone changes their avatar.
+        let avatarAssetsPromise;
+        function loadAvatarAssets() {
+            if (avatarAssetsPromise) return avatarAssetsPromise;
+            const assets = [
+                ['link', './vendor/cropper.min.css'], ['link', './avatar-editor.css?v=4.3.3'],
+                ['script', './vendor/cropper.min.js'], ['script', './avatar-editor.js']
+            ];
+            const elements = [];
+            const loads = assets.map(([tag, url]) => new Promise((resolve, reject) => {
+                const element = document.createElement(tag);
+                elements.push(element);
+                if (tag === 'link') { element.rel = 'stylesheet'; element.href = url; }
+                else element.src = url;
+                element.onload = resolve;
+                element.onerror = reject;
+                document.head.append(element);
+            }));
+            let timer;
+            const timeout = new Promise((_, reject) => { timer = setTimeout(reject, 15000); });
+            avatarAssetsPromise = Promise.race([Promise.all(loads), timeout]).then(() => {
+                if (!window.Cropper || !window.RootedVoxAvatarEditor) throw new Error('加载失败');
+            }).catch(() => {
+                elements.forEach(element => element.remove());
+                avatarAssetsPromise = null;
+                throw new Error('头像组件加载失败，请重试');
+            }).finally(() => clearTimeout(timer));
+            return avatarAssetsPromise;
+        }
+
         function showProfileStatus(message, type = '') {
             const node = document.getElementById('profileStatus');
             node.textContent = message;
@@ -213,7 +277,7 @@
         }
 
         function closeProfileModal() {
-            document.getElementById('profileModal').style.display = 'none';
+            hideModal(document.getElementById('profileModal'));
             showProfileStatus('');
         }
 
@@ -320,13 +384,13 @@
             const files = Array.from(input.files);
             // Validate the whole selection before allocating preview resources.
             if (files.length > MAX_IMAGES) {
-                alert(`最多只能上传${MAX_IMAGES}张图片！`);
+                showFormStatus(`最多只能上传 ${MAX_IMAGES} 张图片。`, 'error');
                 input.value = '';
                 return;
             }
             for (const file of files) {
                 if (!file.type.startsWith('image/')) {
-                    alert('仅支持图片文件！');
+                    showFormStatus('仅支持图片文件。', 'error');
                     input.value = '';
                     return;
                 }
@@ -484,6 +548,8 @@
             if (!isLoadMore) {
                 container.innerHTML = '<div class="loading">加载留言中...</div>';
                 document.getElementById('messageFeed').scrollTop = 0;
+                pageAutoLoads = 0;
+                document.getElementById('feedMore')?.setAttribute('hidden', '');
                 currentPage = 0;
                 feedCursor = null;
                 hasMore = true;
@@ -605,6 +671,7 @@
         function showNoMoreTip() {
             const wrap = document.getElementById('loadMoreWrapper');
             if (wrap) wrap.remove();
+            document.getElementById('feedMore')?.setAttribute('hidden', '');
             const container = document.getElementById('messageContainer');
             if (!document.querySelector('.no-more-tip')) {
                 container.insertAdjacentHTML('afterend', `
@@ -679,11 +746,22 @@
                 }, 120);
             });
 
+            // A feed that grows with the page would keep the footer out of reach, so after
+            // a few automatic pages a button takes over.
+            const feedMore = document.getElementById('feedMore');
+            feedMore.onclick = async () => {
+                feedMore.hidden = true;
+                pageAutoLoads = 0;
+                await loadMainMessages(true);
+            };
             window.addEventListener('scroll', () => {
                 if (isLoadingMore || !hasMore || !feedScrollsWithPage(messageFeed) || document.querySelector('.feed-retry')) return;
+                if (pageAutoLoads >= PAGE_AUTO_LOADS) { feedMore.hidden = false; return; }
                 clearTimeout(scrollTimeout);
                 scrollTimeout = setTimeout(() => {
-                    if (messageFeed.getBoundingClientRect().bottom <= window.innerHeight + SCROLL_THRESHOLD) loadMainMessages(true);
+                    if (messageFeed.getBoundingClientRect().bottom > window.innerHeight + SCROLL_THRESHOLD) return;
+                    pageAutoLoads++;
+                    loadMainMessages(true);
                 }, 120);
             }, { passive: true });
 
@@ -697,10 +775,17 @@
             }
             document.getElementById('submitBtn').disabled = false;
 
-            document.getElementById('logoutBtn').onclick = loggedIn
+            const logoutButton = document.getElementById('logoutBtn');
+            let logoutArmed = null;
+            logoutButton.onclick = loggedIn
             ? async () => {
-                const ok = confirm("确定要退出登录吗？");
-                if(!ok) return;
+                // A second press within a few seconds confirms; no blocking dialog.
+                if (!logoutArmed) {
+                    logoutButton.textContent = '再点一次确认退出';
+                    logoutArmed = setTimeout(() => { logoutArmed = null; logoutButton.textContent = '退出登录'; }, 4000);
+                    return;
+                }
+                clearTimeout(logoutArmed);
                 ForumDrafts.logout();
                 await RootedVoxAuth.logout('/main');
             }
@@ -723,41 +808,12 @@
             });
 
             document.getElementById('openProfile').onclick = () => {
-                document.getElementById('profileModal').style.display = 'flex';
+                showModal(document.getElementById('profileModal'), null, avatarBtn);
                 avatarDropdown.style.display = "none";
                 const nicknameInput = document.getElementById('profileNickname');
                 nicknameInput.value = currentUserRealName;
                 nicknameInput.focus();
             };
-
-            let avatarAssetsPromise;
-            function loadAvatarAssets() {
-                if (avatarAssetsPromise) return avatarAssetsPromise;
-                const assets = [
-                    ['link', './vendor/cropper.min.css'], ['link', './avatar-editor.css?v=4.3.3'],
-                    ['script', './vendor/cropper.min.js'], ['script', './avatar-editor.js']
-                ];
-                const elements = [];
-                const loads = assets.map(([tag, url]) => new Promise((resolve, reject) => {
-                    const element = document.createElement(tag);
-                    elements.push(element);
-                    if (tag === 'link') { element.rel = 'stylesheet'; element.href = url; }
-                    else element.src = url;
-                    element.onload = resolve;
-                    element.onerror = reject;
-                    document.head.append(element);
-                }));
-                let timer;
-                const timeout = new Promise((_, reject) => { timer = setTimeout(reject, 15000); });
-                avatarAssetsPromise = Promise.race([Promise.all(loads), timeout]).then(() => {
-                    if (!window.Cropper || !window.RootedVoxAvatarEditor) throw new Error('加载失败');
-                }).catch(() => {
-                    elements.forEach(element => element.remove());
-                    avatarAssetsPromise = null;
-                    throw new Error('头像组件加载失败，请重试');
-                }).finally(() => clearTimeout(timer));
-                return avatarAssetsPromise;
-            }
 
             const changeAvatar = document.getElementById('profileAvatarButton');
             changeAvatar.onclick = async () => {
@@ -768,7 +824,7 @@
                     closeProfileModal();
                     await window.RootedVoxAvatarEditor.open({ name: currentUserRealName, onSave: uploadAvatar });
                 } catch (error) {
-                    alert(error.message || '头像组件加载失败，请重试');
+                    notify(error.message || '头像组件加载失败，请重试', 'error');
                 } finally { changeAvatar.disabled = false; }
             };
 
@@ -786,20 +842,21 @@
             };
 
             document.getElementById('closeModal').onclick = () => {
-                document.getElementById('notificationModal').style.display = "none";
+                hideModal(document.getElementById('notificationModal'));
             };
 
             document.getElementById('notificationModal').onclick = (e) => {
                 if (e.target === document.getElementById('notificationModal')) {
-                    document.getElementById('notificationModal').style.display = "none";
+                    hideModal(document.getElementById('notificationModal'));
                 }
             };
 
             document.addEventListener('keydown', (event) => {
                 if (event.key === 'Escape') {
-                    document.getElementById('notificationModal').style.display = "none";
+                    hideModal(document.getElementById('notificationModal'));
                     closeProfileModal();
                 }
+                if (event.key === 'Tab') trapModalFocus(event);
             });
 
             const notifyModalBody = document.getElementById("notificationList");

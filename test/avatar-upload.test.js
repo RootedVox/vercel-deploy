@@ -95,7 +95,7 @@ test('the upload API distinguishes a missing bucket from lack of write permissio
         ? Response.json({code}, {status:400}) : null);
       const result = await h.send();
       assert.equal(result.status,503);
-      assert.deepEqual(await result.json(),{error:expected});
+      assert.equal((await result.json()).error,expected);
     });
   }
 });
@@ -113,7 +113,7 @@ test('Storage errors reported inside an HTTP 400 body are classified by their re
         ? Response.json(body, {status:400}) : null);
       const result = await h.send();
       assert.equal(result.status,503);
-      assert.deepEqual(await result.json(),{error:expected});
+      assert.equal((await result.json()).error,expected);
     });
   }
 });
@@ -123,5 +123,34 @@ test('a Storage listing failure inside an HTTP 400 body names the missing bucket
     ? Response.json({statusCode:'404', error:'Bucket not found', message:'Bucket not found'}, {status:400}) : null);
   const result = await h.send();
   assert.equal(result.status,503);
-  assert.deepEqual(await result.json(),{error:'avatar_bucket_missing'});
+  assert.equal((await result.json()).error,'avatar_bucket_missing');
+});
+
+test('an unnamed Storage failure reports the failed step and what Storage answered', async t => {
+  t.mock.method(console, 'error', () => {});
+  for (const [stage, path, reply, expected] of [
+    ['list', '/storage/v1/object/list/avatars', () => Response.json({statusCode:'500', error:'DatabaseTimeout', message:'statement <b>timeout</b>'}, {status:400}),
+      {stage:'list', status:500, code:'DatabaseTimeout', reason:'statement b timeout /b'}],
+    ['upload', '/storage/v1/object/avatars/', () => Response.json({statusCode:'415', error:'invalid_mime_type', message:'mime type image/png is not supported'}, {status:400}),
+      {stage:'upload', status:415, code:'invalid_mime_type', reason:'mime type image/png is not supported'}],
+    ['upload', '/storage/v1/object/avatars/', () => { throw new TypeError('fetch failed'); },
+      {stage:'upload', status:null, code:'fetch failed', reason:null}]
+  ]) {
+    await t.test(stage + ' ' + expected.code, async t => {
+      const h = await fixture(t, [], 409, pathname => pathname.startsWith(path) ? reply() : null);
+      const result = await h.send();
+      assert.equal(result.status, 503);
+      assert.deepEqual(await result.json(), {error:'avatar_storage_unavailable', detail:expected});
+    });
+  }
+});
+
+test('a failed cleanup at quota is reported as the cleanup step', async t => {
+  t.mock.method(console, 'error', () => {});
+  const items = Array.from({length:64}, (_, i) => ({name:uid+'.'+i+'.png',created_at:'2000-01-01'}));
+  const h = await fixture(t, items, 409, path => path === '/storage/v1/object/avatars'
+    ? Response.json({code:'AccessDenied', message:'not allowed'}, {status:403}) : null);
+  const result = await h.send();
+  assert.equal(result.status, 503);
+  assert.deepEqual(await result.json(), {error:'avatar_storage_denied', detail:{stage:'cleanup', status:403, code:'AccessDenied', reason:'not allowed'}});
 });

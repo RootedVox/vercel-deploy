@@ -198,5 +198,19 @@
           if (event.key === 'Enter' && event.target.matches?.('img.message-image')) openImage(event.target);
       });
   }
-  window.ForumUI = { parseMessageContent, escapeHtml, renderMessageAvatars, getFreshAvatar, uploadFiles };
+  // Short messages shown in the page. Unlike alert() they do not block the page, and a
+  // live region announces them to screen readers.
+  let toast, toastTimer;
+  function notify(message, type = '') {
+      if (!toast) {
+          toast = document.createElement('div');
+          document.body.append(toast);
+      }
+      toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+      toast.className = `forum-toast show ${type}`.trim();
+      toast.textContent = message;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { toast.className = `forum-toast ${type}`.trim(); }, 5000);
+  }
+  window.ForumUI = { parseMessageContent, escapeHtml, renderMessageAvatars, getFreshAvatar, uploadFiles, notify };
 })();
