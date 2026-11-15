@@ -72,3 +72,14 @@ test('Vercel output includes the lazy-loaded editor and its local Cropper assets
     assert.deepEqual(await readFile(new URL('../vercel-public/' + path, import.meta.url)), await readFile(new URL('../' + path, import.meta.url)), path);
   }
 });
+
+test('Vercel sends the same security headers as the Cloudflare _headers file', async () => {
+  const vercel = JSON.parse(await readFile(new URL('../vercel.json', import.meta.url), 'utf8'));
+  const sent = Object.fromEntries(vercel.headers.find(rule => rule.source === '/(.*)').headers.map(h => [h.key, h.value]));
+  const cloudflare = (await readFile(new URL('../_headers', import.meta.url), 'utf8')).split('\n/*.html')[0];
+  for (const name of ['Permissions-Policy', 'Content-Security-Policy', 'Strict-Transport-Security', 'X-Content-Type-Options', 'X-Frame-Options']) {
+    const expected = cloudflare.match(new RegExp(`^  ${name}: (.+)$`, 'm'))?.[1];
+    assert.ok(expected, name);
+    assert.equal(sent[name], expected, name);
+  }
+});
