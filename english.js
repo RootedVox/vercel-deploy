@@ -1,4 +1,6 @@
 window.rvEnglish = new Map(Object.entries({
+  "RootedVox 4.3.3 · 头像编辑器外观修复": "RootedVox 4.3.3 · Avatar editor theme fix",
+  "更改头像时，弹窗、预览和按钮现在会跟随当前主题。账号页面、留言详情、通知和审核导航的配色也已统一。": "The avatar editor dialog, previews, and buttons now follow the active theme. Account pages, threads, notifications, and moderation navigation also use consistent theme colors.",
   "RootedVox 4.3.2 · 审核端外观修复": "RootedVox 4.3.2 · Moderation theme fix",
   "修复审核端浅色模式下留言卡片和弹窗的配色。审核端导航现在可以切换浅色、深色或跟随系统。": "Fixed the colors of post cards and dialogs in the moderation dashboard’s light theme. You can now choose Light, Dark, or System from the moderation navigation.",
   "RootedVox 4.3.1 · 首页留言加载修复": "RootedVox 4.3.1 · Home feed fix",

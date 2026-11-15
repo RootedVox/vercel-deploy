@@ -92,7 +92,7 @@ body.isa-avatar-editor-scroll-lock {
   align-items: center; justify-content: space-between; gap: 16px; background: var(--surface);
 }
 #avatar-editor-note { color: var(--muted); font-size: 11px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
-#avatar-editor-note.isa-avatar-editor-error { color: light-dark(#b42318, #ffa1a1); }
+#avatar-editor-note.isa-avatar-editor-error { color: var(--error-ink); }
 #avatar-editor-dialog .isa-avatar-editor-foot > div { display: flex; gap: 10px; flex-shrink: 0; }
 @media (max-width: 760px) {
   #avatar-editor-dialog {

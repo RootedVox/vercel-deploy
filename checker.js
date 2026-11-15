@@ -2,7 +2,7 @@
 // Copyright (c) 2026 沧海四象
 // Licensed under the MIT License.
 // 加载审核导航 + 自动高亮当前页面菜单
-fetch("header-checker.html?v=4.3.2")
+fetch("header-checker.html?v=4.3.3")
 .then(res=>res.text())
 .then(html=>{
     document.querySelector("#checkHeader").innerHTML = html;

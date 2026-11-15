@@ -21,7 +21,7 @@
     <script defer src="./request.js?v=20261101"></script>
     <script defer src="./auth-client.js"></script>
     <script defer src="./public-data.js"></script>
-    <script src="/preferences.js"></script><script defer src="/english.js"></script><link rel="stylesheet" href="./common.css"><link rel="stylesheet" href="/preferences.css">
+    <script src="/preferences.js"></script><script defer src="/english.js?v=4.3.3"></script><link rel="stylesheet" href="./common.css"><link rel="stylesheet" href="/preferences.css?v=4.3.3">
     <style>
         .main-content {
             max-width: 1200px;
@@ -1315,7 +1315,7 @@
             function loadAvatarAssets() {
                 if (avatarAssetsPromise) return avatarAssetsPromise;
                 const assets = [
-                    ['link', './vendor/cropper.min.css'], ['link', './avatar-editor.css'],
+                    ['link', './vendor/cropper.min.css'], ['link', './avatar-editor.css?v=4.3.3'],
                     ['script', './vendor/cropper.min.js'], ['script', './avatar-editor.js']
                 ];
                 const elements = [];
