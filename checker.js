@@ -2,7 +2,7 @@
 // Copyright (c) 2026 沧海四象
 // Licensed under the MIT License.
 // 加载审核导航 + 自动高亮当前页面菜单
-fetch("header-checker.html")
+fetch("header-checker.html?v=4.3.2")
 .then(res=>res.text())
 .then(html=>{
     document.querySelector("#checkHeader").innerHTML = html;
@@ -10,7 +10,10 @@ fetch("header-checker.html")
     const menuBtn = document.getElementById("menuBtn");
     const navList = document.getElementById("navList");
     if(menuBtn&&navList){
-        menuBtn.onclick = ()=> navList.classList.toggle("show");
+        menuBtn.onclick = () => {
+            const open = navList.classList.toggle("show");
+            menuBtn.setAttribute("aria-expanded", String(open));
+        };
     }
 // 自动匹配页面，兼容线上无.html / 本地带.html
 let pageRaw = location.pathname.split('/').pop();
@@ -24,6 +27,7 @@ links.forEach(link=>{
     let hrefName = hrefRaw.replace(/\.html$/,'');
     if(hrefName === currPage){
         link.classList.add("active");
+        link.setAttribute("aria-current", "page");
     }
 })
 })

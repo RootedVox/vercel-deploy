@@ -9,11 +9,18 @@ Licensed under the MIT License.
             <img src="./images/logo-96-v1.webp" width="42" height="42" srcset="./images/logo-96-v1.webp 1x, ./images/logo-192-v1.webp 2x" alt="Logo">
             <span>RootedVox审核端</span>
         </a>
-        <button class="menu-toggle" id="menuBtn">☰</button>
+        <button class="menu-toggle" id="menuBtn" type="button" aria-controls="navList" aria-expanded="false" aria-label="打开导航菜单">☰</button>
         <ul class="nav-links" id="navList">
             <li><a href="/checker-pending">待审核</a></li>
             <li><a href="/checker-approved">已发布</a></li>
             <li><a href="/checker-deleted">已删除</a></li>
+            <li class="site-preferences">
+                <label><span>外观</span><select id="themeChoice" aria-label="外观">
+          <option value="auto">跟随系统</option>
+          <option value="light">浅色</option>
+          <option value="dark">深色</option>
+        </select></label>
+            </li>
         </ul>
     </div>
 </header>
