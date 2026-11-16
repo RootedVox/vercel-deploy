@@ -30,6 +30,20 @@ async function currentProfile(env, session) {
   }
 }
 
+// The forum page's unread dot, read alongside the profile so it costs no extra
+// Functions request. Left out on failure, and the page then asks /api/notifications.
+async function unreadNotifications(env, session) {
+  const params = new URLSearchParams({ user_id: `eq.${session.user_id}`, read: 'eq.false', select: 'id', limit: '1' });
+  try {
+    const rows = await withDeadline(signal => requestBusinessData(env, session,
+      `business_notifications?${params}`, { signal }
+    ), NICKNAME_DEADLINE_MS);
+    return Array.isArray(rows) ? { hasUnread: rows.length > 0 } : {};
+  } catch {
+    return {};
+  }
+}
+
 export async function onRequestGet({ request, env }) {
   const names = cookieNames(request);
   if (!parseCookies(request)[names.session]) return json({ authenticated: false }, 401);
@@ -40,7 +54,7 @@ export async function onRequestGet({ request, env }) {
     const headers = result.setCookie ? { 'Set-Cookie': result.setCookie } : {};
     if (!result.session) return json({ authenticated: false }, 401, headers);
     const session = result.session;
-    const profile = await currentProfile(env, session);
+    const [profile, unread] = await Promise.all([currentProfile(env, session), unreadNotifications(env, session)]);
     return json({
       authenticated: true,
       user: {
@@ -49,6 +63,7 @@ export async function onRequestGet({ request, env }) {
         subject: session.identity_subject,
         email: session.email,
         ...profile,
+        ...unread,
         checker: session.is_checker === true
       },
       assurance: {

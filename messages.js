@@ -54,11 +54,15 @@
         let currentUserRealName = '';
         let userId = '';
 
-        async function refreshNotificationDot() {
+        // known: the answer /auth/session already gave, when it could read it.
+        async function refreshNotificationDot(known) {
             if (!userId) return;
-            const response = await request('/api/notifications?exists=1', { credentials: 'include', cache: 'no-store' });
-            if (!response.ok) return;
-            const { hasUnread } = await response.json();
+            let hasUnread = known;
+            if (typeof hasUnread !== 'boolean') {
+                const response = await request('/api/notifications?exists=1', { credentials: 'include', cache: 'no-store' });
+                if (!response.ok) return;
+                ({ hasUnread } = await response.json());
+            }
             notificationDot.style.display = hasUnread ? "block" : "none";
             dropdownDot.style.display = hasUnread ? "inline-block" : "none";
         }
@@ -199,7 +203,7 @@
                 document.getElementById('profileAvatarFallback').hidden = false;
             }
 
-            refreshNotificationDot();
+            refreshNotificationDot(currentUser?.hasUnread);
         }
 
         const pendingAvatarUploads = new WeakMap();

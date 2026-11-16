@@ -27,10 +27,11 @@ async function name(env, reply, t) {
 test('the session check answers with the current site nickname, not the sign-in name', async t => {
   const { name: shown, calls } = await name(await environment(), () => Response.json([{ nickname: '新昵称', display_name: '登录时的旧名字' }]), t);
   assert.equal(shown, '新昵称');
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].pathname, '/rest/v1/business_users');
-  assert.equal(calls[0].searchParams.get('user_id'), 'eq.' + uid);
-  assert.equal(calls[0].searchParams.get('select'), 'nickname,display_name,avatar_url');
+  // The unread-notification read runs alongside; only one profile read is made.
+  const profile = calls.filter(call => call.pathname === '/rest/v1/business_users');
+  assert.equal(profile.length, 1);
+  assert.equal(profile[0].searchParams.get('user_id'), 'eq.' + uid);
+  assert.equal(profile[0].searchParams.get('select'), 'nickname,display_name,avatar_url');
 });
 
 test('without a site nickname the stored display name is used, filtered like /api/profile', async t => {
