@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
+import vm from 'node:vm';
 
 const root = new URL('../', import.meta.url);
 const read = name => readFileSync(new URL(name, root), 'utf8');
@@ -49,4 +50,32 @@ test('every notice has a date and the home pages show real dates', () => {
   const dates = [...read('main.html').matchAll(/<time class="notice-date" datetime="(20\d{2}-\d{2}-\d{2})">\1<\/time>/g)];
   assert.equal(dates.length, 3);
   assert.doesNotMatch(read('main.html'), /notice-date">最新</);
+});
+
+test('zone cards show when the zone was last active, not how many posts they show', async () => {
+  // The card lists at most two posts, so "最新 2 条" said nothing about the zone.
+  const listeners = {}, host = { innerHTML: '' };
+  const hour = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
+  const older = new Date(Date.now() - 5 * 86400 * 1000).toISOString();
+  vm.runInNewContext(read('home.js'), {
+    Intl, URL, Date, Math, Object,
+    window: { RootedVoxPublicData: {} },
+    RootedVoxPublicData: { overview: async () => ({ messages: [
+      { id: '1', content: '作业求助', zone: '学习互助', username: 'A', created_at: older },
+      { id: '2', content: '数学题', zone: '学习互助', username: 'B', created_at: hour }
+    ] }) },
+    ForumUI: { parseMessageContent: (content, zone) => ({ zone, text: content }) },
+    performance: { getEntriesByType: () => [{ type: 'reload' }] },
+    document: {
+      addEventListener: (type, fn) => { listeners[type] = fn; },
+      getElementById: id => id === 'latestFeed' ? host : null,
+      querySelector: () => null, querySelectorAll: () => [],
+      createElement: () => ({ set textContent(value) { this.innerHTML = value; } })
+    }
+  });
+  listeners.DOMContentLoaded();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const badges = [...host.innerHTML.matchAll(/<span class="zone-count">([^<]*)<\/span>/g)].map(match => match[1]);
+  assert.deepEqual(badges, ['暂无动态', '3小时前更新', '暂无动态', '暂无动态']);
+  assert.doesNotMatch(host.innerHTML, /最新 \d+ 条/);
 });
