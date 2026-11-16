@@ -125,7 +125,7 @@ export function requestBusinessData(env, session, path, init = {}) {
   return requestSupabase(env, session, `rest/v1/${path}`, init);
 }
 
-export async function requestPublicData(env, path, init = {}) {
+export async function requestPublicData(env, path, init = {}, timeoutMs) {
   const { url, publishableKey } = publicSupabaseConfig(env);
   return withDeadline(async signal => {
     const response = await fetch(`${url}/rest/v1/${path}`, {
@@ -140,7 +140,7 @@ export async function requestPublicData(env, path, init = {}) {
     if (response.status === 204) return null;
     const text = await response.text();
     return text ? JSON.parse(text) : null;
-  });
+  }, timeoutMs);
 }
 
 export async function uploadBusinessObject(env, session, bucket, path, file, upsert = false, reuseExisting = false) {

@@ -1,4 +1,8 @@
 window.rvEnglish = new Map(Object.entries({
+  "RootedVox 4.4.7 · 论坛列表优化": "RootedVox 4.4.7 · Forum list improvements",
+  "点击帖子卡片即可打开详情，筛选下拉箭头更清楚。数据库更新后，列表还会显示公开评论数。": "Click a post card to open the thread. Filter arrows are easier to see. After the database update, the list also shows the number of public comments.",
+  "查看评论": "View comments",
+  "发表评论": "Leave a comment",
   "RootedVox 4.4.6 · 首页分区更新时间": "RootedVox 4.4.6 · Recent activity on the homepage",
   "首页论坛分区角标现在显示最新帖子的发布时间，方便查看哪些分区最近有新动态。": "Homepage forum categories now show when their latest post was published, so you can see where there is recent activity.",
   "暂无动态": "No recent activity",

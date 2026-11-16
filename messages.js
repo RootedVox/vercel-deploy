@@ -22,6 +22,22 @@
         let pageAutoLoads = 0;
         let restorePosition = null;
 
+        // The whole card opens the thread; the comment link stays the real link, so
+        // keyboards, screen readers and middle-click keep working.
+        function commentLabel(count) {
+            if (!Number.isInteger(count)) return '查看评论';
+            return count > 0 ? `${count} 条评论` : '发表评论';
+        }
+        function openCard(event) {
+            if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            const card = event.target.closest?.('.message-item');
+            // Images open the viewer, and links and buttons keep their own action.
+            if (!card || event.target.closest('a, button, input, select, textarea, label, img.message-image, video')) return;
+            // Selecting text to copy it must not leave the page.
+            if (String(window.getSelection?.() || '').trim()) return;
+            card.querySelector('a.detail-btn')?.click();
+        }
+
         function rememberFeed(event) {
             const link = event.target.closest('a.detail-btn');
             if (!link || event.defaultPrevented) return;
@@ -658,7 +674,7 @@
                             <span class="message-zone">${escapeHtml(parsedContent.zone)}</span>
                             <div class="message-content">${escapeHtml(parsedContent.text).replace(/\n/g, '<br>')}</div>
                             ${imageHtml}
-                            <a class="detail-btn" href="details.html?id=${encodeURIComponent(msg.id)}">🔍 查看详情</a>
+                            <a class="detail-btn comment-link" href="details.html?id=${encodeURIComponent(msg.id)}"><span aria-hidden="true">💬</span> ${commentLabel(msg.reply_count)}</a>
                         </div>
                     </div>`;
                 }
@@ -799,6 +815,7 @@
             restorePosition = initialFeedPosition();
             loadMainMessages(false);
             const messageFeed = document.getElementById('messageFeed');
+            messageFeed.addEventListener('click', openCard);
             messageFeed.addEventListener('click', rememberFeed);
             messageFeed.addEventListener('auxclick', rememberFeed);
             messageFeed.addEventListener('scroll', () => {

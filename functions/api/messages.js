@@ -85,6 +85,29 @@ async function focusedReply(env, thread, target) {
   return { messages, parentName: parent?.username ?? null };
 }
 
+// "💬 N 条评论" in the feed (20261116_forum_reply_counts.sql). Counting is optional:
+// before the migration, or if the read fails, posts go out without reply_count and the
+// page shows the link without a number. It is one more database read in the same
+// Functions request, never an extra request from the browser.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+let replyCountsMissingUntil = 0;
+async function withReplyCounts(env, page) {
+  const ids = page.messages.map(message => String(message.id)).filter(id => UUID.test(id));
+  if (!ids.length || Date.now() < replyCountsMissingUntil) return page;
+  try {
+    const rows = await requestPublicData(env, 'rpc/public_forum_reply_counts', {
+      method: 'POST', body: JSON.stringify({ p_ids: ids })
+    }, 800);
+    const counts = new Map(rows.map(row => [String(row.id), Number(row.replies) || 0]));
+    return { ...page, messages: page.messages.map(message => counts.has(String(message.id))
+      ? { ...message, reply_count: counts.get(String(message.id)) } : message) };
+  } catch (error) {
+    // Not migrated yet: stop asking for a while instead of on every feed load.
+    if (isMissingRpc(error)) replyCountsMissingUntil = Date.now() + 10 * 60_000;
+    return page;
+  }
+}
+
 async function listMessages(request, env) {
   const url = new URL(request.url);
   if (url.searchParams.has('media')) {
@@ -141,7 +164,7 @@ async function listMessages(request, env) {
   const direction = url.searchParams.get('sort') === 'oldest' ? 'asc' : 'desc';
   if (!applyPage(params, url, page, limit, direction)) return json({ error: 'invalid_cursor' }, 400);
   const feed = await forumFeed(env, url, { page, limit, zone, search, ascending: direction === 'asc' });
-  if (feed) return json({ ...pageResult(feed.map(publicMessage), limit, 'messages'), page });
+  if (feed) return json({ ...await withReplyCounts(env, pageResult(feed.map(publicMessage), limit, 'messages')), page });
   const filter = zoneFilter(zone);
   if (filter) params.set('zone', filter);
   if (search) params.set('content', `ilike.*${search.replace(/[,*()]/g, ' ')}*`);
@@ -151,7 +174,7 @@ async function listMessages(request, env) {
     params.set('select', publicColumns + suffix);
     try {
       const rows = await requestPublicData(env, `approved_messages_public?${params}`);
-      return json({ ...pageResult(rows.map(publicMessage), limit, 'messages'), page });
+      return json({ ...await withReplyCounts(env, pageResult(rows.map(publicMessage), limit, 'messages')), page });
     } catch (error) {
       if (!suffix || !isMissingColumn(error)) throw error;
     }
