@@ -528,7 +528,7 @@
             try {
                 savePostDraft();
                 const original = ForumDrafts.get('post');
-                const pending = selection.filter(image => image.file);
+                const pending = selection.filter(image => !image.url);
                 const uploaded = await uploadImages(pending.map(image => image.file));
                 pending.forEach((image, index) => { image.url = uploaded[index]; });
                 const picUrls = selection.map(image => image.url);

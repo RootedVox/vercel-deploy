@@ -1,4 +1,6 @@
 window.rvEnglish = new Map(Object.entries({
+  "RootedVox 4.4.4 · 论坛体验优化": "RootedVox 4.4.4 · Forum usability improvements",
+  "从帖子返回论坛时会恢复筛选条件和浏览位置。发帖可以分次添加图片并单独移除，也可以复制单条回复的链接。": "Return from a thread to your previous filters and position in the forum. Add images in batches, remove them individually, and copy links to specific replies.",
   "RootedVox 4.4.3 · 开发者昵称修复": "RootedVox 4.4.3 · Developer nickname fix",
   "修复开发者无法设置本人保留昵称的问题。论坛的 Dev 头像框改用账号身份验证。": "Developers can now set their own reserved nicknames. Dev avatar frames in the forum use verified account identity.",
   "RootedVox 4.4.2 · 昵称显示修复": "RootedVox 4.4.2 · Nickname display fix",
