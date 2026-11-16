@@ -7,14 +7,14 @@ const source = readFileSync(new URL('../forum-ui.js', import.meta.url), 'utf8');
 
 // Runs forum-ui.js with a fake canvas. `encoded(type)` says what the browser's
 // toBlob returns for a requested type: { type, size } or null.
-async function upload(file, encoded, forms = []) {
+async function upload(file, encoded) {
   const sent = [];
   class FakeImage {
     width = 4000; height = 3000;
     set src(_) { queueMicrotask(() => this.onload()); }
   }
   const canvas = {
-    getContext: () => ({ drawImage() {}, fillRect() {} }),
+    getContext: () => ({ drawImage() {} }),
     toBlob(done, type) {
       const result = encoded(type);
       done(result && new Blob([new Uint8Array(result.size)], { type: result.type }));
@@ -27,7 +27,6 @@ async function upload(file, encoded, forms = []) {
     document: { createElement: () => canvas, addEventListener() {} },
     request: async (_, { body }) => {
       sent.push(...body.getAll('files'));
-      forms.push(body);
       return Response.json({ urls: ['https://db.example/x'] });
     }
   });
@@ -61,12 +60,4 @@ test('a PNG source keeps PNG (it may be transparent) and never grows', async () 
   const smaller = await upload(photo('image/png', 2_000_000), () => ({ type: 'image/png', size: 900_000 }));
   assert.equal(smaller.type, 'image/png');
   assert.equal(smaller.size, 900_000);
-});
-
-test('each upload carries a small JPEG thumbnail made on the device', async () => {
-  const forms = [];
-  await upload(photo('image/jpeg', 2_000_000), type => ({ type, size: 20_000 }), forms);
-  const thumb = forms[0].get('thumb0');
-  assert.equal(thumb.type, 'image/jpeg');
-  assert.equal(thumb.size, 20_000);
 });

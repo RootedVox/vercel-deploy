@@ -30,25 +30,10 @@
     return response.json();
   }
 
-  // The forum lists show a thumbnail the poster's device made, not the original. Both
-  // are shown here, so the thumbnail is reviewed too. Posts without one show only the
-  // original (the thumbnail image removes itself when it fails to load).
-  function thumbnailUrl(url) {
-    const value = String(url || '');
-    return /\/storage\/v1\/object\/public\/message-pics\/business\/[0-9a-f-]+\/[0-9a-f]{64}\.(?:png|jpg|gif|webp)$/.test(value)
-      ? value.replace(/\.(?:png|jpg|gif|webp)$/, '.thumb.jpg') : null;
-  }
   function imageMarkup(values) {
     if (!Array.isArray(values) || !values.length) return '';
-    return `<div class="message-images">${values.map(url => {
-      const thumb = thumbnailUrl(url);
-      return `<img src="${escapeHtml(url)}" class="message-image" alt="留言图片（原图）" loading="lazy">` +
-        (thumb ? `<img src="${escapeHtml(thumb)}" class="message-image message-thumb" alt="列表中显示的缩略图" title="列表中显示的缩略图" loading="lazy" data-thumb>` : '');
-    }).join('')}</div>`;
+    return `<div class="message-images">${values.map(url => `<img src="${escapeHtml(url)}" class="message-image" alt="留言图片" loading="lazy">`).join('')}</div>`;
   }
-  document.addEventListener('error', event => {
-    if (event.target?.matches?.('img[data-thumb]')) event.target.remove();
-  }, true);
 
   function actionMarkup(id) {
     if (status === 'pending') return `<button class="btn btn-approve" data-action="approve" data-id="${id}">通过</button><button class="btn btn-danger" data-action="reject" data-id="${id}">拒绝</button><button class="btn btn-danger btn-delete" data-action="delete" data-id="${id}">删除</button>`;

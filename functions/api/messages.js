@@ -90,7 +90,7 @@ async function listMessages(request, env) {
   if (url.searchParams.has('media')) {
     const id = url.searchParams.get('media');
     if (!MESSAGE_ID.test(id)) return json({ error: 'invalid_request' }, 400);
-    return readAnonymousImage(env, id, url.searchParams.get('slot'), url.searchParams.get('thumb') === '1');
+    return readAnonymousImage(env, id, url.searchParams.get('slot'));
   }
   const thread = url.searchParams.get('thread');
   const publicColumns = 'id,username,content,zone,pic_url,created_at,reply_to';

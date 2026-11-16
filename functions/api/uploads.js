@@ -2,7 +2,6 @@ import { authenticateApi } from '../_lib/api.js';
 import { json, methodNotAllowed } from '../_lib/http.js';
 import { uploadBusinessObject, requestBusinessData, listAvatarObjects, deleteAvatarObjects } from '../_lib/supabase.js';
 
-import { thumbnailPath } from '../_lib/forum-media.js';
 import { validateAvatar, AVATAR_LIMIT, AVATAR_RETENTION_MS } from '../_lib/avatar.js';
 
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
@@ -49,19 +48,6 @@ async function ownAvatarObjects(env, session) {
     if (page.length < 100) return own;
     if (offset >= 900) throw new Error('avatar_storage_limit');
   }
-}
-
-// Thumbnails are made on the visitor's device (forum-ui.js) and stored as
-// <hash>.thumb.jpg beside the image. They are optional: a missing, oversized or
-// non-JPEG one is skipped and the page shows the original instead.
-const THUMB_LIMIT = 200 * 1024;
-async function storeThumbnail(env, session, thumb, path) {
-  if (!thumb || typeof thumb === 'string' || thumb.type !== 'image/jpeg' || !thumb.size || thumb.size > THUMB_LIMIT) return;
-  const head = new Uint8Array(await thumb.slice(0, 3).arrayBuffer());
-  if (head[0] !== 0xff || head[1] !== 0xd8 || head[2] !== 0xff) return;
-  try {
-    await uploadBusinessObject(env, session, 'message-pics', thumbnailPath(path), thumb, false, true);
-  } catch { /* The original is stored; the page falls back to it. */ }
 }
 
 export async function onRequestPost({ request, env }) {
@@ -134,14 +120,7 @@ export async function onRequestPost({ request, env }) {
         }
         if (ready === false) throw new Error('upload_cleanup_pending');
       }
-      const stored = {};
-      urls.push(await uploadBusinessObject(env, auth.session, bucket, path, file, false, true, stored));
-      // The thumbnail is stored only next to an image written by this very request. An
-      // image that already existed may be in an approved post, and a thumbnail added
-      // later would show in the feed without having been reviewed.
-      if (kind === 'message' && !stored.reused) {
-        await storeThumbnail(env, auth.session, form.get('thumb' + (urls.length - 1)), path);
-      }
+      urls.push(await uploadBusinessObject(env, auth.session, bucket, path, file, false, true));
     }
     return json({ urls }, 201, auth.headers);
   } catch (error) {

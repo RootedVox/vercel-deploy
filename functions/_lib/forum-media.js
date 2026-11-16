@@ -1,11 +1,6 @@
 import { json, SECURITY_HEADERS } from './http.js';
 import { withDeadline } from './fetch-timeout.js';
 
-// A post image's thumbnail is stored beside it as <hash>.thumb.jpg (see api/uploads.js).
-export function thumbnailPath(path) {
-  return path.replace(/\.(?:png|jpg|gif|webp)$/, '.thumb.jpg');
-}
-
 export function publicMessageMedia(row) {
   if (row.username !== '匿名用户' || !Array.isArray(row.pic_url)) return row;
   return { ...row, pic_url: row.pic_url.map((_, index) => `/api/messages?media=${row.id}&slot=${index}`) };
@@ -13,8 +8,7 @@ export function publicMessageMedia(row) {
 
 // Keep original object names inside the backend. A post can be withdrawn, so
 // recheck its moderation state on each read and do not cache the response.
-// thumb: serve the stored thumbnail instead; 404 when the post has none.
-export async function readAnonymousImage(env, id, slot, thumb = false) {
+export async function readAnonymousImage(env, id, slot) {
   if (!/^(?:0|[1-9]\d{0,3})$/.test(slot ?? '')) return json({ error: 'invalid_request' }, 400);
   const database = new URL(env.BUSINESS_SUPABASE_URL);
   if (database.protocol !== 'https:') return json({ error: 'media_unavailable' }, 503);
@@ -36,8 +30,7 @@ export async function readAnonymousImage(env, id, slot, thumb = false) {
   if (source.protocol !== 'https:' || source.origin !== origin || source.username || source.password ||
       !source.pathname.startsWith('/storage/v1/object/public/message-pics/')) return json({ error: 'not_found' }, 404);
   // Forward only image bytes. Neither redirects nor Storage headers are public.
-  const path = thumb ? thumbnailPath(source.pathname) : source.pathname;
-  const file = await fetch(origin + path, { redirect: 'error', signal: AbortSignal.timeout(20000) });
+  const file = await fetch(origin + source.pathname, { redirect: 'error', signal: AbortSignal.timeout(20000) });
   const type = file.headers.get('Content-Type')?.split(';')[0].toLowerCase();
   if (!file.ok || !['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(type)) {
     await file.body?.cancel();
