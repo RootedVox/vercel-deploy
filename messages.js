@@ -247,8 +247,8 @@
         function loadAvatarAssets() {
             if (avatarAssetsPromise) return avatarAssetsPromise;
             const assets = [
-                ['link', './vendor/cropper.min.css'], ['link', './avatar-editor.css?v=4.3.3'],
-                ['script', './vendor/cropper.min.js'], ['script', './avatar-editor.js']
+                ['link', './vendor/cropper.min.css?v=23679f552c'], ['link', './avatar-editor.css?v=617471711d'],
+                ['script', './vendor/cropper.min.js?v=6290a3fa58'], ['script', './avatar-editor.js?v=80ad5bdfa7']
             ];
             const elements = [];
             const loads = assets.map(([tag, url]) => new Promise((resolve, reject) => {

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { runPageScript } from './page-script.js';
@@ -51,8 +52,8 @@ test('every browser script is syntax-checked by npm run check', () => {
 test('the forum pages load their own stylesheet and script as cacheable files', () => {
   for (const name of ['messages', 'details']) {
     const html = read(`${name}.html`);
-    assert.match(html, new RegExp(`<link rel="stylesheet" href="\\./${name}\\.css">`));
-    assert.match(html, new RegExp(`<script src="\\./${name}\\.js"></script>`));
+    assert.match(html, new RegExp(`<link rel="stylesheet" href="\\./${name}\\.css\\?v=[0-9a-f]{10}">`));
+    assert.match(html, new RegExp(`<script src="\\./${name}\\.js\\?v=[0-9a-f]{10}"></script>`));
     assert.doesNotMatch(html, /<style/);
   }
 });
@@ -178,7 +179,8 @@ test('the English table is requested only for English, without a flash of untran
   const english = load('en');
   assert.equal(english.lang, 'en');
   // Written while the parser is blocked, so the table is ready before the first paint.
-  assert.deepEqual(english.written, ['<script src="/english.js?v=4.4.0"></script>']);
+  assert.equal(english.written.length, 1);
+  assert.match(english.written[0], /^<script src="\/english\.js\?v=[0-9a-f]{10}"><\/script>$/);
 });
 
 test('on phones a button takes over after two automatic pages so the footer stays reachable', async () => {
@@ -265,4 +267,21 @@ test('Cloudflare serves every static file without invoking Functions', t => {
     assert.doesNotMatch(rule, /^\/(?:api|auth|functions|docs|supabase|test|scripts|migrations)(?:\/|$)|\.(?:md|sql|jsonc?|toml|ya?ml)$|^\/\*$/, rule);
     if (rule.endsWith('.html')) assert.match(rule, /^\/(?:header|header-checker|footer)\.html$/, rule);
   }
+});
+
+test('every script and stylesheet URL carries the hash of the current file', () => {
+  // Cloudflare keeps static files at the edge for days, so a changed file under an
+  // unchanged URL was served stale after a release. Fails when a file changed without
+  // running scripts/sync-asset-versions.mjs.
+  execFileSync(process.execPath, [fileURLToPath(new URL('scripts/sync-asset-versions.mjs', root)), '--check'], { stdio: 'pipe' });
+  const hash = name => createHash('sha256').update(readFileSync(new URL(name, root))).digest('hex').slice(0, 10);
+  let checked = 0;
+  for (const name of [...pages, 'messages.js', 'avatar-editor.js', 'preferences.js']) {
+    for (const [, path, version] of read(name).matchAll(/["'`](?:\.\/|\/)?((?:vendor\/(?:webp\/)?)?[A-Za-z0-9_.-]+\.(?:js|css))(?:\?v=([^"'`]*))?["'`]/g)) {
+      if (!files.includes(path) && !path.startsWith('vendor/')) continue;
+      assert.equal(version, hash(path), `${name} -> ${path}`);
+      checked++;
+    }
+  }
+  assert.ok(checked > 100, `only ${checked} references found`);
 });
