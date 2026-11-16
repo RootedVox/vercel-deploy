@@ -1,4 +1,9 @@
 window.rvEnglish = new Map(Object.entries({
+  "RootedVox 4.4.6 · 首页分区更新时间": "RootedVox 4.4.6 · Recent activity on the homepage",
+  "首页论坛分区角标现在显示最新帖子的发布时间，方便查看哪些分区最近有新动态。": "Homepage forum categories now show when their latest post was published, so you can see where there is recent activity.",
+  "暂无动态": "No recent activity",
+  "前天更新": "Updated the day before yesterday",
+  "昨天更新": "Updated yesterday",
   "RootedVox 4.4.5 · 论坛加载与图片上传优化": "RootedVox 4.4.5 · Forum loading and photo uploads",
   "减少登录后加载论坛所需的请求，让浏览器复用未变化的脚本。部分 iPhone 浏览器会使用 JPEG 上传照片，避免转换后体积变大。": "The signed-in forum loads with fewer requests, and browsers can reuse unchanged scripts. Some iPhone browsers upload photos as JPEG to keep conversion from increasing file size.",
   "RootedVox 4.4.4 · 论坛体验优化": "RootedVox 4.4.4 · Forum usability improvements",

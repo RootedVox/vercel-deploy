@@ -16,13 +16,13 @@
   root.lang = language;
   // The translation table is only needed in English. It is written into the document
   // while this script blocks the parser, so the page never paints untranslated first.
-  if (language === 'en') document.write('<script src="/english.js?v=238909f450"><\/script>');
+  if (language === 'en') document.write('<script src="/english.js?v=9324e2eca1"><\/script>');
   let englishRequested = language === 'en';
   function loadEnglish() {
     if (englishRequested) return;
     englishRequested = true;
     const script = document.createElement('script');
-    script.src = '/english.js?v=238909f450';
+    script.src = '/english.js?v=9324e2eca1';
     script.onload = () => { localize(document.head.querySelector('title')); localize(document.body); };
     document.head.append(script);
   }
@@ -38,6 +38,17 @@
     if (english !== undefined) return value.replace(key, english);
     const count = key.match(/^最新 (\d+) 条$/);
     if (count) return value.replace(key, count[1] + (count[1] === "1" ? " recent post" : " recent posts"));
+    const updated = key.match(/^(\d+)(秒|分钟|小时|天)前更新$/);
+    if (updated) {
+      const unit = { 秒: 'second', 分钟: 'minute', 小时: 'hour', 天: 'day' }[updated[2]];
+      const time = new Intl.RelativeTimeFormat('en', { numeric: 'auto' }).format(-Number(updated[1]), unit);
+      return value.replace(key, 'Updated ' + time);
+    }
+    const updatedDate = key.match(/^(\d+)月(\d+)日更新$/);
+    if (updatedDate) {
+      const time = new Date(2000, Number(updatedDate[1]) - 1, Number(updatedDate[2]));
+      return value.replace(key, 'Updated ' + time.toLocaleDateString('en', { month: 'short', day: 'numeric' }));
+    }
     if (/^↳ 回复 @/.test(key)) return value.replace('回复', 'Reply to');
     if (/^回复 @/.test(key)) return value.replace('回复', 'Reply to');
     return value;

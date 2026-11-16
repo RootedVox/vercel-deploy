@@ -40,8 +40,8 @@
           : '<div class="zone-empty">这个分区还没有新动态。</div>';
       // The card shows at most two posts, so a count said nothing. The badge instead
       // tells how recently the zone was active.
-      const newest = posts.map(item => item.created_at).filter(Boolean).sort().at(-1);
-      const badge = locked ? '需登录' : newest ? `${relativeTime(newest)}更新` : '暂无动态';
+      const newest = Math.max(...posts.map(item => Date.parse(item.created_at)).filter(Number.isFinite));
+      const badge = locked ? '需登录' : Number.isFinite(newest) ? `${relativeTime(newest)}更新` : '暂无动态';
       return `<article class="zone-card"><div class="zone-head"><div class="zone-title"><span class="zone-icon">${zone.icon}</span><div><h3>${zone.label}</h3><p>${zone.description}</p></div></div><span class="zone-count">${badge}</span></div><div class="zone-posts">${body}</div><a class="zone-link" href="messages.html?zone=${encodeURIComponent(zone.label)}">进入${zone.label} →</a></article>`;
     }).join('');
   }
