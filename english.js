@@ -42,7 +42,7 @@ window.rvEnglish = new Map(Object.entries({
   '留言审核结果将通过站内通知告知您': 'You’ll receive a notification when your post is reviewed.',
   '最新动态': 'Recent posts', '按时间浏览，或直接寻找你关心的话题。': 'Browse by date or search for topics you care about.',
   '搜索留言内容': 'Search posts', '全部分区': 'All categories', '最新发布': 'Newest first', '最早发布': 'Oldest first',
-  '加载留言中...': 'Loading posts…', '加载更多...': 'Loading more…', '🔍 查看详情': '🔍 View thread', '写留言': 'Write a post', '加载昵称中…': 'Loading nickname…', '加载更多留言': 'Load more posts', '再点一次确认退出': 'Press again to sign out', '个人菜单': 'Account menu', '发布成功，审核通过后会公开。': 'Posted. It will appear after review.', '收起': 'Close', '关闭图片': 'Close image', '查看详情': 'View thread',
+  '加载留言中...': 'Loading posts…', '加载更多...': 'Loading more…', '🔍 查看详情': '🔍 View thread', '写留言': 'Write a post', '加载更多留言': 'Load more posts', '再点一次确认退出': 'Press again to sign out', '个人菜单': 'Account menu', '发布成功，审核通过后会公开。': 'Posted. It will appear after review.', '收起': 'Close', '关闭图片': 'Close image', '查看详情': 'View thread',
   '暂无留言，快来发布第一条留言吧！': 'No posts yet. Start the conversation!',
   '这个分区暂时没有留言，来发布第一条吧！': 'No posts in this category yet. Start the conversation!',
   '没有找到相关留言，试试其他关键词。': 'No matching posts. Try a different search.',
