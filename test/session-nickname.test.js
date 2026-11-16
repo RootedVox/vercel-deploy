@@ -30,7 +30,7 @@ test('the session check answers with the current site nickname, not the sign-in 
   assert.equal(calls.length, 1);
   assert.equal(calls[0].pathname, '/rest/v1/business_users');
   assert.equal(calls[0].searchParams.get('user_id'), 'eq.' + uid);
-  assert.equal(calls[0].searchParams.get('select'), 'nickname,display_name');
+  assert.equal(calls[0].searchParams.get('select'), 'nickname,display_name,avatar_url');
 });
 
 test('without a site nickname the stored display name is used, filtered like /api/profile', async t => {
