@@ -106,7 +106,7 @@ async function requestSupabase(env, session, route, init = {}) {
   return withDeadline(async signal => {
     const response = await fetch(`${url}/${route}`, {
       ...init,
-      signal,
+      signal: init.signal ? AbortSignal.any([signal, init.signal]) : signal,
       headers: {
         apikey: publishableKey,
         Authorization: `Bearer ${token}`,

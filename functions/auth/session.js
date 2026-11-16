@@ -14,8 +14,8 @@ const NICKNAME_DEADLINE_MS = 1500;
 async function currentNickname(env, session) {
   const fallback = session.display_name || session.email?.split('@')[0] || '校园用户';
   try {
-    const rows = await withDeadline(() => requestBusinessData(env, session,
-      `business_users?user_id=eq.${encodeURIComponent(session.user_id)}&select=nickname,display_name&limit=1`
+    const rows = await withDeadline(signal => requestBusinessData(env, session,
+      `business_users?user_id=eq.${encodeURIComponent(session.user_id)}&select=nickname,display_name&limit=1`, { signal }
     ), NICKNAME_DEADLINE_MS);
     const row = rows?.[0] || {};
     return resolveProfileNickname(session.user_id, row.nickname, row.display_name || fallback);

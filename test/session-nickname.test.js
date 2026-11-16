@@ -45,12 +45,14 @@ test('without a site nickname the stored display name is used, filtered like /ap
 test('a failing or slow nickname read falls back to the sign-in name instead of failing the check', async t => {
   assert.equal((await name(await environment(), () => new Response('down', { status: 500 }), t)).name, '登录时的旧名字');
   t.mock.restoreAll();
+  let aborted = false;
   const started = Date.now();
   const slow = await name(await environment(), init => new Promise((resolve, reject) => {
     const timer = setTimeout(() => resolve(Response.json([{ nickname: '太晚了' }])), 2500);
-    init.signal?.addEventListener('abort', () => { clearTimeout(timer); reject(new Error('aborted')); });
+    init.signal?.addEventListener('abort', () => { aborted = true; clearTimeout(timer); reject(new Error('aborted')); });
   }), t);
   assert.equal(slow.name, '登录时的旧名字');
+  assert.equal(aborted, true);
   assert.ok(Date.now() - started < 2400, 'the session check waits at most about 1.5 s for the nickname');
 });
 

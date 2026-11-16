@@ -1,4 +1,6 @@
 window.rvEnglish = new Map(Object.entries({
+  "RootedVox 4.4.2 · 昵称显示修复": "RootedVox 4.4.2 · Nickname display fix",
+  "修复修改昵称后，刷新页面时仍可能先显示登录旧名的问题。登录状态检查现在会读取当前站内昵称。": "Fixed an issue where refreshing the page after a nickname change could briefly show your old sign-in name. The session check now reads your current site nickname.",
   "RootedVox 4.4.1 · 缓存修复": "RootedVox 4.4.1 · Cache fix",
   "修复网站更新后仍可能加载旧版脚本和样式的问题。资源内容变化时，浏览器会从新地址加载。": "Fixed an issue where the site could still load outdated scripts and styles after an update. When a file changes, the browser fetches it from a new URL.",
   "RootedVox 4.4.0 · 移动端与头像更新": "RootedVox 4.4.0 · Mobile forum and avatar update",
