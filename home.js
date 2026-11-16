@@ -13,14 +13,15 @@
   };
   const relativeTime = (value) => {
     const seconds = Math.max(1, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
-    const formatter = new Intl.RelativeTimeFormat('zh-CN', { numeric: 'auto' });
+    const locale = document.documentElement?.lang === 'en' ? 'en' : 'zh-CN';
+    const formatter = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
     if (seconds < 60) return formatter.format(-seconds, 'second');
     const minutes = Math.floor(seconds / 60);
     if (minutes < 60) return formatter.format(-minutes, 'minute');
     const hours = Math.floor(minutes / 60);
     if (hours < 24) return formatter.format(-hours, 'hour');
     const days = Math.floor(hours / 24);
-    return days < 30 ? formatter.format(-days, 'day') : new Date(value).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+    return days < 30 ? formatter.format(-days, 'day') : new Date(value).toLocaleDateString(locale, { month: 'short', day: 'numeric' });
   };
   function renderZones(host, items = [], locked = false) {
     const groups = Object.fromEntries(zones.map((zone) => [zone.key, []]));

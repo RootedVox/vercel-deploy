@@ -107,7 +107,8 @@ async function retryThread() {
 }
 function renderMainMessage(msg) {
     const parsedContent = parseMessageContent(msg.content, msg.zone);
-    const t = new Date(msg.created_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+    const t = ForumUI.postTimeHtml?.(msg.created_at)
+        ?? `<span class="message-time">${new Date(msg.created_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}</span>`;
     const imgs = msg.pic_url ? msg.pic_url.map(u => `<img src="${escapeHtml(u)}" class="message-image" alt="${escapeHtml(msg.username)} 发布的图片" decoding="async" tabindex="0">`).join('') : '';
     document.getElementById('mainMessageCard').innerHTML = `
     <div class="message-item" id="msg-${msg.id}" data-avatar-url="${escapeHtml(msg.avatar_url || '')}" data-official="${msg.is_official === true}" data-developer="${msg.is_developer === true}">
@@ -115,7 +116,7 @@ function renderMainMessage(msg) {
         <div style="flex:1">
             <div class="message-header">
                 <span class="message-author">${escapeHtml(msg.username)}</span>
-                <span class="message-time">${t}</span>
+                ${t}
             </div>
             <span class="message-zone">${escapeHtml(parsedContent.zone)}</span>
             <div class="message-content">${escapeHtml(parsedContent.text).replace(/\n/g, '<br>')}</div>
@@ -169,7 +170,7 @@ function renderComment(r) {
             <div style="flex:1">
                 <div class="message-header">
                     <span class="message-author">${escapeHtml(r.username)}</span>
-                    <span class="message-time">${new Date(r.created_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}</span>
+                    ${ForumUI.postTimeHtml?.(r.created_at) ?? `<span class="message-time">${new Date(r.created_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}</span>`}
                 </div>
                 ${nested ? parentInfo : ''}
                 <div class="message-content">${escapeHtml(r.content).replace(/\n/g, '<br>')}</div>

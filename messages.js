@@ -415,6 +415,7 @@
             document.getElementById('avatarBtn').hidden = true;
             const login = document.getElementById('logoutBtn');
             login.textContent = '登录';
+            login.classList?.add('login-btn');
             showFormStatus('已审核留言可直接浏览；发布、回复和通知需要登录。');
         }
 
@@ -700,7 +701,8 @@
                 let html = '';
                 for (let msg of data) {
                     const parsedContent = parseMessageContent(msg.content, msg.zone);
-                    const time = new Date(msg.created_at).toLocaleString('zh-CN', { dateStyle: 'short', timeStyle: 'short' });
+                    const time = ForumUI.postTimeHtml?.(msg.created_at)
+                        ?? `<span class="message-time">${new Date(msg.created_at).toLocaleString('zh-CN', { dateStyle: 'short', timeStyle: 'short' })}</span>`;
                     let imageHtml = '';
                     if (msg.pic_url && msg.pic_url.length > 0) {
                         imageHtml = '<div class="message-images">';
@@ -711,12 +713,12 @@
                     }
 
                     html += `
-                    <div class="message-item" id="message-${msg.id}" data-avatar-url="${escapeHtml(msg.avatar_url || '')}" data-official="${msg.is_official === true}" data-developer="${msg.is_developer === true}" data-anonymous="${msg.username === '匿名用户' ? 'true' : 'false'}">
+                    <div class="message-item${msg.is_featured === true ? ' is-featured' : ''}" id="message-${msg.id}" data-avatar-url="${escapeHtml(msg.avatar_url || '')}" data-official="${msg.is_official === true}" data-developer="${msg.is_developer === true}" data-anonymous="${msg.username === '匿名用户' ? 'true' : 'false'}">
                         <div class="message-avatar-box"></div>
                         <div style="flex:1">
                             <div class="message-header">
                                 <span class="message-author">${escapeHtml(msg.username)}</span>
-                                <span class="message-time">${time}</span>
+                                ${time}
                             </div>
                             <span class="message-zone">${escapeHtml(parsedContent.zone)}</span>
                             <div class="message-content">${escapeHtml(parsedContent.text).replace(/\n/g, '<br>')}</div>

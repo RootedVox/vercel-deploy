@@ -11,7 +11,7 @@ body{margin:0;min-width:320px;font-family:Inter,ui-sans-serif,-apple-system,Blin
 body.menu-open{overflow:hidden} button,input,textarea,select{font:inherit} button,a{-webkit-tap-highlight-color:transparent} img{max-width:100%} a{color:inherit}
 :focus-visible{outline:3px solid var(--theme-color);outline-offset:3px}
 .header{position:fixed;inset:0 0 auto;z-index:9999;border-bottom:1px solid transparent;background:rgba(11,11,11,.90);backdrop-filter:blur(18px) saturate(150%);transition:box-shadow .25s,border-color .25s,background .25s}
-.header.scrolled{border-color:rgba(221,226,240,.9);box-shadow:0 8px 24px rgba(16,20,37,.07);background:rgba(11,11,11,.96)}
+.header.scrolled{border-color:var(--line);box-shadow:0 8px 24px rgba(16,20,37,.07);background:rgba(11,11,11,.96)}
 .nav-container{width:min(1180px,calc(100% - 40px));height:72px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
 .logo{display:inline-flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink)} .logo img{width:42px;height:42px;margin:0;object-fit:contain}
 .brand-copy{display:grid;line-height:1.05}.brand-copy strong{font-size:16px;letter-spacing:-.02em}.brand-copy small{margin-top:5px;color:var(--muted);font-size:11px;letter-spacing:.13em;text-transform:uppercase}
@@ -87,3 +87,6 @@ a { color: var(--theme-color); }
 .featured-stamp { display: inline-flex; align-items: center; gap: 5px; color: var(--theme-color); border: 3px double currentColor; border-radius: 8px; padding: 3px 7px 3px 4px; font-size: .82rem; font-weight: 700; white-space: nowrap; transform: rotate(-6deg); }
 .featured-stamp img { width: 19px; height: 19px; border-radius: 50%; }
 .thread-featured { display: flex; justify-content: flex-end; margin: 5px 0; }
+
+/* Anonymous posters: a neutral silhouette that shows on both themes (forum-ui.js). */
+.anonymous-avatar { display: flex; width: 38px; height: 38px; align-items: center; justify-content: center; border-radius: 50%; color: var(--muted); background: var(--theme-soft); }
