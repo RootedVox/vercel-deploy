@@ -47,7 +47,7 @@ test('loading more messages preserves existing avatar elements and updates chang
   const { renderMessageAvatars: render, getFreshAvatar: fresh } = context.window.ForumUI;
   await render(); await render();
   assert.equal(writes, 1, 'existing avatar DOM must survive pagination');
-  const hashed = 'https://db.example/avatar.' + 'a'.repeat(64) + '.png';
+  const hashed = 'https://db.example/avatar.' + 'a'.repeat(64) + '.webp';
   assert.equal(fresh(hashed), hashed);
   assert.equal(fresh(item.dataset.avatarUrl), fresh(item.dataset.avatarUrl));
   item.dataset.avatarUrl = hashed;

@@ -54,7 +54,7 @@ export async function onRequestPut({ request, env }) {
     const base = new URL(String(env.BUSINESS_SUPABASE_URL));
     const requiredPrefix = `/storage/v1/object/public/avatars/business/${auth.session.user_id}.`;
     const suffix = avatar.pathname.slice(requiredPrefix.length);
-    if (avatar.origin !== base.origin || avatar.username || avatar.password || avatar.search || avatar.hash || !avatar.pathname.startsWith(requiredPrefix) || !/^[a-f0-9]{64}\.png$/.test(suffix)) return json({ error: 'invalid_avatar' }, 400, auth.headers);
+    if (avatar.origin !== base.origin || avatar.username || avatar.password || avatar.search || avatar.hash || !avatar.pathname.startsWith(requiredPrefix) || !/^[a-f0-9]{64}\.webp$/.test(suffix)) return json({ error: 'invalid_avatar' }, 400, auth.headers);
     patch.avatar_url = avatar.toString();
   }
 

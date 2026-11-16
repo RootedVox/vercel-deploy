@@ -93,12 +93,15 @@
   function failLoad(message) {
     clearEditor(); note(message, true);
   }
+  // Avatars are stored as WebP to keep them small; 256px at this quality is a few KB.
+  const AVATAR_QUALITY = 0.82;
   function renderPreview() {
     if (!cropper?.ready) return null;
     const canvas = cropper.getCroppedCanvas({ width: 256, height: 256, fillColor: '#fff',
       imageSmoothingEnabled: true, imageSmoothingQuality: 'high' });
     if (!canvas) throw new Error('无法生成裁切图片');
-    const url = canvas.toDataURL('image/png');
+    // The preview is encoded like the saved file, so it shows the same compression.
+    const url = canvas.toDataURL('image/webp', AVATAR_QUALITY);
     dialog.querySelectorAll('.isa-avatar-editor-preview').forEach(preview => {
       const image = document.createElement('img');
       image.src = url; image.alt = '保存后的头像预览';
@@ -200,11 +203,12 @@
       if (!canvas) throw new Error('无法生成裁切图片');
       if (!exportedFile) {
         const blob = await new Promise((resolve, reject) => {
-          canvas.toBlob(value => value ? resolve(value) : reject(new Error('图片编码失败')), 'image/png');
+          canvas.toBlob(value => value ? resolve(value) : reject(new Error('图片编码失败')), 'image/webp', AVATAR_QUALITY);
         });
         if (generation !== revision || session !== activeSession || !dialog.open) return;
-        if (blob.type !== 'image/png') throw new Error('浏览器无法生成 PNG 图片');
-        exportedFile = new window.File([blob], 'isa-avatar-256.png', { type: 'image/png', lastModified: Date.now() });
+        // A browser without a WebP encoder silently returns PNG instead.
+        if (blob.type !== 'image/webp') throw new Error('当前浏览器无法生成 WebP 图片');
+        exportedFile = new window.File([blob], 'isa-avatar-256.webp', { type: 'image/webp', lastModified: Date.now() });
       }
       const file = exportedFile;
       // The host owns persistence. Never close until its asynchronous callback succeeds.
