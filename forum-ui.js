@@ -120,15 +120,26 @@
               canvas.height = height;
               const ctx = canvas.getContext("2d");
               ctx.drawImage(img, 0, 0, width, height);
-              canvas.toBlob(blob => {
-                  if (!blob) return reject("图片压缩失败");
+              const encode = (type, quality) => new Promise(done => canvas.toBlob(done, type, quality));
+              (async () => {
+                  let blob = await encode(opts.mimeType, opts.quality);
+                  // Safari cannot export WebP and hands back a PNG, which for a photo is
+                  // several times larger than the original. Photos are re-encoded as JPEG;
+                  // PNG and GIF sources keep the PNG, as they may be transparent.
+                  if (blob && blob.type !== opts.mimeType && !['image/png', 'image/gif'].includes(file.type)) {
+                      blob = await encode("image/jpeg", 0.7) || blob;
+                  }
+                  if (!blob) return reject(new Error("图片压缩失败"));
                   const suffixes = { "image/webp": ".webp", "image/png": ".png", "image/jpeg": ".jpg" };
                   const suffix = suffixes[blob.type];
                   if (!suffix) return reject(new Error("图片格式不受支持"));
+                  // Never upload a "compressed" copy that is bigger than an accepted original.
+                  if (blob.size >= file.size && ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+                      return resolve(file);
+                  }
                   const newFileName = file.name.replace(/(\.\w+)$/, suffix);
-                  const compressedFile = new File([blob], newFileName, { type: blob.type });
-                  resolve(compressedFile);
-              }, opts.mimeType, opts.quality);
+                  resolve(new File([blob], newFileName, { type: blob.type }));
+              })().catch(() => reject(new Error("图片压缩失败")));
           };
           img.onerror = () => { URL.revokeObjectURL(source); reject(new Error("图片加载失败")); };
           img.src = source;

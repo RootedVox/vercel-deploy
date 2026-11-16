@@ -110,7 +110,7 @@ test('posts link to their thread and thumbnails are keyboard-reachable viewer ta
   h.calls[0].resolve({ messages: [post], hasMore: false });
   await first;
   assert.match(h.container.innerHTML, /<a class="detail-btn" href="details\.html\?id=1">/);
-  assert.match(h.container.innerHTML, /<img src="https:\/\/db\.example\/a\.webp" class="message-image" alt="测试 发布的图片" loading="lazy" tabindex="0">/);
+  assert.match(h.container.innerHTML, /<img src="https:\/\/db\.example\/a\.webp" class="message-image" alt="测试 发布的图片" loading="lazy" decoding="async" tabindex="0">/);
   assert.match(h.container.innerHTML, /2026\/1\/1 \d{2}:\d{2}</);
 });
 

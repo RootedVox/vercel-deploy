@@ -642,7 +642,7 @@
                     if (msg.pic_url && msg.pic_url.length > 0) {
                         imageHtml = '<div class="message-images">';
                         for (let url of msg.pic_url) {
-                            imageHtml += `<img src="${escapeHtml(url)}" class="message-image" alt="${escapeHtml(msg.username)} 发布的图片" loading="lazy" tabindex="0">`;
+                            imageHtml += `<img src="${escapeHtml(url)}" class="message-image" alt="${escapeHtml(msg.username)} 发布的图片" loading="lazy" decoding="async" tabindex="0">`;
                         }
                         imageHtml += '</div>';
                     }

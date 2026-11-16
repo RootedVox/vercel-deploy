@@ -108,7 +108,7 @@ async function retryThread() {
 function renderMainMessage(msg) {
     const parsedContent = parseMessageContent(msg.content, msg.zone);
     const t = new Date(msg.created_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
-    const imgs = msg.pic_url ? msg.pic_url.map(u => `<img src="${escapeHtml(u)}" class="message-image" alt="${escapeHtml(msg.username)} 发布的图片" tabindex="0">`).join('') : '';
+    const imgs = msg.pic_url ? msg.pic_url.map(u => `<img src="${escapeHtml(u)}" class="message-image" alt="${escapeHtml(msg.username)} 发布的图片" decoding="async" tabindex="0">`).join('') : '';
     document.getElementById('mainMessageCard').innerHTML = `
     <div class="message-item" id="msg-${msg.id}" data-avatar-url="${escapeHtml(msg.avatar_url || '')}" data-official="${msg.is_official === true}" data-developer="${msg.is_developer === true}">
         <div class="message-avatar-box"></div>
@@ -172,7 +172,7 @@ function renderComment(r) {
                 </div>
                 ${nested ? parentInfo : ''}
                 <div class="message-content">${escapeHtml(r.content).replace(/\n/g, '<br>')}</div>
-                <div class="message-images">${r.pic_url ? r.pic_url.map(u => `<img loading="lazy" src="${escapeHtml(u)}" class="message-image" alt="${escapeHtml(r.username)} 发布的图片" tabindex="0">`).join('') : ''}</div>
+                <div class="message-images">${r.pic_url ? r.pic_url.map(u => `<img loading="lazy" decoding="async" src="${escapeHtml(u)}" class="message-image" alt="${escapeHtml(r.username)} 发布的图片" tabindex="0">`).join('') : ''}</div>
                 <button class="reply-btn" data-action="reply" data-id="${escapeHtml(r.id)}">💬 回复</button>
                 <a class="copy-reply" data-action="copy" href="?id=${encodeURIComponent(mainMsgId)}&amp;replyId=${encodeURIComponent(r.id)}">复制回复链接</a>
                 <div id="reply-box-${r.id}" class="comment-input-container"></div>
