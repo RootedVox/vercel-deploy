@@ -500,6 +500,9 @@
             }
         }
 
+        // Each quota read is a Functions request, so it is made only when the visitor ticks
+        // "投稿到精华" (once per page view) and after a featured submission, never on page load.
+        let featuredQuotaShown = false;
         async function refreshFeaturedQuota() {
             const note = document.getElementById('featuredQuota');
             if (!note) return;
@@ -507,8 +510,15 @@
                 const response = await request('/api/messages?featuredQuota=1', { credentials: 'include' });
                 if (!response.ok) return;
                 const { remaining } = await response.json();
-                if (Number.isInteger(remaining)) note.textContent = '仅限主楼 · 今日还可投稿 ' + remaining + ' 次';
+                if (Number.isInteger(remaining)) {
+                    note.textContent = '仅限主楼 · 今日还可投稿 ' + remaining + ' 次';
+                    featuredQuotaShown = true;
+                }
             } catch {}
+        }
+
+        function showFeaturedQuotaOnce() {
+            if (!featuredQuotaShown && document.getElementById('postFeatured')?.checked) refreshFeaturedQuota();
         }
 
         function savePostDraft() {
@@ -527,7 +537,6 @@
             const nickname = document.getElementById('nicknameSelect');
             const discard = document.getElementById('discardDraft');
             const featured = document.getElementById('postFeatured');
-            refreshFeaturedQuota();
             const draft = ForumDrafts.get('post');
             if (draft) {
                 text.value = draft.text;
@@ -542,10 +551,14 @@
                 discard.hidden = false;
                 setComposeOpen(true);
             }
+            showFeaturedQuotaOnce();
             text.addEventListener('input', savePostDraft);
             zone.addEventListener('change', savePostDraft);
             nickname.addEventListener('change', savePostDraft);
-            featured?.addEventListener('change', savePostDraft);
+            featured?.addEventListener('change', () => {
+                savePostDraft();
+                showFeaturedQuotaOnce();
+            });
             discard.onclick = () => {
                 ForumDrafts.clear('post');
                 text.value = '';
