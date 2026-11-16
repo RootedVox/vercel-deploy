@@ -1,4 +1,6 @@
 window.rvEnglish = new Map(Object.entries({
+  "RootedVox 4.4.1 · 缓存修复": "RootedVox 4.4.1 · Cache fix",
+  "修复网站更新后仍可能加载旧版脚本和样式的问题。资源内容变化时，浏览器会从新地址加载。": "Fixed an issue where the site could still load outdated scripts and styles after an update. When a file changes, the browser fetches it from a new URL.",
   "RootedVox 4.4.0 · 移动端与头像更新": "RootedVox 4.4.0 · Mobile forum and avatar update",
   "优化手机端社区布局和导航，支持在页面内查看图片。修复发帖草稿、回复长度限制和头像裁切，头像现以 WebP 保存。": "This release improves the mobile forum layout and navigation and adds an in-page image viewer. It fixes post drafts, reply length limits, and avatar cropping. Avatars are now saved as WebP.",
   "RootedVox 4.3.5 · 登录与论坛稳定性修复": "RootedVox 4.3.5 · Sign-in and forum fixes",
