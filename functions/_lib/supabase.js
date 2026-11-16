@@ -143,7 +143,9 @@ export async function requestPublicData(env, path, init = {}) {
   });
 }
 
-export async function uploadBusinessObject(env, session, bucket, path, file, upsert = false, reuseExisting = false) {
+// With reuseExisting, an object that is already stored counts as uploaded; `info.reused`
+// then tells the caller that nothing new was written.
+export async function uploadBusinessObject(env, session, bucket, path, file, upsert = false, reuseExisting = false, info = {}) {
   const { url, publishableKey } = publicSupabaseConfig(env);
   const token = await requestToken(env, session);
   await withDeadline(async signal => {
@@ -162,7 +164,10 @@ export async function uploadBusinessObject(env, session, bucket, path, file, ups
     const code = error?.code || error?.error;
     const duplicate = ['Duplicate', 'ResourceAlreadyExists', 'KeyAlreadyExists'].includes(code)
       || ['The resource already exists', 'Asset already exists'].includes(error?.message);
-    if (reuseExisting && (result.status === 400 || result.status === 409) && duplicate) return;
+    if (reuseExisting && (result.status === 400 || result.status === 409) && duplicate) {
+      info.reused = true;
+      return;
+    }
     const failure = new Error('upload_failed');
     failure.code = code;
     failure.status = result.status;

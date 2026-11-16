@@ -1,4 +1,4 @@
-        const { escapeHtml, parseMessageContent, getFreshAvatar, renderMessageAvatars, notify } = ForumUI;
+        const { escapeHtml, parseMessageContent, getFreshAvatar, renderMessageAvatars, notify, messageImage } = ForumUI;
         let currentPage = 0;
         const PAGE_SIZE = 20;
         let hasMore = true;
@@ -642,7 +642,7 @@
                     if (msg.pic_url && msg.pic_url.length > 0) {
                         imageHtml = '<div class="message-images">';
                         for (let url of msg.pic_url) {
-                            imageHtml += `<img src="${escapeHtml(url)}" class="message-image" alt="${escapeHtml(msg.username)} 发布的图片" loading="lazy" decoding="async" tabindex="0">`;
+                            imageHtml += messageImage(url, `${msg.username} 发布的图片`);
                         }
                         imageHtml += '</div>';
                     }
