@@ -85,6 +85,10 @@ test('the server accepts real 256px WebP stills and refuses every other shape', 
   const chrome = await readFile(new URL('./fixtures/avatar-chrome.webp', import.meta.url));
   assert.equal(chrome.subarray(12, 16).toString('latin1'), 'VP8X');
   assert.match(await validateAvatar(webp(chrome)), /^[a-f0-9]{64}$/);
+  // What the vendored libwebp (vendor/webp, used where canvas cannot export WebP, i.e.
+  // Safari) produced with the editor's options.
+  const libwebp = await readFile(new URL('./fixtures/avatar-libwebp.webp', import.meta.url));
+  assert.match(await validateAvatar(webp(libwebp)), /^[a-f0-9]{64}$/);
   const image = vp8.subarray(8, 8 + vp8.readUInt32LE(4));
   // Extended format with an alpha plane (uncompressed: one header byte, then 256x256 values).
   assert.match(await validateAvatar(webp(riff(['VP8X', extended({ flags: 0x10 })], ['ALPH', Buffer.alloc(1 + 256 * 256, 0)], ['VP8 ', image]))), /^[a-f0-9]{64}$/);
