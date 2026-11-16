@@ -47,19 +47,20 @@ function harness() {
     disable() { this.disabled=true; } enable() { this.disabled=false; }
     move(...args) { this.moves.push(args); } zoom() {} rotate() {} reset() {}
     getData() { return this.data || {x:10,y:20,width:300,height:300,rotate:90}; }
-    getCroppedCanvas(options) { this.exportOptions=options; return {toDataURL: (type, quality) => { previewEncodings.push([type, quality]); return 'data:image/webp;base64,c2FtcGxl'; }, toBlob: (cb,type,quality) => blobs.push({cb,type,quality})}; }
+    getCroppedCanvas(options) { this.exportOptions=options; return {toDataURL: (type, quality) => { previewEncodings.push([type, quality]); return 'data:image/webp;base64,c2FtcGxl'; }, toBlob: (cb,type,quality) => blobs.push({cb,type,quality}), width:256, height:256, getContext: () => ({getImageData: (x,y,w,h) => ({data:new Uint8ClampedArray(w*h*4), width:w, height:h})})}; }
   }
   let resizeCallback;
   class ResizeObserverMock { constructor(callback) { resizeCallback=callback; } observe() {} }
   const media={matches:false, addEventListener() {}};
-  const window={ResizeObserver:ResizeObserverMock, File:FileMock, Image:ImageMock, Cropper, matchMedia:()=>media, scrollX:12, scrollY:34, scrollTo(value){this.scrolled=value;}, requestAnimationFrame(fn){return setImmediate(fn);}, cancelAnimationFrame(id){clearImmediate(id);}, setTimeout, URL:{createObjectURL(){const url='blob:test/'+(created.length+1); created.push(url); return url;}, revokeObjectURL(url){revoked.push(url);}}};
+  const encoder={loads:0, calls:[], fail:false};
+  const window={Blob, RootedVoxWebpEncoderModule: async () => { encoder.loads++; if (encoder.fail) throw Error('offline'); return {default: async options => ({encode: (data,w,h,opts) => { encoder.calls.push({options, w, h, opts, length:data.length}); return new Uint8Array([82,73,70,70]); }})}; }, ResizeObserver:ResizeObserverMock, File:FileMock, Image:ImageMock, Cropper, matchMedia:()=>media, scrollX:12, scrollY:34, scrollTo(value){this.scrolled=value;}, requestAnimationFrame(fn){return setImmediate(fn);}, cancelAnimationFrame(id){clearImmediate(id);}, setTimeout, URL:{createObjectURL(){const url='blob:test/'+(created.length+1); created.push(url); return url;}, revokeObjectURL(url){revoked.push(url);}}};
   vm.runInNewContext(code, {window,document,setTimeout,clearTimeout,console});
   const open = options => window.RootedVoxAvatarEditor.open({onSave:()=>{}, ...options});
   const input = () => new FileMock([{size:100}], 'photo.png', {type:'image/png'});
   const load = () => { const p=probes.at(-1); p.onload(); return crops.at(-1); };
   const ready = () => { const c=load(); c.triggerReady(); return c; };
   const resize=(width,height)=>{el.stage.getBoundingClientRect=()=>({left:0,top:0,right:width,bottom:height});resizeCallback();};
-  return {resize,el,actions,previews,dialog,document,window,opener,probes,crops,blobs,revoked,created,previewEncodings,open,input,load,ready};
+  return {resize,el,actions,previews,dialog,document,window,opener,probes,crops,blobs,revoked,created,previewEncodings,encoder,open,input,load,ready};
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
@@ -131,12 +132,29 @@ test('WebP export uses the exact bitmap displayed in both previews', async () =>
   assert.equal(await p,received); assert.equal(received.type,'image/webp'); assert.equal(received.name,'isa-avatar-256.webp');
 });
 
-test('a browser that returns PNG instead of WebP gets a clear message and keeps the crop', async () => {
+test('a browser that returns PNG instead of WebP encodes the avatar with libwebp', async () => {
+  const h=harness(); let received; const p=h.open({file:h.input(),onSave:file=>{received=file;}}); h.ready();
+  h.el.save.click(); h.blobs[0].cb({type:'image/png',size:42}); await tick(); await tick();
+  assert.equal(h.encoder.loads,1);
+  assert.equal(h.encoder.calls.length,1);
+  const [call]=h.encoder.calls;
+  assert.equal(call.options.noInitialRun,true);
+  assert.equal(call.w,256); assert.equal(call.h,256); assert.equal(call.length,256*256*4);
+  assert.equal(call.opts.quality,82); assert.equal(call.opts.lossless,0);
+  assert.equal(await p,received); assert.equal(received.type,'image/webp'); assert.equal(received.name,'isa-avatar-256.webp');
+  assert.equal(received.parts[0].type,'image/webp');
+});
+
+test('a failed encoder download keeps the crop and is retried on the next save', async () => {
   const h=harness(); let calls=0; h.open({file:h.input(),onSave:()=>{calls++;}}); const c=h.ready();
-  h.el.save.click(); h.blobs[0].cb({type:'image/png',size:42}); await tick();
+  h.encoder.fail=true;
+  h.el.save.click(); h.blobs[0].cb({type:'image/png',size:42}); await tick(); await tick();
   assert.equal(calls,0);
-  assert.match(h.el.note.textContent,/当前浏览器无法生成 WebP 图片/);
+  assert.match(h.el.note.textContent,/头像压缩组件加载失败/);
   assert.equal(h.dialog.open,true); assert.equal(c.disabled,false); assert.equal(h.el.save.disabled,false);
+  h.encoder.fail=false;
+  h.el.save.click(); h.blobs[1].cb({type:'image/png',size:42}); await tick(); await tick();
+  assert.equal(h.encoder.loads,2); assert.equal(calls,1);
 });
 
 test('cancel completes and releases the image even when Cropper cleanup fails', async () => {

@@ -31,7 +31,8 @@ test('both deployments send a policy that only runs same-origin scripts', () => 
     const [name, ...values] = part.trim().split(/\s+/);
     return [name, values];
   }));
-  assert.deepEqual(directives['script-src'], ["'self'"]);
+  // WebAssembly for the avatar WebP encoder; JavaScript eval stays blocked.
+  assert.deepEqual(directives['script-src'], ["'self'", "'wasm-unsafe-eval'"]);
   assert.deepEqual(directives['default-src'], ["'self'"]);
   assert.deepEqual(directives['object-src'], ["'none'"]);
   assert.deepEqual(directives['frame-ancestors'], ["'none'"]);

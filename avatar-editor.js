@@ -95,6 +95,35 @@
   }
   // Avatars are stored as WebP to keep them small; 256px at this quality is a few KB.
   const AVATAR_QUALITY = 0.82;
+  // Safari, and so every browser on iOS, cannot export a canvas as WebP: toBlob quietly
+  // returns PNG. Then libwebp compiled to WebAssembly (vendor/webp) encodes it here in the
+  // browser. It is fetched only in that case and sends nothing to the backend.
+  const LIBWEBP_OPTIONS = {
+    quality: AVATAR_QUALITY * 100, target_size: 0, target_PSNR: 0, method: 4, sns_strength: 50,
+    filter_strength: 60, filter_sharpness: 0, filter_type: 1, partitions: 0, segments: 4, pass: 1,
+    show_compressed: 0, preprocessing: 0, autofilter: 0, partition_limit: 0, alpha_compression: 1,
+    alpha_filtering: 1, alpha_quality: 100, lossless: 0, exact: 0, image_hint: 0,
+    emulate_jpeg_size: 0, thread_level: 0, low_memory: 0, near_lossless: 100,
+    use_delta_palette: 0, use_sharp_yuv: 0
+  };
+  // Tests provide the module through window.RootedVoxWebpEncoderModule.
+  const importEncoder = window.RootedVoxWebpEncoderModule || (() => import('/vendor/webp/webp_enc.js'));
+  let webpEncoder = null;
+  function loadWebpEncoder() {
+    webpEncoder ||= Promise.resolve().then(importEncoder)
+      .then(module => module.default({ noInitialRun: true }))
+      .catch(error => { webpEncoder = null; throw error; });
+    return webpEncoder;
+  }
+  async function encodeWebp(canvas) {
+    let encoder;
+    try { encoder = await loadWebpEncoder(); }
+    catch { throw new Error('头像压缩组件加载失败，请检查网络后重试'); }
+    const { data, width, height } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+    const output = encoder.encode(data, width, height, LIBWEBP_OPTIONS);
+    if (!output || !output.length) throw new Error('图片编码失败');
+    return new window.Blob([output], { type: 'image/webp' });
+  }
   function renderPreview() {
     if (!cropper?.ready) return null;
     const canvas = cropper.getCroppedCanvas({ width: 256, height: 256, fillColor: '#fff',
@@ -202,12 +231,16 @@
       const canvas = renderPreview();
       if (!canvas) throw new Error('无法生成裁切图片');
       if (!exportedFile) {
-        const blob = await new Promise((resolve, reject) => {
+        let blob = await new Promise((resolve, reject) => {
           canvas.toBlob(value => value ? resolve(value) : reject(new Error('图片编码失败')), 'image/webp', AVATAR_QUALITY);
         });
         if (generation !== revision || session !== activeSession || !dialog.open) return;
         // A browser without a WebP encoder silently returns PNG instead.
-        if (blob.type !== 'image/webp') throw new Error('当前浏览器无法生成 WebP 图片');
+        if (blob.type !== 'image/webp') {
+          note('正在压缩头像…');
+          blob = await encodeWebp(canvas);
+          if (generation !== revision || session !== activeSession || !dialog.open) return;
+        }
         exportedFile = new window.File([blob], 'isa-avatar-256.webp', { type: 'image/webp', lastModified: Date.now() });
       }
       const file = exportedFile;
