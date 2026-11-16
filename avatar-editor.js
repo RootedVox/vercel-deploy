@@ -107,7 +107,7 @@
     use_delta_palette: 0, use_sharp_yuv: 0
   };
   // Tests provide the module through window.RootedVoxWebpEncoderModule.
-  const importEncoder = window.RootedVoxWebpEncoderModule || (() => import('/vendor/webp/webp_enc.js'));
+  const importEncoder = window.RootedVoxWebpEncoderModule || (() => import('/vendor/webp/webp_enc.js?v=5fd6230166'));
   let webpEncoder = null;
   function loadWebpEncoder() {
     webpEncoder ||= Promise.resolve().then(importEncoder)
