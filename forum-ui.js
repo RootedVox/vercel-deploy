@@ -34,7 +34,7 @@
   function getFreshAvatar(src) {
       if (!src) return '';
       // Content-addressed avatars are immutable; legacy paths refresh once per visit.
-      if (/\.[a-f0-9]{64}\.png(?:[?#]|$)/.test(src)) return src;
+      if (/\.[a-f0-9]{64}\.webp(?:[?#]|$)/.test(src)) return src;
       return src + (src.includes('?') ? '&' : '?') + 't=' + avatarCacheVersion;
   }
 

@@ -1,58 +1,75 @@
-// Avatar output is a 256px PNG. Validate the encoded data on the server, rather
-// than trusting a multipart MIME label or a browser-only file restriction.
+// Avatars are 256px WebP images: the avatar editor exports them and the avatars bucket
+// stores WebP to keep them small. Workers cannot decode WebP, so the server checks the
+// container instead of trusting the multipart MIME label: a well-formed RIFF/WebP file,
+// one still image (no animation), the exact 256x256 size in the bitstream header, and
+// no chunk running past the end of the file.
 export const AVATAR_SIZE = 256;
 export const AVATAR_LIMIT = 64;
 export const AVATAR_RETENTION_MS = 7 * 86400000;
-function crc32(bytes) {
-  let crc = 0xffffffff;
-  for (const byte of bytes) {
-    crc ^= byte;
-    for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ ((crc & 1) ? 0xedb88320 : 0);
+export const AVATAR_MAX_BYTES = 1024 * 1024;
+
+const fail = () => { throw new Error('invalid_avatar_image'); };
+const fourcc = (bytes, offset) => String.fromCharCode(...bytes.subarray(offset, offset + 4));
+
+// Returns the width and height stored in a VP8 (lossy) or VP8L (lossless) bitstream.
+function bitstreamSize(type, data) {
+  if (type === 'VP8 ') {
+    // 3-byte frame tag (key frame bit clear, shown), start code, then 14-bit sizes
+    // whose top two bits are a scaling mode that must be off.
+    if (data.length < 10 || (data[0] & 1) !== 0 || !(data[0] & 0x10)) fail();
+    if (data[3] !== 0x9d || data[4] !== 0x01 || data[5] !== 0x2a) fail();
+    const partition = (data[0] | data[1] << 8 | data[2] << 16) >>> 5;
+    if (partition === 0 || partition > data.length - 10) fail();
+    const width = data[6] | data[7] << 8, height = data[8] | data[9] << 8;
+    if (width >> 14 || height >> 14) fail();
+    return [width, height];
   }
-  return (crc ^ 0xffffffff) >>> 0;
+  // VP8L: signature byte, then width-1 and height-1 in 14 bits each, an alpha hint
+  // and a 3-bit version that must be zero.
+  if (data.length < 5 || data[0] !== 0x2f) fail();
+  const bits = (data[1] | data[2] << 8 | data[3] << 16 | data[4] << 24) >>> 0;
+  if (bits >>> 29) fail();
+  return [(bits & 0x3fff) + 1, (bits >>> 14 & 0x3fff) + 1];
 }
+
 export async function validateAvatar(file) {
-  if (file.type !== 'image/png' || file.size < 57 || file.size > 1024 * 1024) throw new Error('invalid_avatar_image');
+  if (file.type !== 'image/webp' || file.size < 26 || file.size > AVATAR_MAX_BYTES) fail();
   const bytes = new Uint8Array(await file.arrayBuffer());
-  if ([137,80,78,71,13,10,26,10].some((value, i) => bytes[i] !== value)) throw new Error('invalid_avatar_image');
-  const view = new DataView(bytes.buffer);
-  let offset = 8, header = false, ended = false, dataEnded = false;
-  const compressed = [];
-  while (offset + 12 <= bytes.length) {
-    const length = view.getUint32(offset), end = offset + 12 + length;
-    if (end > bytes.length) throw new Error('invalid_avatar_image');
-    const type = String.fromCharCode(...bytes.subarray(offset + 4, offset + 8));
-    if (crc32(bytes.subarray(offset + 4, end - 4)) !== view.getUint32(end - 4)) throw new Error('invalid_avatar_image');
-    if (!header && type !== 'IHDR') throw new Error('invalid_avatar_image');
-    if (type === 'IHDR') {
-      if (header || length !== 13 || view.getUint32(offset + 8) !== AVATAR_SIZE || view.getUint32(offset + 12) !== AVATAR_SIZE || bytes[offset + 16] !== 8 || ![2,6].includes(bytes[offset + 17]) || bytes[offset + 18] || bytes[offset + 19] || bytes[offset + 20]) throw new Error('invalid_avatar_image');
-      header = bytes[offset + 17];
-    } else if (type === 'IDAT') {
-      if (dataEnded) throw new Error('invalid_avatar_image');
-      compressed.push(bytes.slice(offset + 8, end - 4));
-    } else if (type === 'IEND') {
-      if (length || end !== bytes.length || !compressed.length) throw new Error('invalid_avatar_image');
-      ended = true; break;
-    } else {
-      if (compressed.length) dataEnded = true;
-      // Unknown critical chunks alter decoding semantics (including indexed PNGs).
-      if (type[0] === type[0].toUpperCase()) throw new Error('invalid_avatar_image');
-    }
-    offset = end;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (fourcc(bytes, 0) !== 'RIFF' || fourcc(bytes, 8) !== 'WEBP') fail();
+  if (view.getUint32(4, true) + 8 !== bytes.length) fail();
+
+  const chunks = [];
+  for (let offset = 12; offset < bytes.length;) {
+    if (offset + 8 > bytes.length) fail();
+    const size = view.getUint32(offset + 4, true);
+    const end = offset + 8 + size;
+    if (end > bytes.length) fail();
+    chunks.push({ type: fourcc(bytes, offset), data: bytes.subarray(offset + 8, end) });
+    // Chunks are padded to an even length.
+    offset = end + (size & 1);
+    if (offset > bytes.length) fail();
   }
-  if (!ended) throw new Error('invalid_avatar_image');
-  const stride = 1 + AVATAR_SIZE * (header === 6 ? 4 : 3), expected = stride * AVATAR_SIZE;
-  const reader = new Blob(compressed).stream().pipeThrough(new DecompressionStream('deflate')).getReader();
-  let count = 0;
-  try {
-    for (;;) {
-      const { value, done } = await reader.read(); if (done) break;
-      if (count + value.length > expected) throw new Error('invalid_avatar_image');
-      for (let i = (stride - count % stride) % stride; i < value.length; i += stride) if (value[i] > 4) throw new Error('invalid_avatar_image');
-      count += value.length;
-    }
-  } finally { await reader.cancel().catch(() => {}); }
-  if (count !== expected) throw new Error('invalid_avatar_image');
+  const types = chunks.map(chunk => chunk.type);
+
+  let image;
+  if (types.length === 1 && ['VP8 ', 'VP8L'].includes(types[0])) {
+    image = chunks[0];
+  } else {
+    // Extended format, still image only: VP8X, optional ICCP, optional ALPH (lossy only),
+    // the image, then optional EXIF and XMP metadata. Anything else, animation included,
+    // is refused.
+    if (!/^VP8X(?:ICCP)?(?:ALPHVP8 |VP8 |VP8L)(?:EXIF)?(?:XMP )?$/.test(types.join(''))) fail();
+    const header = chunks[0].data;
+    if (header.length !== 10 || header[0] & 0x02) fail();
+    const width = (header[4] | header[5] << 8 | header[6] << 16) + 1;
+    const height = (header[7] | header[8] << 8 | header[9] << 16) + 1;
+    if (width !== AVATAR_SIZE || height !== AVATAR_SIZE) fail();
+    image = chunks.find(chunk => chunk.type === 'VP8 ' || chunk.type === 'VP8L');
+  }
+  const [width, height] = bitstreamSize(image.type, image.data);
+  if (width !== AVATAR_SIZE || height !== AVATAR_SIZE) fail();
+
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
   return [...digest].map(byte => byte.toString(16).padStart(2, '0')).join('');
 }

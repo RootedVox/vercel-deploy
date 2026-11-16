@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { onRequestPost as upload } from '../functions/api/uploads.js';
 import { validateAvatar } from '../functions/_lib/avatar.js';
-const pixels = await readFile(new URL('./fixtures/avatar.png', import.meta.url));
+const pixels = await readFile(new URL('./fixtures/avatar.webp', import.meta.url));
+const lossless = await readFile(new URL('./fixtures/avatar-lossless.webp', import.meta.url));
 const uid='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 async function fixture(t, items = [], conflictStatus = 409, storageReply) {
   const pair=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']);
@@ -25,7 +26,7 @@ async function fixture(t, items = [], conflictStatus = 409, storageReply) {
     throw Error('unexpected request');
   };
   t.after(()=>{globalThis.fetch=original;});
-  async function send(file = new File([pixels],'avatar.png',{type:'image/png'})) {
+  async function send(file = new File([pixels],'avatar.webp',{type:'image/webp'})) {
     const form=new FormData();form.append('kind','avatar');form.append('files',file);
     return upload({request:new Request('https://site.example/api/uploads',{method:'POST',headers:{Origin:'https://site.example',Cookie:'__Secure-rv_session=mock'},body:form}),env});
   }
@@ -44,20 +45,77 @@ test('quota refuses new uploads rather than growing storage without bound', asyn
   const h=await fixture(t,Array.from({length:64},(_,i)=>({name:uid+'.'+i+'.png',created_at:new Date().toISOString()})));
   assert.equal((await h.send()).status,429);assert.equal(h.objects.size,0);
 });
-test('declared MIME cannot turn non-images or corrupt PNGs into an avatar', async t => {
+// Builds a WebP file from chunks, for the cases a real encoder will not produce.
+function riff(...chunks) {
+  const parts = chunks.map(([type, data]) => {
+    const head = Buffer.alloc(8); head.write(type, 0, 'latin1'); head.writeUInt32LE(data.length, 4);
+    return Buffer.concat([head, data, Buffer.alloc(data.length & 1)]);
+  });
+  const body = Buffer.concat(parts), head = Buffer.alloc(12);
+  head.write('RIFF', 0, 'latin1'); head.writeUInt32LE(body.length + 4, 4); head.write('WEBP', 8, 'latin1');
+  return Buffer.concat([head, body]);
+}
+const vp8 = pixels.subarray(12);
+function extended({ flags = 0, size = 256 } = {}) {
+  const header = Buffer.alloc(10); header[0] = flags;
+  header.writeUIntLE(size - 1, 4, 3); header.writeUIntLE(size - 1, 7, 3);
+  return header;
+}
+const webp = bytes => new File([bytes], 'avatar.webp', {type:'image/webp'});
+
+test('declared MIME cannot turn non-images or corrupt WebP files into an avatar', async t => {
   const h=await fixture(t);
-  assert.equal((await h.send(new File(['not an image'],'bad.png',{type:'image/png'}))).status,400);
-  const corrupt = Buffer.from(pixels);corrupt[50]^=1;
-  assert.equal((await h.send(new File([corrupt],'bad.png',{type:'image/png'}))).status,400);
-  assert.equal((await h.send(new File([],'empty.png',{type:'image/png'}))).status,400);
+  const png = await readFile(new URL('./fixtures/avatar.png', import.meta.url));
+  assert.equal((await h.send(new File(['not an image'],'bad.webp',{type:'image/webp'}))).status,400);
+  assert.equal((await h.send(webp(png))).status,400);
+  assert.equal((await h.send(new File([pixels],'avatar.png',{type:'image/png'}))).status,400);
+  const corrupt = Buffer.from(pixels); corrupt[4] ^= 1;
+  assert.equal((await h.send(webp(corrupt))).status,400);
+  assert.equal((await h.send(new File([],'empty.webp',{type:'image/webp'}))).status,400);
   assert.equal(h.objects.size,0);
 });
-test('the server validates the entire PNG payload and exact 256px dimensions', async () => {
-  assert.match(await validateAvatar(new File([pixels],'avatar.png',{type:'image/png'})),/^[a-f0-9]{64}$/);
-  await assert.rejects(validateAvatar(new File([pixels.subarray(0,pixels.length-12)],'truncated.png',{type:'image/png'})));
-  await assert.rejects(validateAvatar(new File([pixels],'fake.webp',{type:'image/webp'})));
+
+test('the server accepts real 256px WebP stills and refuses every other shape', async () => {
+  assert.equal(vp8.subarray(0, 4).toString('latin1'), 'VP8 ');
+  const lossy = await validateAvatar(webp(pixels));
+  assert.match(lossy, /^[a-f0-9]{64}$/);
+  assert.match(await validateAvatar(webp(lossless)), /^[a-f0-9]{64}$/);
+  // What Chrome's canvas.toBlob('image/webp', 0.82) produced from the avatar editor: an
+  // extended (VP8X) file even for an opaque image.
+  const chrome = await readFile(new URL('./fixtures/avatar-chrome.webp', import.meta.url));
+  assert.equal(chrome.subarray(12, 16).toString('latin1'), 'VP8X');
+  assert.match(await validateAvatar(webp(chrome)), /^[a-f0-9]{64}$/);
+  const image = vp8.subarray(8, 8 + vp8.readUInt32LE(4));
+  // Extended format with an alpha plane (uncompressed: one header byte, then 256x256 values).
+  assert.match(await validateAvatar(webp(riff(['VP8X', extended({ flags: 0x10 })], ['ALPH', Buffer.alloc(1 + 256 * 256, 0)], ['VP8 ', image]))), /^[a-f0-9]{64}$/);
+  assert.match(await validateAvatar(webp(riff(['VP8X', extended()], ['VP8 ', image], ['EXIF', Buffer.from('meta')]))), /^[a-f0-9]{64}$/);
+
+  const smaller = Buffer.from(pixels); smaller.writeUInt16LE(128, 20 + 6);
+  const scaled = Buffer.from(pixels); scaled.writeUInt16LE(256 | 0x4000, 20 + 6);
+  for (const [name, bytes] of [
+    ['truncated', pixels.subarray(0, pixels.length - 12)],
+    ['trailing bytes', Buffer.concat([pixels, Buffer.alloc(2)])],
+    ['128px image', smaller],
+    ['scaled image', scaled],
+    ['512px canvas', riff(['VP8X', extended({ size: 512 })], ['VP8 ', image])],
+    ['animation flag', riff(['VP8X', extended({ flags: 0x02 })], ['VP8 ', image])],
+    ['animation frames', riff(['VP8X', extended({ flags: 0x02 })], ['ANIM', Buffer.alloc(6)], ['ANMF', Buffer.alloc(16)])],
+    ['two images', riff(['VP8 ', image], ['VP8 ', image])],
+    ['unknown chunk', riff(['VP8X', extended()], ['VP8 ', image], ['ZZZZ', Buffer.alloc(2)])],
+    ['alpha with lossless', riff(['VP8X', extended({ flags: 0x10 })], ['ALPH', Buffer.alloc(2)], ['VP8L', lossless.subarray(20)])],
+    ['missing image', riff(['VP8X', extended()])],
+    ['chunk past the end', Buffer.concat([pixels.subarray(0, 16), Buffer.from([0xff, 0xff, 0, 0])])]
+  ]) await assert.rejects(validateAvatar(webp(bytes)), /invalid_avatar_image/, name);
 });
 
+test('a WebP avatar is stored under a content-addressed .webp name', async t => {
+  const h = await fixture(t);
+  const response = await h.send();
+  assert.equal(response.status, 201);
+  const [key] = h.objects.keys();
+  assert.match(key, new RegExp(`^business/${uid}\\.[a-f0-9]{64}\\.webp$`));
+  assert.deepEqual(await response.json(), {urls:[`https://db.example/storage/v1/object/public/avatars/${key}`]});
+});
 
 test('legacy 400 duplicate responses also preserve idempotent retries', async t => {
   const h=await fixture(t,[],400);
@@ -157,13 +215,15 @@ test('a failed cleanup at quota is reported as the cleanup step', async t => {
   assert.deepEqual(await result.json(), {error:'avatar_storage_denied', detail:{stage:'cleanup', status:403, code:'AccessDenied', reason:'not allowed'}});
 });
 
-test('the bucket migration only widens the avatars bucket to the editor output', async () => {
-  const sql = await readFile(new URL('../supabase/20261116_avatar_bucket_png.sql', import.meta.url), 'utf8');
-  const statements = sql.replace(/--.*$/gm, '').split(';').map(part => part.trim()).filter(Boolean);
-  assert.deepEqual(statements.map(part => part.split(/\s+/)[0]), ['begin', 'update', 'update', 'commit']);
-  for (const update of statements.slice(1, 3)) assert.match(update, /^update storage\.buckets\b[\s\S]*where id = 'avatars'/);
-  assert.match(statements[1], /array_append\(allowed_mime_types, 'image\/png'\)/);
-  assert.match(statements[2], /file_size_limit = 1048576[\s\S]*file_size_limit < 1048576/);
-  // The server accepts avatars up to 1 MB; the bucket must accept the same.
-  assert.match(await readFile(new URL('../functions/_lib/avatar.js', import.meta.url), 'utf8'), /file\.size > 1024 \* 1024/);
+test('the WebP migration only changes the file name the insert check accepts', async () => {
+  const read = name => readFile(new URL(`../supabase/${name}`, import.meta.url), 'utf8');
+  const lifecycle = await read('20261105_avatar_lifecycle.sql'), migration = await read('20261116_avatar_webp.sql');
+  const body = sql => sql.match(/create or replace function public\.isa_avatar_can_insert[\s\S]*?\$\$;/)[0];
+  assert.equal(body(migration), body(lifecycle).replace('\\.png$', '\\.webp$'));
+  assert.notEqual(body(migration), body(lifecycle));
+  const statements = migration.replace(/--.*$/gm, '').split(/;\s*$/m).map(part => part.trim()).filter(Boolean);
+  // Nothing beyond the function and its grants: no bucket, policy or object changes.
+  assert.doesNotMatch(migration.replace(/--.*$/gm, ''), /storage\.buckets|policy|delete from|drop /i);
+  assert.equal(statements[0], 'begin');
+  assert.equal(statements.at(-1), 'commit');
 });
