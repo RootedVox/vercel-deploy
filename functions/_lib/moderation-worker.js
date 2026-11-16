@@ -1,5 +1,6 @@
 import { runAiCheck } from './moderate-content.js';
 import { withDeadline } from './fetch-timeout.js';
+import { thumbnailPath } from './forum-media.js';
 
 async function serviceRequest(env, path, method, args) {
   const key = env.AUTH_STORE_SUPABASE_SECRET_KEY;
@@ -38,7 +39,9 @@ export async function cleanExpiredMedia(env) {
   const rows = await call(env, 'claim_forum_media_cleanup', {});
   const names = rows.map(row => row.object_name);
   if (!names.length) return 0;
-  await serviceRequest(env, 'storage/v1/object/message-pics', 'DELETE', { prefixes: names });
+  // Thumbnails live beside their image and are not tracked by the database.
+  const objects = [...new Set(names.flatMap(name => [name, thumbnailPath(name)]))];
+  await serviceRequest(env, 'storage/v1/object/message-pics', 'DELETE', { prefixes: objects });
   await call(env, 'finish_forum_media_cleanup', { names });
   return names.length;
 }

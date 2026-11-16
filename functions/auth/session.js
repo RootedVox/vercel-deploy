@@ -10,17 +10,37 @@ import { requestBusinessData } from '../_lib/supabase.js';
 // Answer with the current nickname, resolved exactly as /api/profile does. The read uses
 // the same Functions request; if it is slow or fails, the sign-in name is used rather
 // than failing the session check.
+// The same row read also returns the avatar, so the forum page needs no separate
+// /api/profile request (one Functions request less per signed-in page view).
+// avatarUrl is left out when the read failed, telling the page to ask /api/profile.
 const NICKNAME_DEADLINE_MS = 1500;
-async function currentNickname(env, session) {
+async function currentProfile(env, session) {
   const fallback = session.display_name || session.email?.split('@')[0] || '校园用户';
   try {
     const rows = await withDeadline(signal => requestBusinessData(env, session,
-      `business_users?user_id=eq.${encodeURIComponent(session.user_id)}&select=nickname,display_name&limit=1`, { signal }
+      `business_users?user_id=eq.${encodeURIComponent(session.user_id)}&select=nickname,display_name,avatar_url&limit=1`, { signal }
     ), NICKNAME_DEADLINE_MS);
     const row = rows?.[0] || {};
-    return resolveProfileNickname(session.user_id, row.nickname, row.display_name || fallback);
+    return {
+      name: resolveProfileNickname(session.user_id, row.nickname, row.display_name || fallback),
+      avatarUrl: row.avatar_url || null
+    };
   } catch {
-    return resolveProfileNickname(session.user_id, null, fallback);
+    return { name: resolveProfileNickname(session.user_id, null, fallback) };
+  }
+}
+
+// The forum page's unread dot, read alongside the profile so it costs no extra
+// Functions request. Left out on failure, and the page then asks /api/notifications.
+async function unreadNotifications(env, session) {
+  const params = new URLSearchParams({ user_id: `eq.${session.user_id}`, read: 'eq.false', select: 'id', limit: '1' });
+  try {
+    const rows = await withDeadline(signal => requestBusinessData(env, session,
+      `business_notifications?${params}`, { signal }
+    ), NICKNAME_DEADLINE_MS);
+    return Array.isArray(rows) ? { hasUnread: rows.length > 0 } : {};
+  } catch {
+    return {};
   }
 }
 
@@ -34,7 +54,7 @@ export async function onRequestGet({ request, env }) {
     const headers = result.setCookie ? { 'Set-Cookie': result.setCookie } : {};
     if (!result.session) return json({ authenticated: false }, 401, headers);
     const session = result.session;
-    const name = await currentNickname(env, session);
+    const [profile, unread] = await Promise.all([currentProfile(env, session), unreadNotifications(env, session)]);
     return json({
       authenticated: true,
       user: {
@@ -42,7 +62,8 @@ export async function onRequestGet({ request, env }) {
         issuer: session.identity_provider,
         subject: session.identity_subject,
         email: session.email,
-        name,
+        ...profile,
+        ...unread,
         checker: session.is_checker === true
       },
       assurance: {

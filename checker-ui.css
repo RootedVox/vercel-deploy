@@ -12,6 +12,7 @@ body{padding-top:60px;background:var(--surface-alt);color:var(--ink)}
 .item-content{line-height:1.8}
 .message-images{display:flex;flex-wrap:wrap;gap:10px;margin:15px 0}
 .message-image{width:140px;height:140px;border-radius:9px;object-fit:cover;cursor:pointer}
+.message-thumb{outline:2px dashed var(--line);outline-offset:2px}
 .item-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
 .btn{background:var(--theme-soft);color:var(--ink)}
 .btn.btn-danger{background:#c7253a;color:#fff}

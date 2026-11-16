@@ -45,8 +45,12 @@ test('both deployments send a policy that only runs same-origin scripts', () => 
 });
 
 test('every browser script is syntax-checked by npm run check', () => {
-  const check = JSON.parse(read('package.json')).scripts.check;
-  for (const name of scripts) assert.ok(check.includes(`node --check ${name}`), name);
+  // scripts/check-syntax.mjs finds every .js/.mjs itself, apart from the folders it skips.
+  assert.equal(JSON.parse(read('package.json')).scripts.check, 'node scripts/check-syntax.mjs');
+  const skipped = read('scripts/check-syntax.mjs').match(/const skipped = new Set\(\[(.*)\]\)/)[1];
+  for (const name of scripts) {
+    assert.ok(!skipped.includes(`'${name.split('/')[0]}'`), name);
+  }
 });
 
 test('the forum pages load their own stylesheet and script as cacheable files', () => {
@@ -71,10 +75,17 @@ function feed(overflowY, { bottom = 0, clientHeight = 600, scrollHeight = 1200 }
     getComputedStyle: () => ({ overflowY }),
     window: { innerHeight: 800, RootedVoxPublicData: {} },
     RootedVoxPublicData: { listMessages: options => new Promise(resolve => calls.push({ options, resolve })) },
-    ForumUI: { parseMessageContent: () => ({ zone: '日常分享', text: '留言' }), escapeHtml: value => value || '', renderMessageAvatars() {} }
+    ForumUI: { parseMessageContent: () => ({ zone: '日常分享', text: '留言' }), escapeHtml: value => value || '', renderMessageAvatars() {},
+      messageImage: realForumUI().messageImage }
   }, { replace: { showNoMoreTip() {} }, expose: ['loadMainMessages'] });
   const context = { load: loadMainMessages };
   return { calls, frames, container, load: context.load };
+}
+// The shared image markup from forum-ui.js, so the feed is checked with the real helper.
+function realForumUI() {
+  const window = {};
+  vm.runInNewContext(read('forum-ui.js'), { window, document: { addEventListener() {} } });
+  return window.ForumUI;
 }
 const post = { id: '1', username: '测试', content: '留言', created_at: '2026-01-01T00:00:00Z', pic_url: ['https://db.example/a.webp'] };
 
@@ -106,7 +117,7 @@ test('posts link to their thread and thumbnails are keyboard-reachable viewer ta
   h.calls[0].resolve({ messages: [post], hasMore: false });
   await first;
   assert.match(h.container.innerHTML, /<a class="detail-btn" href="details\.html\?id=1">/);
-  assert.match(h.container.innerHTML, /<img src="https:\/\/db\.example\/a\.webp" class="message-image" alt="测试 发布的图片" loading="lazy" tabindex="0">/);
+  assert.match(h.container.innerHTML, /<img src="https:\/\/db\.example\/a\.webp" data-full="https:\/\/db\.example\/a\.webp" class="message-image" alt="测试 发布的图片" loading="lazy" decoding="async" tabindex="0">/);
   assert.match(h.container.innerHTML, /2026\/1\/1 \d{2}:\d{2}</);
 });
 

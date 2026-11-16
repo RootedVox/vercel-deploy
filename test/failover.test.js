@@ -117,6 +117,19 @@ test('logout failure stays on the page and never replays the write', async () =>
   assert.equal(alerts, 1);
 });
 
+test('logout failure uses the forum notice instead of a dialog when the page has one', async () => {
+  const location = { origin: 'https://rv.celestivast.com', href: '/messages' };
+  const notices = [];
+  const window = { location, ForumUI: { notify: (message, type) => notices.push(type) } };
+  vm.runInNewContext(authSource, { window, location, URL, AbortController, setTimeout, clearTimeout,
+    alert: () => assert.fail('no dialog when ForumUI is loaded'),
+    fetch: async url => new Response('{}', { status: url === '/auth/session' ? 200 : 503 })
+  });
+  await window.RootedVoxAuth.logout();
+  assert.deepEqual(notices, ['error']);
+  assert.equal(location.href, '/messages');
+});
+
 
 test('logout is single flight and follows only a valid opaque path', async () => {
   const location = { origin: 'https://rv.celestivast.com', href: '/messages' };

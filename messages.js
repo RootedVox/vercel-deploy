@@ -1,4 +1,4 @@
-        const { escapeHtml, parseMessageContent, getFreshAvatar, renderMessageAvatars, notify } = ForumUI;
+        const { escapeHtml, parseMessageContent, getFreshAvatar, renderMessageAvatars, notify, messageImage } = ForumUI;
         let currentPage = 0;
         const PAGE_SIZE = 20;
         let hasMore = true;
@@ -54,11 +54,15 @@
         let currentUserRealName = '';
         let userId = '';
 
-        async function refreshNotificationDot() {
+        // known: the answer /auth/session already gave, when it could read it.
+        async function refreshNotificationDot(known) {
             if (!userId) return;
-            const response = await request('/api/notifications?exists=1', { credentials: 'include', cache: 'no-store' });
-            if (!response.ok) return;
-            const { hasUnread } = await response.json();
+            let hasUnread = known;
+            if (typeof hasUnread !== 'boolean') {
+                const response = await request('/api/notifications?exists=1', { credentials: 'include', cache: 'no-store' });
+                if (!response.ok) return;
+                ({ hasUnread } = await response.json());
+            }
             notificationDot.style.display = hasUnread ? "block" : "none";
             dropdownDot.style.display = hasUnread ? "inline-block" : "none";
         }
@@ -169,8 +173,15 @@
         }
 
         async function initUserExtra() {
-            const response = await request('/api/profile', { credentials: 'include', cache: 'no-store' });
-            const data = response.ok ? await response.json() : {};
+            // /auth/session already read the profile row. Only when that read failed (or an
+            // older deployment answered) does it leave out avatarUrl, and /api/profile is asked.
+            let data;
+            if (currentUser && Object.hasOwn(currentUser, 'avatarUrl')) {
+                data = { nickname: currentUser.name, avatarUrl: currentUser.avatarUrl };
+            } else {
+                const response = await request('/api/profile', { credentials: 'include', cache: 'no-store' });
+                data = response.ok ? await response.json() : {};
+            }
             const url = data.avatarUrl;
 
             if (data.nickname) {
@@ -192,7 +203,7 @@
                 document.getElementById('profileAvatarFallback').hidden = false;
             }
 
-            refreshNotificationDot();
+            refreshNotificationDot(currentUser?.hasUnread);
         }
 
         const pendingAvatarUploads = new WeakMap();
@@ -631,7 +642,7 @@
                     if (msg.pic_url && msg.pic_url.length > 0) {
                         imageHtml = '<div class="message-images">';
                         for (let url of msg.pic_url) {
-                            imageHtml += `<img src="${escapeHtml(url)}" class="message-image" alt="${escapeHtml(msg.username)} 发布的图片" loading="lazy" tabindex="0">`;
+                            imageHtml += messageImage(url, `${msg.username} 发布的图片`);
                         }
                         imageHtml += '</div>';
                     }

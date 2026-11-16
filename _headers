@@ -36,39 +36,20 @@
 /favicon*
   Cache-Control: public, max-age=604800, s-maxage=604800
 
-# Scripts and styles have no version in their URLs, so browsers must revalidate them
-# (a cheap 304 when unchanged). A long browser cache mixed a new page or home.js with
-# an old forum-ui.js after each release.
+# Pages load scripts and styles as ?v=<hash> (scripts/sync-asset-versions.mjs), which
+# moves past the edge cache after a release. Browsers still revalidate them (a cheap 304
+# when unchanged), so a request that leaves out ?v= cannot get a stale file either.
 /*.js
   Cache-Control: public, max-age=0, must-revalidate, s-maxage=259200
 
 /*.css
   Cache-Control: public, max-age=0, must-revalidate, s-maxage=259200
 
-# These must never be cached, but /*.js and /* match them too, so detach first.
+# The service worker must never be cached, but /*.js and /* match it too, so detach
+# first. request.js, auth-client.js, public-data.js, home.js and checker-ui.js used to
+# be no-store as well, which re-downloaded them on every page view. Pages now load
+# them as ?v=<hash>, so the revalidation rule above already keeps them current.
 /sw.js
-  ! Cache-Control
-  Cache-Control: no-cache, no-store, must-revalidate
-
-/request.js
-  ! Cache-Control
-  Cache-Control: no-cache, no-store, must-revalidate
-
-/auth-client.js
-  ! Cache-Control
-  Cache-Control: no-cache, no-store, must-revalidate
-
-# Coupled to the database schema (the approved_messages_public projection changes with
-# migrations), so a long cache would keep old visitors on a stale column list.
-/public-data.js
-  ! Cache-Control
-  Cache-Control: no-cache, no-store, must-revalidate
-
-/home.js
-  ! Cache-Control
-  Cache-Control: no-cache, no-store, must-revalidate
-
-/checker-ui.js
   ! Cache-Control
   Cache-Control: no-cache, no-store, must-revalidate
 

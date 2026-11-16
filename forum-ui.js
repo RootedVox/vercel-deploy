@@ -120,19 +120,75 @@
               canvas.height = height;
               const ctx = canvas.getContext("2d");
               ctx.drawImage(img, 0, 0, width, height);
-              canvas.toBlob(blob => {
-                  if (!blob) return reject("图片压缩失败");
+              const encode = (type, quality) => new Promise(done => canvas.toBlob(done, type, quality));
+              (async () => {
+                  let blob = await encode(opts.mimeType, opts.quality);
+                  // Safari cannot export WebP and hands back a PNG, which for a photo is
+                  // several times larger than the original. Photos are re-encoded as JPEG;
+                  // PNG and GIF sources keep the PNG, as they may be transparent.
+                  if (blob && blob.type !== opts.mimeType && !['image/png', 'image/gif'].includes(file.type)) {
+                      blob = await encode("image/jpeg", 0.7) || blob;
+                  }
+                  if (!blob) return reject(new Error("图片压缩失败"));
                   const suffixes = { "image/webp": ".webp", "image/png": ".png", "image/jpeg": ".jpg" };
                   const suffix = suffixes[blob.type];
                   if (!suffix) return reject(new Error("图片格式不受支持"));
+                  // Never upload a "compressed" copy that is bigger than an accepted original.
+                  if (blob.size >= file.size && ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+                      return resolve(file);
+                  }
                   const newFileName = file.name.replace(/(\.\w+)$/, suffix);
-                  const compressedFile = new File([blob], newFileName, { type: blob.type });
-                  resolve(compressedFile);
-              }, opts.mimeType, opts.quality);
+                  resolve(new File([blob], newFileName, { type: blob.type }));
+              })().catch(() => reject(new Error("图片压缩失败")));
           };
           img.onerror = () => { URL.revokeObjectURL(source); reject(new Error("图片加载失败")); };
           img.src = source;
       });
+  }
+
+  // A small JPEG for the 150px squares in the feed and threads, made on the visitor's
+  // device. Every browser can export JPEG; the white backdrop keeps transparent images
+  // from turning black. Returns null when it fails: the post then shows the original.
+  const THUMB_SIZE = 320;
+  function makeThumbnail(file) {
+      return new Promise(resolve => {
+          const source = URL.createObjectURL(file);
+          const img = new Image();
+          img.onload = () => {
+              URL.revokeObjectURL(source);
+              try {
+                  const scale = Math.min(1, THUMB_SIZE / Math.min(img.width, img.height));
+                  const canvas = document.createElement('canvas');
+                  canvas.width = Math.max(1, Math.round(img.width * scale));
+                  canvas.height = Math.max(1, Math.round(img.height * scale));
+                  const ctx = canvas.getContext('2d');
+                  ctx.fillStyle = '#fff';
+                  ctx.fillRect(0, 0, canvas.width, canvas.height);
+                  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                  canvas.toBlob(blob => resolve(blob?.type === 'image/jpeg'
+                      ? new File([blob], 'thumb.jpg', { type: 'image/jpeg' }) : null), 'image/jpeg', 0.75);
+              } catch { resolve(null); }
+          };
+          img.onerror = () => { URL.revokeObjectURL(source); resolve(null); };
+          img.src = source;
+      });
+  }
+
+  // Where the thumbnail of a stored image lives: next to it as <hash>.thumb.jpg, or for
+  // anonymous posts behind the same media proxy. Older or foreign URLs have none.
+  function thumbnailUrl(url) {
+      const value = String(url || '');
+      if (/\/storage\/v1\/object\/public\/message-pics\/business\/[0-9a-f-]+\/[0-9a-f]{64}\.(?:png|jpg|gif|webp)$/.test(value)) {
+          return value.replace(/\.(?:png|jpg|gif|webp)$/, '.thumb.jpg');
+      }
+      if (/^\/api\/messages\?media=[^&]+&slot=\d+$/.test(value)) return value + '&thumb=1';
+      return null;
+  }
+  // The markup every page uses for a post image: the thumbnail in the page, the
+  // original (data-full) in the viewer. A missing thumbnail falls back to the original.
+  function messageImage(url, alt, { lazy = true } = {}) {
+      const thumb = thumbnailUrl(url);
+      return `<img src="${escapeHtml(thumb || url)}" data-full="${escapeHtml(url)}" class="message-image" alt="${escapeHtml(alt)}"${lazy ? ' loading="lazy"' : ''} decoding="async" tabindex="0">`;
   }
 
   const uploads = new WeakMap();
@@ -146,9 +202,11 @@
       if (missing.length) {
           const form = new FormData();
           form.append('kind', 'message');
-          for (const file of missing) {
+          for (const [index, file] of missing.entries()) {
               const image = file.size < 100 * 1024 ? file : await compressImage(file);
               form.append('files', image, image.name);
+              const thumb = await makeThumbnail(image);
+              if (thumb) form.append('thumb' + index, thumb, thumb.name);
           }
           const response = await request('/api/uploads', { method: 'POST', credentials: 'include', body: form });
           if (response.status === 401) throw new Error('login_required');
@@ -163,7 +221,7 @@
   // delegated because feeds and threads add images after the page has loaded.
   let viewer;
   function openImage(image) {
-      const source = image.currentSrc || image.src;
+      const source = image.dataset?.full || image.currentSrc || image.src;
       if (!viewer) {
           viewer = document.createElement('dialog');
           viewer.className = 'image-viewer';
@@ -189,6 +247,13 @@
       document.addEventListener('keydown', event => {
           if (event.key === 'Enter' && event.target.matches?.('img.message-image')) openImage(event.target);
       });
+      // Older posts have no thumbnail. Error events do not bubble, hence the capture.
+      document.addEventListener('error', event => {
+          const image = event.target;
+          if (image?.matches?.('img.message-image') && image.dataset.full && image.getAttribute('src') !== image.dataset.full) {
+              image.src = image.dataset.full;
+          }
+      }, true);
   }
   // Short messages shown in the page. Unlike alert() they do not block the page, and a
   // live region announces them to screen readers.
@@ -204,5 +269,5 @@
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => { toast.className = `forum-toast ${type}`.trim(); }, 5000);
   }
-  window.ForumUI = { parseMessageContent, escapeHtml, renderMessageAvatars, getFreshAvatar, uploadFiles, notify };
+  window.ForumUI = { parseMessageContent, escapeHtml, renderMessageAvatars, getFreshAvatar, uploadFiles, notify, messageImage, thumbnailUrl };
 })();

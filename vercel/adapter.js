@@ -96,7 +96,9 @@ export function createVercelFunction(handlers, options = {}) {
         if (request.headers.get('Origin') && !allowedCorsOrigin(request, env)) {
           return Response.json({ error: 'invalid_origin' }, { status: 403 });
         }
-        return withCors(new Response(null, { status: 204 }), request, env);
+        // Let browsers reuse a preflight for two hours (Chromium's cap): failover
+        // writes from the peer deployment each need one.
+        return withCors(new Response(null, { status: 204, headers: { 'Access-Control-Max-Age': '7200' } }), request, env);
       }
 
       const methodHandler = handlers[METHOD_EXPORTS[request.method]];
