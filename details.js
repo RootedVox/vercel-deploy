@@ -119,6 +119,7 @@ function renderMainMessage(msg) {
             </div>
             <span class="message-zone">${escapeHtml(parsedContent.zone)}</span>
             <div class="message-content">${escapeHtml(parsedContent.text).replace(/\n/g, '<br>')}</div>
+            ${msg.is_featured === true ? '<div class="thread-featured"><span class="featured-stamp"><img src="/images/rootedvox.svg" alt="">精华</span></div>' : ''}
             <div class="message-images">${imgs}</div>
             <button class="comment-btn" data-action="comment" data-id="${escapeHtml(msg.id)}">💬 评论</button>
             <div id="reply-box-${msg.id}" class="comment-input-container"></div>

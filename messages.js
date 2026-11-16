@@ -18,6 +18,7 @@
         const MAX_SIZE = 5 * 1024 * 1024;
         const SCROLL_THRESHOLD = 350;
         let feedCursor = null;
+        let activeFeaturedFirst = false;
         const PAGE_AUTO_LOADS = 2;
         let pageAutoLoads = 0;
         let restorePosition = null;
@@ -397,6 +398,8 @@
             nickname.innerHTML = '<option>登录后可发布</option>';
             nickname.disabled = true;
             document.getElementById('zoneSelect').disabled = true;
+            const featured = document.getElementById('postFeatured');
+            if (featured) featured.disabled = true;
             const email = document.getElementById('contactEmail');
             email.value = '';
             email.placeholder = '登录后与账号绑定';
@@ -497,10 +500,22 @@
             }
         }
 
+        async function refreshFeaturedQuota() {
+            const note = document.getElementById('featuredQuota');
+            if (!note) return;
+            try {
+                const response = await request('/api/messages?featuredQuota=1', { credentials: 'include' });
+                if (!response.ok) return;
+                const { remaining } = await response.json();
+                if (Number.isInteger(remaining)) note.textContent = '仅限主楼 · 今日还可投稿 ' + remaining + ' 次';
+            } catch {}
+        }
+
         function savePostDraft() {
             const text = document.getElementById('messageContent').value;
             const fields = { text, zone: document.getElementById('zoneSelect').value,
-                anonymous: document.getElementById('nicknameSelect').value === '匿名用户' };
+                anonymous: document.getElementById('nicknameSelect').value === '匿名用户',
+                featured: document.getElementById('postFeatured')?.checked === true };
             ForumDrafts.save('post', fields);
             document.getElementById('discardDraft').hidden = !ForumDrafts.get('post');
         }
@@ -511,10 +526,13 @@
             const zone = document.getElementById('zoneSelect');
             const nickname = document.getElementById('nicknameSelect');
             const discard = document.getElementById('discardDraft');
+            const featured = document.getElementById('postFeatured');
+            refreshFeaturedQuota();
             const draft = ForumDrafts.get('post');
             if (draft) {
                 text.value = draft.text;
                 zone.value = draft.zone || zone.value;
+                if (featured) featured.checked = draft.featured === true;
                 if (draft.anonymous) nickname.value = '匿名用户';
                 document.getElementById('contentCount').textContent = text.value.length + ' / 1000';
                 showFormStatus(draft.attachments?.length ? '已恢复草稿和已上传的图片。' : '已恢复文字草稿。');
@@ -527,9 +545,11 @@
             text.addEventListener('input', savePostDraft);
             zone.addEventListener('change', savePostDraft);
             nickname.addEventListener('change', savePostDraft);
+            featured?.addEventListener('change', savePostDraft);
             discard.onclick = () => {
                 ForumDrafts.clear('post');
                 text.value = '';
+                if (featured) featured.checked = false;
                 document.getElementById('messagePicFile').value = '';
                 clearImagePreviews();
                 document.getElementById('contentCount').textContent = '0 / 1000';
@@ -543,6 +563,8 @@
             const content = document.getElementById('messageContent').value.trim();
             const zone = document.getElementById('zoneSelect').value;
             const selection = postImages.slice();
+            const featuredInput = document.getElementById('postFeatured');
+            const featured = featuredInput?.checked === true;
             const submitBtn = document.getElementById('submitBtn');
             if (!content) {
                 showFormStatus('请先写下留言内容。', 'error');
@@ -559,7 +581,7 @@
                 const uploaded = await uploadImages(pending.map(image => image.file));
                 pending.forEach((image, index) => { image.url = uploaded[index]; });
                 const picUrls = selection.map(image => image.url);
-                const payload = { content, zone, anonymous, imageUrls: picUrls };
+                const payload = { content, zone, anonymous, imageUrls: picUrls, ...(featured ? { featured: true } : {}) };
                 const submitted = ForumDrafts.prepare('post', original, payload);
                 showFormStatus('正在上传并提交…');
                 const response = await request('/api/messages', {
@@ -568,12 +590,18 @@
                     body: JSON.stringify(payload)
                 });
                 if (response.status === 401) return RootedVoxAuth.handleLogin('/messages' + location.search);
+                if (response.status === 429 && featured && (await response.json().catch(() => ({}))).error === 'featured_daily_limit') {
+                    refreshFeaturedQuota();
+                    throw new Error('今日已用完 3 次精华投稿机会。');
+                }
                 if (!response.ok) throw new Error('留言服务暂时不可用');
                 const result = await response.json();
-                showFormStatus('发布成功，审核结果会通过站内通知告知你。', 'success');
+                showFormStatus(featured ? '已投稿，等待精华专审。' : '发布成功，审核结果会通过站内通知告知你。', 'success');
+                if (featured) refreshFeaturedQuota();
                 if (result.published === true) loadMainMessages(false);
                 if (!submitted || ForumDrafts.get('post') !== submitted) return;
                 ForumDrafts.clear('post');
+                if (featuredInput) featuredInput.checked = false;
                 document.getElementById('discardDraft').hidden = true;
                 document.getElementById('messageContent').value = '';
                 document.getElementById('contentCount').textContent = '0 / 1000';
@@ -628,6 +656,7 @@
                     page: currentPage, cursor: feedCursor,
                     limit: PAGE_SIZE,
                     sort: activeSort,
+                    featuredFirst: activeFeaturedFirst,
                     search: activeSearch,
                     zone: activeZone,
                     signal
@@ -674,7 +703,7 @@
                             <span class="message-zone">${escapeHtml(parsedContent.zone)}</span>
                             <div class="message-content">${escapeHtml(parsedContent.text).replace(/\n/g, '<br>')}</div>
                             ${imageHtml}
-                            <a class="detail-btn comment-link" href="details.html?id=${encodeURIComponent(msg.id)}"><span aria-hidden="true">💬</span> ${commentLabel(msg.reply_count)}</a>
+                            <div class="post-card-footer"><a class="detail-btn comment-link" href="details.html?id=${encodeURIComponent(msg.id)}"><span aria-hidden="true">💬</span> ${commentLabel(msg.reply_count)}</a>${msg.is_featured === true ? ' <span class="featured-stamp"><img src="/images/rootedvox.svg" alt="">精华</span>' : ''}</div>
                         </div>
                     </div>`;
                 }
@@ -774,7 +803,10 @@
             });
 
             const search = document.getElementById('messageSearch');
-            const sort = document.getElementById('messageSort');
+            const sort = document.getElementById('forumSort');
+            const priority = document.getElementById('featuredFirst');
+            const legacySort = document.getElementById('messageSort');
+            const selectedSort = () => sort?.querySelector?.('input[name=forumTimeSort]:checked')?.value || legacySort?.value || 'newest';
             const zone = document.getElementById('messageZoneFilter');
             const params = new URLSearchParams(location.search);
             const initialZone = params.get('zone') === '校园生活' ? '日常分享' : params.get('zone');
@@ -782,19 +814,30 @@
             activeSort = params.get('sort') === 'oldest' ? 'oldest' : 'newest';
             activeSearch = (params.get('q') || '').trim().slice(0, 100);
             zone.value = activeZone;
-            sort.value = activeSort;
+            activeFeaturedFirst = params.get('featuredFirst') === '1';
+            if (priority) priority.checked = activeFeaturedFirst;
+            const timeChoice = sort?.querySelector?.('input[value=' + activeSort + ']');
+            if (timeChoice) timeChoice.checked = true;
+            if (legacySort) legacySort.value = activeSort;
+            function updateSortLabel() {
+                const label = document.getElementById('sortLabel');
+                if (label) label.textContent = (activeSort === 'oldest' ? '最早发布' : '最新发布') + (activeFeaturedFirst ? ' · 精华优先' : '');
+            }
+            updateSortLabel();
             search.value = activeSearch;
 
             function applyFilters() {
                 clearTimeout(searchTimer);
                 const text = search.value.trim();
-                if (text === activeSearch && zone.value === activeZone && sort.value === activeSort) return;
+                if (text === activeSearch && zone.value === activeZone && selectedSort() === activeSort && (priority?.checked === true) === activeFeaturedFirst) return;
                 activeSearch = text;
-                activeSort = sort.value;
+                activeSort = selectedSort();
+                activeFeaturedFirst = priority?.checked === true;
+                updateSortLabel();
                 activeZone = zone.value;
                 const url = new URL(location.href);
                 for (const [key, value] of [['q', text], ['zone', activeZone === 'all' ? '' : activeZone],
-                    ['sort', activeSort === 'newest' ? '' : activeSort]]) {
+                    ['sort', activeSort === 'newest' ? '' : activeSort], ['featuredFirst', activeFeaturedFirst ? '1' : '']]) {
                     if (value) url.searchParams.set(key, value);
                     else url.searchParams.delete(key);
                 }
@@ -809,7 +852,18 @@
             });
             search.addEventListener('compositionend', applyFilters);
             zone.addEventListener('change', applyFilters);
-            sort.addEventListener('change', applyFilters);
+            (sort || legacySort)?.addEventListener('change', applyFilters);
+            if (sort) {
+                document.addEventListener('click', event => {
+                    if (!sort.contains(event.target)) sort.open = false;
+                });
+                sort.addEventListener('keydown', event => {
+                    if (event.key === 'Escape') {
+                        sort.open = false;
+                        sort.querySelector('summary').focus();
+                    }
+                });
+            }
 
             // Public browsing must not wait for session or profile requests.
             restorePosition = initialFeedPosition();

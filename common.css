@@ -82,3 +82,8 @@ a { color: var(--theme-color); }
 .forum-toast.show { opacity: 1; visibility: visible; }
 .forum-toast.error { border-color: var(--error-ink); color: var(--error-ink); }
 .forum-toast.success { border-color: var(--theme-color); }
+
+/* RootedVox signature for published featured posts. */
+.featured-stamp { display: inline-flex; align-items: center; gap: 5px; color: var(--theme-color); border: 3px double currentColor; border-radius: 8px; padding: 3px 7px 3px 4px; font-size: .82rem; font-weight: 700; white-space: nowrap; transform: rotate(-6deg); }
+.featured-stamp img { width: 19px; height: 19px; border-radius: 50%; }
+.thread-featured { display: flex; justify-content: flex-end; margin: 5px 0; }

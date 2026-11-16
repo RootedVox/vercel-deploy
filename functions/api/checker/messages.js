@@ -3,8 +3,8 @@ import { authenticateApi, cleanText, integerParam } from '../../_lib/api.js';
 import { json, methodNotAllowed } from '../../_lib/http.js';
 import { requestBusinessData } from '../../_lib/supabase.js';
 
-const STATUSES = { pending: 0, approved: 1, deleted: 2 };
-const ACTIONS = new Set(['approve', 'reject', 'delete', 'restore']);
+const STATUSES = { pending: 0, featured: 0, approved: 1, deleted: 2 };
+const ACTIONS = new Set(['approve', 'approve_featured', 'reject', 'delete', 'restore']);
 const MESSAGE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 async function requireChecker(request, env) {
@@ -16,13 +16,14 @@ export async function onRequestGet({ request, env }) {
   if (auth.response) return auth.response;
   const url = new URL(request.url);
   const status = url.searchParams.get('status') || 'pending';
-  if (!(status in STATUSES)) return json({ error: 'invalid_status' }, 400, auth.headers);
+  if (!Object.hasOwn(STATUSES, status)) return json({ error: 'invalid_status' }, 400, auth.headers);
   const page = integerParam(url.searchParams.get('page'), 0, 0, 10000);
   const limit = integerParam(url.searchParams.get('limit'), 50, 1, 100);
   const params = new URLSearchParams({
     flag: `eq.${STATUSES[status]}`,
-    select: 'id,username,content,zone,pic_url,created_at,reply_to,contact_email,reject_reason'
+    select: 'id,username,content,zone,pic_url,created_at,reply_to,contact_email,reject_reason,is_featured'
   });
+  if (status === 'featured' || status === 'pending') params.set('is_featured', status === 'featured' ? 'eq.true' : 'eq.false');
   if (!applyPage(params, url, page, limit)) return json({ error: 'invalid_cursor' }, 400, auth.headers);
   try {
     const rows = await requestBusinessData(env, auth.session, `messages?${params}`);

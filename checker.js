@@ -23,9 +23,13 @@ let pageRaw = location.pathname.split('/').pop();
 let currPage = pageRaw.replace(/\.html$/,'');
 if(currPage === '') currPage = 'checker-pending';
 
+const featuredQueue = currPage === 'checker-pending' && new URLSearchParams(location.search).get('queue') === 'featured';
+if (featuredQueue) currPage += '?queue=featured';
+
 const links = document.querySelectorAll("#navList a");
 links.forEach(link=>{
     link.classList.remove("active");
+    link.removeAttribute("aria-current");
     let hrefRaw = link.getAttribute("href");
     let hrefName = hrefRaw.split('/').pop().replace(/\.html$/,'');
     if(hrefName === currPage){

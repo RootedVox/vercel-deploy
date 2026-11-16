@@ -57,3 +57,26 @@ test('the count migration follows the thread visibility rules', () => {
   assert.match(sql, /p_ids\[1:50\]/);
   assert.match(sql, /grant execute on function public\.public_forum_reply_counts\(uuid\[\]\) to anon, authenticated/);
 });
+
+test('featured-first pagination crosses groups without losing the normal-post cursor', async t => {
+  const featured = { ...rows[0], is_featured: true };
+  const normal = { ...rows[1], is_featured: false };
+  const groups = [];
+  t.mock.method(globalThis, 'fetch', async input => {
+    const { pathname, searchParams } = new URL(input);
+    if (pathname.endsWith('/public_forum_reply_counts')) return Response.json([]);
+    const group = searchParams.get('is_featured');
+    groups.push([group, searchParams.has('or')]);
+    assert.equal(searchParams.get('order'), 'created_at.asc,id.asc');
+    const row = group === 'eq.true' ? featured : normal;
+    return Response.json(searchParams.has('or') ? [] : [row]);
+  });
+  const handler = await load();
+  const first = await (await get(handler, 'featuredFirst=1&sort=oldest&limit=1')).json();
+  assert.deepEqual(first.messages.map(row => row.id), [featured.id]);
+  assert.match(first.nextCursor, /^f:/);
+  const second = await (await get(handler, 'featuredFirst=1&sort=oldest&limit=1&cursor=' + encodeURIComponent(first.nextCursor))).json();
+  assert.deepEqual(second.messages.map(row => row.id), [normal.id]);
+  assert.equal(second.hasMore, false);
+  assert.deepEqual(groups, [['eq.true', false], ['eq.false', false], ['eq.true', true], ['eq.false', false]]);
+});

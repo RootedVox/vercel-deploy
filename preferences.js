@@ -16,13 +16,13 @@
   root.lang = language;
   // The translation table is only needed in English. It is written into the document
   // while this script blocks the parser, so the page never paints untranslated first.
-  if (language === 'en') document.write('<script src="/english.js?v=311df47ff7"><\/script>');
+  if (language === 'en') document.write('<script src="/english.js?v=72f7d89737"><\/script>');
   let englishRequested = language === 'en';
   function loadEnglish() {
     if (englishRequested) return;
     englishRequested = true;
     const script = document.createElement('script');
-    script.src = '/english.js?v=311df47ff7';
+    script.src = '/english.js?v=72f7d89737';
     script.onload = () => { localize(document.head.querySelector('title')); localize(document.body); };
     document.head.append(script);
   }
@@ -36,6 +36,8 @@
     const english = window.rvEnglish?.get(key);
     if (language !== 'en') return value;
     if (english !== undefined) return value.replace(key, english);
+    const quota = key.match(/^仅限主楼 · 今日还可投稿 (\d+) 次$/);
+    if (quota) return value.replace(key, 'New threads only · ' + quota[1] + ' remaining today');
     const comments = key.match(/^(\d+) 条评论$/);
     if (comments) return value.replace(key, comments[1] + (comments[1] === '1' ? ' comment' : ' comments'));
     const count = key.match(/^最新 (\d+) 条$/);

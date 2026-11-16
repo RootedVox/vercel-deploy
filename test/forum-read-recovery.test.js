@@ -52,7 +52,7 @@ test('feed falls back to the old projection when optional columns are missing', 
   const result = await messages('limit=2');
   assert.equal(result.status, 200);
   assert.deepEqual((await result.json()).messages, [{ id: 1, zone: '日常分享' }]);
-  assert.equal(calls, 5);
+  assert.equal(calls, 6);
 });
 
 test('feed pages through the indexed RPC when it exists', async t => {

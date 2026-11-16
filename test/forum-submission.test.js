@@ -51,6 +51,7 @@ test('lost response, concurrent submissions, edited payload, separate accounts a
     if (init.method === 'POST') {
       const row = JSON.parse(init.body);
       if (rows.has(row.id)) return Response.json({code:'23505'}, {status:409});
+      if (row.is_featured && row.content === 'over quota') return Response.json({code:'P0001',message:'featured_daily_limit'}, {status:400});
       rows.set(row.id,row);
       if (lose) { lose = false; throw new Error('response lost'); }
       return Response.json([{id:row.id}]);
@@ -78,6 +79,10 @@ test('lost response, concurrent submissions, edited payload, separate accounts a
   user='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
   assert.equal((await post()).status,201);
   assert.equal(rows.size,4);
+  assert.equal((await post(crypto.randomUUID(),'featured',{featured:true})).status,201);
+  assert.ok([...rows.values()].some(row => row.is_featured && row.flag === 0 && row.reply_to === null));
+  assert.equal((await post(crypto.randomUUID(),'over quota',{featured:true})).status,429);
+  assert.equal((await post(crypto.randomUUID(),'featured reply',{featured:true,replyTo:'1'})).status,400);
   const long = await post(crypto.randomUUID(), '文'.repeat(1001));
   assert.equal(long.status, 400);
   assert.equal((await long.json()).error, 'content_too_long');
@@ -85,7 +90,7 @@ test('lost response, concurrent submissions, edited payload, separate accounts a
   assert.equal((await post('broken')).status,400);
 });
 
-test('a reply reads the profile and its target together and reports failures in the old order', async t => {
+test('a reply reads the profile and its target together and reports failures in the old order', { timeout: 2000 }, async t => {
   const site = 'https://forum.example';
   const keys = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
   const jwk = await crypto.subtle.exportKey('jwk', keys.privateKey);
@@ -93,7 +98,7 @@ test('a reply reads the profile and its target together and reports failures in 
     AUTH_ISSUER: 'https://auth.example', AUTH_CLIENT_ID: 'forum', AUTH_REDIRECT_URI: site + '/auth/callback',
     BUSINESS_SUPABASE_URL: 'https://db.example', BUSINESS_SUPABASE_PUBLISHABLE_KEY: 'pub',
     BUSINESS_SUPABASE_SIGNING_JWK: JSON.stringify({ ...jwk, kid: 'test' }) };
-  let profile, target, inFlight = 0, overlap = 0, inserts = 0;
+  let profile, target, firstRead, inserts = 0;
   t.mock.method(globalThis, 'fetch', async (input, init = {}) => {
     const { pathname } = new URL(input);
     if (pathname.endsWith('/isa_auth_store')) return Response.json({ user_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' });
@@ -101,9 +106,13 @@ test('a reply reads the profile and its target together and reports failures in 
     if (pathname.endsWith('/messages') && init.method === 'POST') { inserts++; return Response.json([{ id: 'new' }]); }
     const reply = pathname.endsWith('/approved_messages_public');
     assert.ok(reply || pathname.endsWith('/business_users'));
-    inFlight++; overlap = Math.max(overlap, inFlight);
-    await new Promise(resolve => setTimeout(resolve, 5));
-    inFlight--;
+    if (firstRead) {
+      const release = firstRead;
+      firstRead = null;
+      release();
+    } else {
+      await new Promise(resolve => { firstRead = resolve; });
+    }
     const answer = reply ? target : profile;
     return answer === 'fail' ? Response.json({ code: 'XX000' }, { status: 500 }) : Response.json(answer);
   });
@@ -116,7 +125,6 @@ test('a reply reads the profile and its target together and reports failures in 
   }
   [profile, target] = [[{ nickname: 'n' }], []];
   assert.deepEqual(await post(), [404, 'reply_target_not_found']);
-  assert.equal(overlap, 2);
   [profile, target] = ['fail', []];
   assert.deepEqual(await post(), [503, 'profile_unavailable']);
   [profile, target] = [[{ nickname: 'n' }], 'fail'];

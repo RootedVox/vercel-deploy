@@ -11,8 +11,9 @@
     return response.json();
   }
 
-  async function listMessages({ page = 0, limit = 20, sort = 'newest', search = '', zone = 'all', cursor, signal } = {}) {
+  async function listMessages({ page = 0, limit = 20, sort = 'newest', search = '', zone = 'all', cursor, featuredFirst, signal } = {}) {
     const params = new URLSearchParams({ page, limit, sort });
+    if (featuredFirst) params.set('featuredFirst', '1');
     if (cursor) params.set('cursor', cursor);
     if (zone !== 'all') params.set('zone', zone);
     if (search.trim()) params.set('search', search.trim());

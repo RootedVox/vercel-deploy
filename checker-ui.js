@@ -1,6 +1,12 @@
 (function () {
   'use strict';
-  const status = document.body.dataset.status;
+  const status = document.body.dataset.status === 'pending' && new URLSearchParams(location.search).get('queue') === 'featured'
+    ? 'featured' : document.body.dataset.status;
+  if (status === 'featured') {
+    document.title = '精华专审 · RootedVox';
+    const heading = document.querySelector('main h1, main h2, .page-title');
+    if (heading) heading.textContent = '精华专审';
+  }
   const list = document.getElementById('list');
   let selectedId = null;
   let selectedAction = null;
@@ -36,7 +42,7 @@
   }
 
   function actionMarkup(id) {
-    if (status === 'pending') return `<button class="btn btn-approve" data-action="approve" data-id="${id}">通过</button><button class="btn btn-danger" data-action="reject" data-id="${id}">拒绝</button><button class="btn btn-danger btn-delete" data-action="delete" data-id="${id}">删除</button>`;
+    if (status === 'pending' || status === 'featured') return `<button class="btn btn-approve" data-action="approve" data-id="${id}">普通发表</button>${status === 'featured' ? `<button class="btn btn-approve" data-action="approve_featured" data-id="${id}">精华发表</button>` : ''}<button class="btn btn-danger" data-action="reject" data-id="${id}">拒绝</button><button class="btn btn-danger btn-delete" data-action="delete" data-id="${id}">删除</button>`;
     if (status === 'approved') return `<button class="btn btn-danger" data-action="delete" data-id="${id}">删除</button>`;
     return `<button class="btn btn-approve" data-action="restore" data-id="${id}">恢复</button>`;
   }
@@ -67,7 +73,7 @@
       const cards = data.messages.map(message => `
         <article class="item">
           <div class="item-header"><strong>${escapeHtml(message.username)}</strong><time>${new Date(message.created_at).toLocaleString('zh-CN')}</time></div>
-          <div class="zone">${escapeHtml(message.zone && message.zone !== '校园生活' ? message.zone : '日常分享')}</div>
+          <div class="zone">${message.is_featured === true ? (status === 'featured' ? '精华投稿 · ' : '精华 · ') : ''}${escapeHtml(message.zone && message.zone !== '校园生活' ? message.zone : '日常分享')}</div>
           <div class="item-content">${escapeHtml(message.content).replace(/\n/g, '<br>')}</div>
           ${imageMarkup(message.pic_url)}
           <div class="meta">账号邮箱：${escapeHtml(message.contact_email || '未提供')}</div>

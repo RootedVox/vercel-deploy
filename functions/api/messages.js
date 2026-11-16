@@ -108,12 +108,58 @@ async function withReplyCounts(env, page) {
   }
 }
 
+async function featuredFirstFeed(env, url, params, limit, publicColumns, direction) {
+  const rawCursor = url.searchParams.get('cursor');
+  const section = rawCursor?.slice(0, 2);
+  if (rawCursor && !['f:', 'n:'].includes(section)) return json({ error: 'invalid_cursor' }, 400);
+  const cursorUrl = new URL(url);
+  if (rawCursor) cursorUrl.searchParams.set('cursor', rawCursor.slice(2));
+  const query = new URLSearchParams(params);
+  if (!applyPage(query, cursorUrl, 0, limit, direction)) return json({ error: 'invalid_cursor' }, 400);
+  const fields = publicColumns + ',avatar_url,is_official,is_featured';
+  query.set('select', fields + ',is_developer');
+  async function readGroup(featured) {
+    query.set('is_featured', featured ? 'eq.true' : 'eq.false');
+    try {
+      return await requestPublicData(env, 'approved_messages_public?' + query);
+    } catch (error) {
+      if (!isMissingColumn(error) || query.get('select') === fields) throw error;
+      query.set('select', fields);
+      return requestPublicData(env, 'approved_messages_public?' + query);
+    }
+  }
+
+  let rows = [];
+  if (section !== 'n:') {
+    rows = await readGroup(true);
+    if (rows.length <= limit) {
+      query.delete('or');
+      query.delete('offset');
+    }
+  }
+  if (rows.length <= limit) {
+    query.set('limit', String(limit + 1 - rows.length));
+    rows.push(...await readGroup(false));
+  }
+  const result = pageResult(rows.map(publicMessage), limit, 'messages');
+  if (result.nextCursor) result.nextCursor = (result.messages.at(-1).is_featured ? 'f:' : 'n:') + result.nextCursor;
+  return json(await withReplyCounts(env, result));
+}
+
 async function listMessages(request, env) {
   const url = new URL(request.url);
   if (url.searchParams.has('media')) {
     const id = url.searchParams.get('media');
     if (!MESSAGE_ID.test(id)) return json({ error: 'invalid_request' }, 400);
     return readAnonymousImage(env, id, url.searchParams.get('slot'));
+  }
+  if (url.searchParams.get('featuredQuota') === '1') {
+    const auth = await authenticateApi(request, env);
+    if (auth.response) return auth.response;
+    const remaining = await requestBusinessData(env, auth.session, 'rpc/forum_featured_remaining', {
+      method: 'POST', body: '{}'
+    });
+    return json({ remaining }, 200, auth.headers);
   }
   const thread = url.searchParams.get('thread');
   const publicColumns = 'id,username,content,zone,pic_url,created_at,reply_to';
@@ -162,21 +208,32 @@ async function listMessages(request, env) {
 
   params.set('reply_to', 'is.null');
   const direction = url.searchParams.get('sort') === 'oldest' ? 'asc' : 'desc';
-  if (!applyPage(params, url, page, limit, direction)) return json({ error: 'invalid_cursor' }, 400);
-  const feed = await forumFeed(env, url, { page, limit, zone, search, ascending: direction === 'asc' });
-  if (feed) return json({ ...await withReplyCounts(env, pageResult(feed.map(publicMessage), limit, 'messages')), page });
   const filter = zoneFilter(zone);
   if (filter) params.set('zone', filter);
   if (search) params.set('content', `ilike.*${search.replace(/[,*()]/g, ' ')}*`);
-
+  if (url.searchParams.get('featuredFirst') === '1') {
+    return featuredFirstFeed(env, url, params, limit, publicColumns, direction);
+  }
+  if (!applyPage(params, url, page, limit, direction)) return json({ error: 'invalid_cursor' }, 400);
+  const feed = await forumFeed(env, url, { page, limit, zone, search, ascending: direction === 'asc' });
+  if (feed) return json({ ...await withReplyCounts(env, pageResult(feed.map(publicMessage), limit, 'messages')), page });
   // Keep older database schemas readable and default absent badges to false.
-  for (const suffix of [',avatar_url,is_official,is_developer', ',avatar_url,is_official', ',avatar_url', '']) {
+  for (const suffix of [',avatar_url,is_official,is_developer,is_featured', ',avatar_url,is_official,is_developer', ',avatar_url,is_official', ',avatar_url', '']) {
     params.set('select', publicColumns + suffix);
     try {
       const rows = await requestPublicData(env, `approved_messages_public?${params}`);
       return json({ ...await withReplyCounts(env, pageResult(rows.map(publicMessage), limit, 'messages')), page });
     } catch (error) {
       if (!suffix || !isMissingColumn(error)) throw error;
+      if (suffix.endsWith(',is_featured') && error.reason?.includes('is_developer')) {
+        params.set('select', publicColumns + ',avatar_url,is_official,is_featured');
+        try {
+          const rows = await requestPublicData(env, 'approved_messages_public?' + params);
+          return json({ ...await withReplyCounts(env, pageResult(rows.map(publicMessage), limit, 'messages')), page });
+        } catch (fallbackError) {
+          if (!isMissingColumn(fallbackError)) throw fallbackError;
+        }
+      }
     }
   }
 }
@@ -221,6 +278,8 @@ async function createMessage(request, env, waitUntil) {
   // The database normalizes the legacy value once the zone migration is applied.
   const zone = ZONES.has(body.zone) && body.zone !== DAILY_ZONE ? body.zone : LEGACY_DAILY_ZONE;
   const replyTo = body.replyTo == null ? null : String(body.replyTo);
+  const featured = body.featured === true;
+  if (featured && replyTo !== null) return json({ error: 'featured_root_only' }, 400, auth.headers);
   const imageUrls = validateImageUrls(env, body.imageUrls || [], auth.session.user_id);
 
   if (!content || (replyTo !== null && !MESSAGE_ID.test(replyTo)) || imageUrls === null) {
@@ -264,7 +323,7 @@ async function createMessage(request, env, waitUntil) {
       env,
       `approved_messages_public?id=eq.${encodeURIComponent(replyTo)}&select=id&limit=1`
     ).catch(() => failed) : null,
-    moderationQueueAvailable(env)
+    featured ? false : moderationQueueAvailable(env)
   ]);
 
   let username = '匿名用户';
@@ -286,7 +345,7 @@ async function createMessage(request, env, waitUntil) {
   }
 
   let flag = 0;
-  if (!queued) {
+  if (!queued && !featured) {
     // 20261113 迁移未执行时退回同步审核：只有模型明确通过才直接发布
     try {
       const review = await runAiCheck(content, imageUrls, env);
@@ -309,6 +368,7 @@ async function createMessage(request, env, waitUntil) {
         pic_url: imageUrls.length ? imageUrls : null,
         contact_email: auth.session.email || null,
         flag,
+        ...(featured ? { is_featured: true } : {}),
         reply_to: replyTo || null
       })
     });
@@ -318,6 +378,9 @@ async function createMessage(request, env, waitUntil) {
     }
     return json({ ok: true, id: messageId, published: flag === 1 }, 201, auth.headers);
   } catch (error) {
+    if (error.code === 'P0001' && error.reason === 'featured_daily_limit') {
+      return json({ error: 'featured_daily_limit' }, 429, auth.headers);
+    }
     if (postId && error.code === '23505') {
       try {
         const replay = await previousSubmission();
