@@ -1,4 +1,6 @@
 window.rvEnglish = new Map(Object.entries({
+  "RootedVox 4.4.0 · 移动端与头像更新": "RootedVox 4.4.0 · Mobile forum and avatar update",
+  "优化手机端社区布局和导航，支持在页面内查看图片。修复发帖草稿、回复长度限制和头像裁切，头像现以 WebP 保存。": "This release improves the mobile forum layout and navigation and adds an in-page image viewer. It fixes post drafts, reply length limits, and avatar cropping. Avatars are now saved as WebP.",
   "RootedVox 4.3.5 · 登录与论坛稳定性修复": "RootedVox 4.3.5 · Sign-in and forum fixes",
   "改进登录和退出流程，防止第三方登录昵称冒用官方或保留名称。回复时如果服务暂时不可用，页面会提示重试。": "This update improves sign-in and sign-out and prevents display names from sign-in providers from claiming official or reserved names. If the service is temporarily unavailable when you reply, the forum prompts you to retry.",
   "RootedVox 4.3.4 · 头像上传修复": "RootedVox 4.3.4 · Avatar upload fix",

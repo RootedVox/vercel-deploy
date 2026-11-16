@@ -178,7 +178,7 @@ test('the English table is requested only for English, without a flash of untran
   const english = load('en');
   assert.equal(english.lang, 'en');
   // Written while the parser is blocked, so the table is ready before the first paint.
-  assert.deepEqual(english.written, ['<script src="/english.js"></script>']);
+  assert.deepEqual(english.written, ['<script src="/english.js?v=4.4.0"></script>']);
 });
 
 test('on phones a button takes over after two automatic pages so the footer stays reachable', async () => {
