@@ -17,6 +17,7 @@ select m.id, m.username, m.content, m.zone,
          or (m.business_user_id is null and m.user_id = '2da104a0-6662-4cb8-ac95-7781383c98f2'::uuid)
        ), false) as is_official,
        coalesce(m.username <> '匿名用户' and m.business_user_id in (
+         '3ec4494f-05a7-5033-809a-ba9a66ee6383'::uuid,
          '1d850588-d352-52f8-99bd-b0d8ae8b9343'::uuid,
          '3f5e0348-52ee-5366-8706-71a15aee3de0'::uuid,
          '7376359f-3f5f-5b7d-b005-48777fb32b42'::uuid,
