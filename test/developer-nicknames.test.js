@@ -1,3 +1,4 @@
+import vm from 'node:vm';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -76,11 +77,18 @@ test('a developer whose name comes from Keycloak keeps it; anyone else with that
   assert.deepEqual(saved, ['Sam.Li', '校园用户']);
 });
 
-test('every name with an owner also gets the Dev badge in the forum UI', () => {
-  const source = readFileSync(new URL('../functions/_lib/official-profile.js', import.meta.url), 'utf8');
-  const owned = [...source.matchAll(/\['([^']+)', '[0-9a-f-]{36}'\]/g)].map(match => match[1]);
-  assert.deepEqual(owned.sort(), ['bychhh', 'jerry', 'maod1e', 'sam.li', 'yzxzyz', '曹颢喆 jerry']);
-  const badge = readFileSync(new URL('../forum-ui.js', import.meta.url), 'utf8').match(/DEVELOPER_NICKNAMES = \[([\s\S]*?)\]/)[1];
-  const names = [...badge.matchAll(/"([^"]+)"/g)].map(match => match[1].toLowerCase());
-  for (const name of owned) assert.ok(names.includes(name), name);
+test('Dev frames follow the verified account flag, regardless of the displayed nickname', () => {
+  const window = {};
+  vm.runInNewContext(readFileSync(new URL('../forum-ui.js', import.meta.url), 'utf8'), { window, document: {} });
+  function badge(username, developer) {
+    const box = { dataset: {}, style: { removeProperty() {} } };
+    window.ForumUI.renderMessageAvatars([{
+      dataset: { developer },
+      querySelector: selector => selector === '.message-avatar-box' ? box : { textContent: username }
+    }]);
+    return box.innerHTML.includes('>Dev<');
+  }
+  assert.equal(badge('Jerry', 'false'), false);
+  assert.equal(badge('A different nickname', 'true'), true);
+  assert.equal(badge('匿名用户', 'true'), false);
 });

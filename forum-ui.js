@@ -5,15 +5,6 @@
           '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
       })[char]);
   }
-  const DEVELOPER_NICKNAMES = [
-      "Sam.Li",
-      "Jerry",
-      "Maod1e",
-      "bYcHhh",
-      "yzxzyz",
-      "曹颢喆 Jerry"
-  ];
-
   const MESSAGE_ZONES = [
       { label: '学习互助', keywords: ['学习', '作业', '考试', '课程', '笔记', '竞赛', '选课', '大学'] },
       { label: '活动社团', keywords: ['活动', '社团', '比赛', '演出', '运动', '招新', '音乐', '篮球', '足球'] },
@@ -47,7 +38,7 @@
           const username = el.querySelector(".message-author")?.textContent || "";
           const firstChar = username.charAt(0) || "?";
 
-          const isDeveloper = el.dataset.official === "true" || DEVELOPER_NICKNAMES.includes(username);
+          const isDeveloper = el.dataset.official === "true" || el.dataset.developer === "true";
           const renderKey = JSON.stringify([avatarUrl, username, isDeveloper]);
           if (box.dataset.renderKey === renderKey) return;
           box.dataset.renderKey = renderKey;

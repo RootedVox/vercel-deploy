@@ -93,9 +93,8 @@ async function listMessages(request, env) {
     return readAnonymousImage(env, id, url.searchParams.get('slot'));
   }
   const thread = url.searchParams.get('thread');
-  const params = new URLSearchParams({
-    select: 'id,username,content,zone,pic_url,created_at,reply_to,avatar_url,is_official'
-  });
+  const publicColumns = 'id,username,content,zone,pic_url,created_at,reply_to';
+  const params = new URLSearchParams();
 
   if (thread) {
     if (!MESSAGE_ID.test(thread)) return json({ error: 'invalid_request' }, 400);
@@ -147,23 +146,16 @@ async function listMessages(request, env) {
   if (filter) params.set('zone', filter);
   if (search) params.set('content', `ilike.*${search.replace(/[,*()]/g, ' ')}*`);
 
-  let rows;
-  try {
-    rows = await requestPublicData(env, `approved_messages_public?${params}`);
-  } catch (error) {
-    if (!isMissingColumn(error)) throw error;
-    // 旧库缺少 is_official；未迁移时退回旧字段集，官方标识按 false 处理
-    params.set('select', 'id,username,content,zone,pic_url,created_at,reply_to,avatar_url');
+  // Keep older database schemas readable and default absent badges to false.
+  for (const suffix of [',avatar_url,is_official,is_developer', ',avatar_url,is_official', ',avatar_url', '']) {
+    params.set('select', publicColumns + suffix);
     try {
-      rows = await requestPublicData(env, `approved_messages_public?${params}`);
+      const rows = await requestPublicData(env, `approved_messages_public?${params}`);
+      return json({ ...pageResult(rows.map(publicMessage), limit, 'messages'), page });
     } catch (error) {
-      if (!isMissingColumn(error)) throw error;
-      // 更早的头像迁移也未执行时去掉 avatar_url
-      params.set('select', 'id,username,content,zone,pic_url,created_at,reply_to');
-      rows = await requestPublicData(env, `approved_messages_public?${params}`);
+      if (!suffix || !isMissingColumn(error)) throw error;
     }
   }
-  return json({ ...pageResult(rows.map(publicMessage), limit, 'messages'), page });
 }
 
 function validateImageUrls(env, values, userId) {

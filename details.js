@@ -110,7 +110,7 @@ function renderMainMessage(msg) {
     const t = new Date(msg.created_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
     const imgs = msg.pic_url ? msg.pic_url.map(u => `<img src="${escapeHtml(u)}" class="message-image" alt="${escapeHtml(msg.username)} 发布的图片" tabindex="0">`).join('') : '';
     document.getElementById('mainMessageCard').innerHTML = `
-    <div class="message-item" id="msg-${msg.id}" data-avatar-url="${escapeHtml(msg.avatar_url || '')}" data-official="${msg.is_official === true}">
+    <div class="message-item" id="msg-${msg.id}" data-avatar-url="${escapeHtml(msg.avatar_url || '')}" data-official="${msg.is_official === true}" data-developer="${msg.is_developer === true}">
         <div class="message-avatar-box"></div>
         <div style="flex:1">
             <div class="message-header">
@@ -163,7 +163,7 @@ function renderComment(r) {
         ? `<a class="reply-info" href="?id=${encodeURIComponent(mainMsgId)}&amp;replyId=${encodeURIComponent(r.reply_to)}">↳ 回复 @${parentName}</a>`
         : `<button type="button" class="reply-info" data-action="jump" data-id="${escapeHtml(r.reply_to)}">↳ 回复 @${parentName}</button>`;
     return `
-        <div class="message-item ${nested ? 'level-2' : 'level-1'}" id="msg-${r.id}" data-avatar-url="${escapeHtml(r.avatar_url || '')}" data-official="${r.is_official === true}">
+        <div class="message-item ${nested ? 'level-2' : 'level-1'}" id="msg-${r.id}" data-avatar-url="${escapeHtml(r.avatar_url || '')}" data-official="${r.is_official === true}" data-developer="${r.is_developer === true}">
             <div class="message-avatar-box"></div>
             <div style="flex:1">
                 <div class="message-header">

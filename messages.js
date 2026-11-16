@@ -603,7 +603,7 @@
                     }
 
                     html += `
-                    <div class="message-item" id="message-${msg.id}" data-avatar-url="${escapeHtml(msg.avatar_url || '')}" data-official="${msg.is_official === true}" data-anonymous="${msg.username === '匿名用户' ? 'true' : 'false'}">
+                    <div class="message-item" id="message-${msg.id}" data-avatar-url="${escapeHtml(msg.avatar_url || '')}" data-official="${msg.is_official === true}" data-developer="${msg.is_developer === true}" data-anonymous="${msg.username === '匿名用户' ? 'true' : 'false'}">
                         <div class="message-avatar-box"></div>
                         <div style="flex:1">
                             <div class="message-header">

@@ -1,4 +1,4 @@
-# RootedVox v4.4.2
+# RootedVox v4.4.3
 
 RootedVox is a community forum for sharing updates, ideas and questions.
 

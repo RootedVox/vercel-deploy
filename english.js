@@ -1,4 +1,6 @@
 window.rvEnglish = new Map(Object.entries({
+  "RootedVox 4.4.3 · 开发者昵称修复": "RootedVox 4.4.3 · Developer nickname fix",
+  "修复开发者无法设置本人保留昵称的问题。论坛的 Dev 头像框改用账号身份验证。": "Developers can now set their own reserved nicknames. Dev avatar frames in the forum use verified account identity.",
   "RootedVox 4.4.2 · 昵称显示修复": "RootedVox 4.4.2 · Nickname display fix",
   "修复修改昵称后，刷新页面时仍可能先显示登录旧名的问题。登录状态检查现在会读取当前站内昵称。": "Fixed an issue where refreshing the page after a nickname change could briefly show your old sign-in name. The session check now reads your current site nickname.",
   "RootedVox 4.4.1 · 缓存修复": "RootedVox 4.4.1 · Cache fix",
