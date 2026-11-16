@@ -503,14 +503,17 @@
         // Each quota read is a Functions request, so it is made only when the visitor ticks
         // "投稿到精华" (once per page view) and after a featured submission, never on page load.
         let featuredQuotaShown = false;
+        let featuredQuotaRead = 0;
+        let initialQuotaPending = false;
         async function refreshFeaturedQuota() {
             const note = document.getElementById('featuredQuota');
             if (!note) return;
+            const read = ++featuredQuotaRead;
             try {
                 const response = await request('/api/messages?featuredQuota=1', { credentials: 'include' });
                 if (!response.ok) return;
                 const { remaining } = await response.json();
-                if (Number.isInteger(remaining)) {
+                if (read === featuredQuotaRead && Number.isInteger(remaining)) {
                     note.textContent = '仅限主楼 · 今日还可投稿 ' + remaining + ' 次';
                     featuredQuotaShown = true;
                 }
@@ -518,7 +521,9 @@
         }
 
         function showFeaturedQuotaOnce() {
-            if (!featuredQuotaShown && document.getElementById('postFeatured')?.checked) refreshFeaturedQuota();
+            if (featuredQuotaShown || initialQuotaPending || !document.getElementById('postFeatured')?.checked) return;
+            initialQuotaPending = true;
+            refreshFeaturedQuota().finally(() => { initialQuotaPending = false; });
         }
 
         function savePostDraft() {

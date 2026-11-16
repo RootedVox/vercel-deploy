@@ -1,4 +1,6 @@
 window.rvEnglish = new Map(Object.entries({
+  "RootedVox 4.5.1 · 精华额度查询优化": "RootedVox 4.5.1 · Featured quota lookup",
+  "勾选投稿到精华时才查询剩余次数，普通浏览和发帖可以少一次请求。": "The forum looks up your remaining quota only when you select featured submission, saving a request when browsing or posting normally.",
   "RootedVox 4.5.0 · 精华投稿": "RootedVox 4.5.0 · Featured posts",
   "主楼可以投稿到精华，审核通过后会显示精华戳印。论坛排序菜单可开启精华优先。": "Submit a new thread for featured review. Approved threads receive a stamp, and you can choose to show featured posts first.",
   "投稿到精华": "Submit for featuring",

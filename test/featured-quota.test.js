@@ -41,6 +41,8 @@ test('ticking 投稿到精华 asks for the quota once and shows it', async () =>
   const box = form.element('postFeatured');
   box.checked = true;
   box.listeners.change();
+  box.checked = false; box.listeners.change();
+  box.checked = true; box.listeners.change();
   await settle();
   assert.deepEqual(form.requests, ['/api/messages?featuredQuota=1']);
   assert.match(form.element('featuredQuota').textContent, /今日还可投稿 2 次/);
