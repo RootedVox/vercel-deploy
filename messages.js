@@ -169,8 +169,15 @@
         }
 
         async function initUserExtra() {
-            const response = await request('/api/profile', { credentials: 'include', cache: 'no-store' });
-            const data = response.ok ? await response.json() : {};
+            // /auth/session already read the profile row. Only when that read failed (or an
+            // older deployment answered) does it leave out avatarUrl, and /api/profile is asked.
+            let data;
+            if (currentUser && Object.hasOwn(currentUser, 'avatarUrl')) {
+                data = { nickname: currentUser.name, avatarUrl: currentUser.avatarUrl };
+            } else {
+                const response = await request('/api/profile', { credentials: 'include', cache: 'no-store' });
+                data = response.ok ? await response.json() : {};
+            }
             const url = data.avatarUrl;
 
             if (data.nickname) {
