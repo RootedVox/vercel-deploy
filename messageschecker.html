@@ -9,7 +9,6 @@
   <link rel="icon" type="image/svg+xml" href="./images/favicon.svg">
   <script src="./auth-client.js"></script>
   <script src="/preferences.js"></script>
-  <script defer src="/english.js?v=4.3.4"></script>
   <link rel="stylesheet" href="/common.css">
   <link rel="stylesheet" href="/preferences.css?v=4.3.3">
   <style>*{box-sizing:border-box}body{display:grid;min-height:100vh;margin:0;place-items:center;background:var(--surface-alt);font-family:system-ui}.splash{text-align:center}.splash img{width:150px}.title{margin-top:18px;color:var(--theme-color);font-size:30px;font-weight:700}.domain{margin-top:8px;color:var(--muted)}</style>
@@ -18,14 +17,5 @@
   <img src="./images/logo-192-v1.webp" width="150" height="150" class="splash-logo" alt="RootedVox">
   <div class="title">RootedVox 审核端</div>
   <div class="domain">正在验证登录状态和审核员权限…</div>
-</main><script>
-  (async()=>{
-    const session=await RootedVoxAuth.getSession().catch(()=>null);
-    if(session?.authenticated){
-      location.replace(session.user?.checker?'/checker-pending.html':'/login-messageschecker.html?error=forbidden');
-      return;
-    }
-    location.replace('/auth/login?return_to=%2Fchecker-pending.html');
-  })();
-</script></body>
+</main><script src="./messageschecker.js"></script></body>
 </html>

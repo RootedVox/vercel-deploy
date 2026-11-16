@@ -17,7 +17,26 @@ function avatarStorageError(error) {
   // Checked before 403: Storage reports a bad signature as 403 "Unauthorized".
   if (status === 401 || ['InvalidJWT', 'InvalidSignature'].includes(error.code) || /invalid signature|jwt/.test(text)) return 'avatar_storage_auth_failed';
   if (status === 403 || ['AccessDenied', 'Unauthorized', '42501'].includes(error.code) || text.includes('row-level security')) return 'avatar_storage_denied';
+  // The bucket's own type and size limits.
+  if (status === 415 || error.code === 'invalid_mime_type' || text.includes('mime type')) return 'avatar_type_rejected';
+  if (status === 413 || ['EntityTooLarge', 'Payload too large'].includes(error.code) || text.includes('exceeded the maximum allowed size')) return 'avatar_too_large';
   return 'avatar_storage_unavailable';
+}
+
+// "avatar_storage_unavailable" covers every failure Storage did not name, which left
+// nothing to act on. The answer therefore carries the step that failed and what Storage
+// said: its status, code and message describe this one request and hold no secrets.
+function storageFailure(stage, error) {
+  const clean = (value, length) => String(value ?? '').replace(/[^\w .:,'()\/-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, length);
+  const detail = {
+    stage,
+    status: error.storageStatus || error.status || null,
+    // Without an HTTP status the request never completed: a timeout or a network error.
+    code: clean(error.code, 60) || (error.status ? null : clean(error.message, 60)) || null,
+    reason: clean(error.reason, 120) || null
+  };
+  console.error(`[uploads] avatar stage=${stage} status=${detail.status} code=${detail.code} reason=${detail.reason}`);
+  return { error: avatarStorageError(error), detail };
 }
 
 async function ownAvatarObjects(env, session) {
@@ -48,7 +67,8 @@ export async function onRequestPost({ request, env }) {
     let hash;
     try { hash = await validateAvatar(files[0]); }
     catch { return json({ error: 'invalid_avatar_image' }, 400, auth.headers); }
-    avatarPath = `business/${auth.session.user_id}.${hash}.png`;
+    avatarPath = `business/${auth.session.user_id}.${hash}.webp`;
+    let stage = 'list';
     try {
       const own = await ownAvatarObjects(env, auth.session);
       if (own.some(item => 'business/' + item.name === avatarPath)) {
@@ -58,6 +78,7 @@ export async function onRequestPost({ request, env }) {
       const expired = own.filter(item => Date.now() - Date.parse(item.created_at) > AVATAR_RETENTION_MS);
       let remaining = own.length;
       if (expired.length) {
+        stage = 'cleanup';
         try {
           const rows = await requestBusinessData(env, auth.session, `business_users?user_id=eq.${encodeURIComponent(auth.session.user_id)}&select=avatar_url&limit=1`);
           if (!Array.isArray(rows) || rows.length !== 1) throw new Error('profile_unavailable');
@@ -76,7 +97,7 @@ export async function onRequestPost({ request, env }) {
       if (remaining >= AVATAR_LIMIT) return json({ error: 'avatar_storage_limit' }, 429, auth.headers);
     } catch (error) {
       if (error.message === 'avatar_storage_limit') return json({ error: 'avatar_storage_limit' }, 429, auth.headers);
-      return json({ error: avatarStorageError(error) }, 503, auth.headers);
+      return json(storageFailure(stage, error), 503, auth.headers);
     }
   }
   const urls = [];
@@ -103,7 +124,7 @@ export async function onRequestPost({ request, env }) {
     }
     return json({ urls }, 201, auth.headers);
   } catch (error) {
-    return json({ error: kind === 'avatar' ? avatarStorageError(error) : 'upload_failed' }, 503, auth.headers);
+    return json(kind === 'avatar' ? storageFailure('upload', error) : { error: 'upload_failed' }, 503, auth.headers);
   }
 }
 

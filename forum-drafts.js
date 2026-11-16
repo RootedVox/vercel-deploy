@@ -39,6 +39,21 @@
     save(target, { text: body.content, signature, submissionId });
     return submissionId;
   }
+  // Draft edits replace the entry. Compare the captured object before writing a
+  // receipt, and again on success before clearing the editor.
+  function prepare(target, original, payload) {
+    if (get(target) !== original) {
+      const replay = original?.signature === JSON.stringify(payload);
+      payload.submissionId = replay ? original.submissionId : crypto.randomUUID();
+      payload.retry = replay;
+      return null;
+    }
+    const previousId = original?.submissionId;
+    save(target, { text: payload.content, anonymous: payload.anonymous, attachments: payload.imageUrls });
+    payload.submissionId = submission(target, payload);
+    payload.retry = payload.submissionId === previousId;
+    return get(target);
+  }
   function logout() { entries = {}; owner = null; persist(); }
-  window.ForumDrafts = { bind, get, save, clear, submission, logout };
+  window.ForumDrafts = { bind, get, save, clear, submission, prepare, logout };
 })();

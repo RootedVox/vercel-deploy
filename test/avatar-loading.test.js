@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import vm from 'node:vm';
+
+import { runPageScript } from './page-script.js';
 
 const page = readFileSync(new URL('../messages.html', import.meta.url), 'utf8');
-const loader = page.slice(page.indexOf('            let avatarAssetsPromise;'), page.indexOf("            const changeAvatar = document.getElementById('profileAvatarButton');"));
 
 function harness() {
   const elements = [];
@@ -13,9 +13,8 @@ function harness() {
     createElement(tag) { return { tag, remove() { this.removed = true; } }; },
     head: { append(element) { elements.push(element); } }
   };
-  const context = vm.createContext({ document, window, setTimeout, clearTimeout });
-  vm.runInContext(`${loader}\nglobalThis.load = loadAvatarAssets;`, context);
-  return { elements, window, load: context.load };
+  const { loadAvatarAssets } = runPageScript('messages.js', { document, window, setTimeout, clearTimeout }, { expose: ['loadAvatarAssets'] });
+  return { elements, window, load: loadAvatarAssets };
 }
 
 function finish(h, fail) {
@@ -59,8 +58,7 @@ test('stalled resources time out and allow a retry', async () => {
     createElement() { return { remove() { this.removed = true; } }; },
     head: { append(element) { elements.push(element); } }
   };
-  const context = vm.createContext({ document, window: {}, setTimeout(fn) { timers.push(fn); return timers.length; }, clearTimeout() {} });
-  vm.runInContext(`${loader}\nglobalThis.load = loadAvatarAssets;`, context);
+  const context = { load: runPageScript('messages.js', { document, setTimeout(fn) { timers.push(fn); return timers.length; }, clearTimeout() {} }, { expose: ['loadAvatarAssets'] }).loadAvatarAssets };
   const first = context.load();
   timers.forEach(fn => fn());
   await assert.rejects(first, /头像组件加载失败/);

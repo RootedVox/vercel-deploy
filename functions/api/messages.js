@@ -1,3 +1,4 @@
+import { publicMessageMedia, readAnonymousImage } from '../_lib/forum-media.js';
 import { moderationQueueAvailable, processNextModeration } from '../_lib/moderation-worker.js';
 import { runAiCheck } from '../_lib/moderate-content.js';
 import { authenticateApi, cleanText, integerParam } from '../_lib/api.js';
@@ -13,6 +14,10 @@ const MESSAGE_ID = /^(?:\d+|[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a
 
 function normalizeMessageZone(message) {
   return message.zone === LEGACY_DAILY_ZONE ? { ...message, zone: DAILY_ZONE } : message;
+}
+
+function publicMessage(row) {
+  return publicMessageMedia(normalizeMessageZone(row));
 }
 
 function zoneFilter(zone) {
@@ -33,7 +38,7 @@ async function forumOverview(env) {
     });
     return requestPublicData(env, `approved_messages_public?${params}`);
   }));
-  return groups.flat().map(normalizeMessageZone);
+  return groups.flat().map(publicMessage);
 }
 
 // Indexed paging (20261115_forum_feed_paging.sql). Returns null when the database has
@@ -66,7 +71,7 @@ async function focusedReply(env, thread, target) {
   if (!/^\d+$/.test(thread) && !/^\d+$/.test(target)) {
     try {
       const result = await requestPublicData(env, `rpc/public_forum_reply?${query}`);
-      return { messages: result.messages.map(normalizeMessageZone), parentName: result.parentName };
+      return { messages: result.messages.map(publicMessage), parentName: result.parentName };
     } catch (error) {
       if (!isMissingRpc(error)) throw error;
     }
@@ -74,7 +79,7 @@ async function focusedReply(env, thread, target) {
   // The legacy RPC already restricts results to visible descendants of this root.
   query.delete('target_id');
   const rows = await requestPublicData(env, `rpc/public_forum_thread?${query}`);
-  const messages = rows.filter(row => [thread, target].includes(String(row.id))).map(normalizeMessageZone);
+  const messages = rows.filter(row => [thread, target].includes(String(row.id))).map(publicMessage);
   const reply = messages.find(row => String(row.id) === target);
   const parent = reply && rows.find(row => String(row.id) === String(reply.reply_to));
   return { messages, parentName: parent?.username ?? null };
@@ -82,6 +87,11 @@ async function focusedReply(env, thread, target) {
 
 async function listMessages(request, env) {
   const url = new URL(request.url);
+  if (url.searchParams.has('media')) {
+    const id = url.searchParams.get('media');
+    if (!MESSAGE_ID.test(id)) return json({ error: 'invalid_request' }, 400);
+    return readAnonymousImage(env, id, url.searchParams.get('slot'));
+  }
   const thread = url.searchParams.get('thread');
   const params = new URLSearchParams({
     select: 'id,username,content,zone,pic_url,created_at,reply_to,avatar_url,is_official'
@@ -108,7 +118,7 @@ async function listMessages(request, env) {
         const result = await requestPublicData(env, `rpc/public_forum_thread_page?${query}`);
         if (!result.exists) return json({ error: 'not_found' }, 404);
         if (!result.cursorValid) return json({ error: 'stale_cursor' }, 409);
-        return json({ messages: result.messages.map(normalizeMessageZone), nextCursor: result.nextCursor });
+        return json({ messages: result.messages.map(publicMessage), nextCursor: result.nextCursor });
       } catch (error) {
         if (!isMissingRpc(error)) throw error;
         // 分页 RPC 随 20261113 迁移上线；未迁移时退回旧接口，一次返回整栋楼
@@ -117,7 +127,7 @@ async function listMessages(request, env) {
     // The RPC returns a JSON array to avoid PostgREST's global table row cap.
     const rows = await requestPublicData(env, `rpc/public_forum_thread?${root}`);
     if (!rows.length) return json({ error: 'not_found' }, 404);
-    return json({ messages: rows.map(normalizeMessageZone) });
+    return json({ messages: rows.map(publicMessage) });
   }
   if (url.searchParams.get('overview') === '1') {
     return json({ messages: await forumOverview(env) });
@@ -132,7 +142,7 @@ async function listMessages(request, env) {
   const direction = url.searchParams.get('sort') === 'oldest' ? 'asc' : 'desc';
   if (!applyPage(params, url, page, limit, direction)) return json({ error: 'invalid_cursor' }, 400);
   const feed = await forumFeed(env, url, { page, limit, zone, search, ascending: direction === 'asc' });
-  if (feed) return json({ ...pageResult(feed.map(normalizeMessageZone), limit, 'messages'), page });
+  if (feed) return json({ ...pageResult(feed.map(publicMessage), limit, 'messages'), page });
   const filter = zoneFilter(zone);
   if (filter) params.set('zone', filter);
   if (search) params.set('content', `ilike.*${search.replace(/[,*()]/g, ' ')}*`);
@@ -153,7 +163,7 @@ async function listMessages(request, env) {
       rows = await requestPublicData(env, `approved_messages_public?${params}`);
     }
   }
-  return json({ ...pageResult(rows.map(normalizeMessageZone), limit, 'messages'), page });
+  return json({ ...pageResult(rows.map(publicMessage), limit, 'messages'), page });
 }
 
 function validateImageUrls(env, values, userId) {
@@ -191,7 +201,8 @@ async function createMessage(request, env, waitUntil) {
       !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(submission))) {
     return json({ error: 'invalid_submission_id' }, 400, auth.headers);
   }
-  const content = cleanText(body.content, 1000);
+  const content = typeof body.content === 'string' ? body.content.trim() : '';
+  if (content.length > 1000) return json({ error: 'content_too_long' }, 400, auth.headers);
   // The database normalizes the legacy value once the zone migration is applied.
   const zone = ZONES.has(body.zone) && body.zone !== DAILY_ZONE ? body.zone : LEGACY_DAILY_ZONE;
   const replyTo = body.replyTo == null ? null : String(body.replyTo);

@@ -2,10 +2,13 @@
 // Copyright (c) 2026 沧海四象
 // Licensed under the MIT License.
 // 加载审核导航 + 自动高亮当前页面菜单
-fetch("header-checker.html?v=4.3.3")
-.then(res=>res.text())
-.then(html=>{
-    document.querySelector("#checkHeader").innerHTML = html;
+// scripts/sync-layout.mjs writes the navigation into each page; a page that was not
+// synced still gets it by request.
+const checkHeader = document.querySelector("#checkHeader");
+(checkHeader.childElementCount
+    ? Promise.resolve()
+    : fetch("header-checker.html?v=4.3.3").then(res=>res.text()).then(html=>{ checkHeader.innerHTML = html; }))
+.then(()=>{
     // 汉堡菜单
     const menuBtn = document.getElementById("menuBtn");
     const navList = document.getElementById("navList");

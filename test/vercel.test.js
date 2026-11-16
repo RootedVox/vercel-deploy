@@ -68,7 +68,7 @@ test('Vercel build output contains public pages but excludes server source and c
 
 
 test('Vercel output includes the lazy-loaded editor and its local Cropper assets', async () => {
-  for (const path of ['avatar-editor.js', 'avatar-editor.css', 'vendor/cropper.min.js', 'vendor/cropper.min.css', 'vendor/Cropper-LICENSE']) {
+  for (const path of ['avatar-editor.js', 'avatar-editor.css', 'vendor/cropper.min.js', 'vendor/cropper.min.css', 'vendor/Cropper-LICENSE', 'vendor/webp/webp_enc.js', 'vendor/webp/webp_enc.wasm', 'vendor/webp/LICENSE-libwebp.md']) {
     assert.deepEqual(await readFile(new URL('../vercel-public/' + path, import.meta.url)), await readFile(new URL('../' + path, import.meta.url)), path);
   }
 });

@@ -17,7 +17,7 @@ test('pending moderation exposes delete and preserves the selected action', asyn
 });
 
 test('profile UI exposes nickname and avatar editing from the account menu', async () => {
-  const source = await readFile(new URL('../messages.html', import.meta.url), 'utf8');
+  const source = await readFile(new URL('../messages.html', import.meta.url), 'utf8') + await readFile(new URL('../messages.js', import.meta.url), 'utf8');
   assert.match(source, /id="openProfile">个人资料/);
   assert.match(source, /id="profileNickname"/);
   assert.match(source, /id="profileAvatarButton"/);

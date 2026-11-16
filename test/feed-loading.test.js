@@ -1,10 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import vm from 'node:vm';
 
-const page = readFileSync(new URL('../messages.html', import.meta.url), 'utf8');
-const loader = page.slice(page.indexOf('        async function loadMainMessages('), page.indexOf('        function showNoMoreTip()'));
+import { runPageScript } from './page-script.js';
 
 function setup() {
   const calls = [];
@@ -26,12 +23,11 @@ function setup() {
     }
   };
   const RootedVoxPublicData = { listMessages(options) { return new Promise((resolve, reject) => calls.push({ options, resolve, reject })); } };
-  const context = vm.createContext({
+  const { loadMainMessages } = runPageScript('messages.js', {
     document, AbortController, requestAnimationFrame: callback => frames.push(callback), window: { RootedVoxPublicData }, RootedVoxPublicData,
-    parseMessageContent: () => ({ zone: '校园生活', text: '留言' }),
-    escapeHtml: value => value || '', renderMessageAvatars() {}, showNoMoreTip() {}
-  });
-  vm.runInContext(`let currentPage=0, PAGE_SIZE=20, hasMore=true, isLoadingMore=false, abortController=null, activeSearch='', activeSort='newest', activeZone='all', feedCursor=null;\n${loader}\nglobalThis.load=loadMainMessages;`, context);
+    ForumUI: { parseMessageContent: () => ({ zone: '校园生活', text: '留言' }), escapeHtml: value => value || '', renderMessageAvatars() {} }
+  }, { replace: { showNoMoreTip() {} }, expose: ['loadMainMessages'] });
+  const context = { load: loadMainMessages };
   return { calls, container, feed, frames, load: context.load };
 }
 const item = { id: '1', username: '测试', content: '留言', created_at: '2026-01-01', pic_url: [] };

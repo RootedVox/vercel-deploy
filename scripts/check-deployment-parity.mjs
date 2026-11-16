@@ -6,7 +6,7 @@ import { join } from 'node:path';
 const other = process.argv[2];
 if (!other) throw new Error('Pass the path to the other deployment checkout');
 const tracked = root => execFileSync('git', ['-C', root, 'ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
-const platform = /^(?:\.github\/|\.assetsignore$|\.dev\.vars\.example$|api\/|vercel(?:\/|\.json$)|package(?:-lock)?\.json$|scripts\/build-vercel\.mjs$|docs\/VERCEL_DEPLOYMENT\.zh-CN\.md$|test\/(?:auth|go-live|vercel)\.test\.js$|functions\/(?:_middleware\.js|_lib\/(?:api|http)\.js|auth\/logout\.js)$)/;
+const platform = /^(?:\.github\/|\.assetsignore$|_routes\.json$|\.dev\.vars\.example$|api\/|vercel(?:\/|\.json$)|package(?:-lock)?\.json$|scripts\/build-vercel\.mjs$|docs\/VERCEL_DEPLOYMENT\.zh-CN\.md$|test\/(?:auth|go-live|vercel)\.test\.js$|functions\/(?:_middleware\.js|_lib\/(?:api|http)\.js|auth\/logout\.js)$)/;
 const files = new Set([...tracked('.'), ...tracked(other)]);
 const different = [];
 for (const file of files) {

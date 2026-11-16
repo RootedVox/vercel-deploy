@@ -35,7 +35,7 @@ function harness() {
   dialog.querySelectorAll = selector => selector === '[id]' ? Object.values(el) : selector === '[data-avatar-action]' ? actions : selector === '.isa-avatar-editor-preview' ? previews : [];
   const opener = new Element('opener'), body = new Element('body');
   body.append = () => {};
-  const probes=[], crops=[], blobs=[], revoked=[], created=[];
+  const probes=[], crops=[], blobs=[], revoked=[], created=[], previewEncodings=[];
   const ctx = new Proxy({}, {get: () => () => {}, set: () => true});
   document = {body, activeElement:opener, getElementById: () => null, createElement: tag => tag === 'dialog' ? dialog : {getContext: () => ctx, toDataURL: () => 'data:image/png;base64,c2FtcGxl'} };
   class FileMock { constructor(parts, name, options) { this.parts=parts; this.name=name; this.type=options.type; this.size=parts.reduce((n,p)=>n+(p.size || 0),0); } }
@@ -47,19 +47,20 @@ function harness() {
     disable() { this.disabled=true; } enable() { this.disabled=false; }
     move(...args) { this.moves.push(args); } zoom() {} rotate() {} reset() {}
     getData() { return this.data || {x:10,y:20,width:300,height:300,rotate:90}; }
-    getCroppedCanvas(options) { this.exportOptions=options; return {toDataURL: () => 'data:image/png;base64,c2FtcGxl', toBlob: (cb,type,quality) => blobs.push({cb,type,quality})}; }
+    getCroppedCanvas(options) { this.exportOptions=options; return {toDataURL: (type, quality) => { previewEncodings.push([type, quality]); return 'data:image/webp;base64,c2FtcGxl'; }, toBlob: (cb,type,quality) => blobs.push({cb,type,quality}), width:256, height:256, getContext: () => ({getImageData: (x,y,w,h) => ({data:new Uint8ClampedArray(w*h*4), width:w, height:h})})}; }
   }
   let resizeCallback;
   class ResizeObserverMock { constructor(callback) { resizeCallback=callback; } observe() {} }
   const media={matches:false, addEventListener() {}};
-  const window={ResizeObserver:ResizeObserverMock, File:FileMock, Image:ImageMock, Cropper, matchMedia:()=>media, scrollX:12, scrollY:34, scrollTo(value){this.scrolled=value;}, requestAnimationFrame(fn){return setImmediate(fn);}, cancelAnimationFrame(id){clearImmediate(id);}, setTimeout, URL:{createObjectURL(){const url='blob:test/'+(created.length+1); created.push(url); return url;}, revokeObjectURL(url){revoked.push(url);}}};
+  const encoder={loads:0, calls:[], fail:false};
+  const window={Blob, RootedVoxWebpEncoderModule: async () => { encoder.loads++; if (encoder.fail) throw Error('offline'); return {default: async options => ({encode: (data,w,h,opts) => { encoder.calls.push({options, w, h, opts, length:data.length}); return new Uint8Array([82,73,70,70]); }})}; }, ResizeObserver:ResizeObserverMock, File:FileMock, Image:ImageMock, Cropper, matchMedia:()=>media, scrollX:12, scrollY:34, scrollTo(value){this.scrolled=value;}, requestAnimationFrame(fn){return setImmediate(fn);}, cancelAnimationFrame(id){clearImmediate(id);}, setTimeout, URL:{createObjectURL(){const url='blob:test/'+(created.length+1); created.push(url); return url;}, revokeObjectURL(url){revoked.push(url);}}};
   vm.runInNewContext(code, {window,document,setTimeout,clearTimeout,console});
   const open = options => window.RootedVoxAvatarEditor.open({onSave:()=>{}, ...options});
   const input = () => new FileMock([{size:100}], 'photo.png', {type:'image/png'});
   const load = () => { const p=probes.at(-1); p.onload(); return crops.at(-1); };
   const ready = () => { const c=load(); c.triggerReady(); return c; };
   const resize=(width,height)=>{el.stage.getBoundingClientRect=()=>({left:0,top:0,right:width,bottom:height});resizeCallback();};
-  return {resize,el,actions,previews,dialog,document,window,opener,probes,crops,blobs,revoked,created,open,input,load,ready};
+  return {resize,el,actions,previews,dialog,document,window,opener,probes,crops,blobs,revoked,created,previewEncodings,encoder,open,input,load,ready};
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
 
@@ -83,16 +84,16 @@ test('save is single flight, blocks close and duplicate open until host succeeds
   assert.equal(h.open(),p); const c=h.ready(); h.el.save.click(); h.el.save.fire('click');
   assert.equal(h.blobs.length,1); assert.equal(c.disabled,true); assert.equal(h.el.cancel.disabled,true); assert.equal(h.dialog.attrs['aria-busy'],'true');
   assert.equal(h.dialog.fire('cancel').defaultPrevented,true); assert.equal(h.dialog.open,true);
-  await assert.rejects(h.open(),/正在保存/); assert.equal(h.blobs[0].type,'image/png');
+  await assert.rejects(h.open(),/正在保存/); assert.equal(h.blobs[0].type,'image/webp'); assert.equal(h.blobs[0].quality,0.82);
   assert.equal(c.exportOptions.width,256); assert.equal(c.exportOptions.height,256);
-  h.blobs[0].cb({type:'image/png',size:42}); await tick(); assert.equal(calls,1); assert.equal(received.name,'isa-avatar-256.png'); assert.equal(received.type,'image/png'); assert.equal(h.dialog.open,true);
+  h.blobs[0].cb({type:'image/webp',size:42}); await tick(); assert.equal(calls,1); assert.equal(received.name,'isa-avatar-256.webp'); assert.equal(received.type,'image/webp'); assert.equal(h.dialog.open,true);
   resolveSave(); assert.equal(await p,received); assert.equal(h.dialog.open,false); assert.equal(c.destroyed,true); assert.deepEqual(h.revoked,['blob:test/1']);
 });
 
 test('encoding and host failures preserve crop and allow retry', async () => {
   const h=harness(); let calls=0; const p=h.open({file:h.input(), onSave:()=>{calls++; throw Error('host failed');}}); const c=h.ready();
   h.el.save.click(); h.blobs[0].cb(null); await tick(); assert.match(h.el.note.textContent,/保存失败/); assert.equal(h.el.save.disabled,false); assert.equal(c.disabled,false); assert.equal(calls,0);
-  h.el.save.click(); h.blobs[1].cb({type:'image/png',size:1}); await tick(); assert.equal(calls,1); assert.match(h.el.note.textContent,/保存失败/); assert.equal(h.dialog.open,true); assert.equal(c.destroyed,undefined); assert.equal(h.el.save.disabled,false);
+  h.el.save.click(); h.blobs[1].cb({type:'image/webp',size:1}); await tick(); assert.equal(calls,1); assert.match(h.el.note.textContent,/保存失败/); assert.equal(h.dialog.open,true); assert.equal(c.destroyed,undefined); assert.equal(h.el.save.disabled,false);
   h.el.cancel.click(); assert.equal(await p,null);
 });
 
@@ -120,13 +121,40 @@ test('cancelling the file picker keeps the current crop open; Escape closes the 
   assert.equal(h.dialog.open, false);
 });
 
-test('PNG export uses the exact bitmap displayed in both previews', async () => {
+test('WebP export uses the exact bitmap displayed in both previews', async () => {
   const h=harness(); let received; const p=h.open({file:h.input(),onSave:file=>{received=file;}}); h.ready();
   h.el.save.click();
   assert.equal(h.previews[0].children[0].src, h.previews[1].children[0].src);
-  assert.equal(h.previews[0].children[0].src, 'data:image/png;base64,c2FtcGxl');
-  h.blobs[0].cb({type:'image/png',size:42});
-  assert.equal(await p,received); assert.equal(received.type,'image/png'); assert.equal(received.name,'isa-avatar-256.png');
+  assert.equal(h.previews[0].children[0].src, 'data:image/webp;base64,c2FtcGxl');
+  // The preview is encoded with the same format and quality as the saved file.
+  assert.deepEqual(h.previewEncodings.at(-1), ['image/webp', 0.82]);
+  h.blobs[0].cb({type:'image/webp',size:42});
+  assert.equal(await p,received); assert.equal(received.type,'image/webp'); assert.equal(received.name,'isa-avatar-256.webp');
+});
+
+test('a browser that returns PNG instead of WebP encodes the avatar with libwebp', async () => {
+  const h=harness(); let received; const p=h.open({file:h.input(),onSave:file=>{received=file;}}); h.ready();
+  h.el.save.click(); h.blobs[0].cb({type:'image/png',size:42}); await tick(); await tick();
+  assert.equal(h.encoder.loads,1);
+  assert.equal(h.encoder.calls.length,1);
+  const [call]=h.encoder.calls;
+  assert.equal(call.options.noInitialRun,true);
+  assert.equal(call.w,256); assert.equal(call.h,256); assert.equal(call.length,256*256*4);
+  assert.equal(call.opts.quality,82); assert.equal(call.opts.lossless,0);
+  assert.equal(await p,received); assert.equal(received.type,'image/webp'); assert.equal(received.name,'isa-avatar-256.webp');
+  assert.equal(received.parts[0].type,'image/webp');
+});
+
+test('a failed encoder download keeps the crop and is retried on the next save', async () => {
+  const h=harness(); let calls=0; h.open({file:h.input(),onSave:()=>{calls++;}}); const c=h.ready();
+  h.encoder.fail=true;
+  h.el.save.click(); h.blobs[0].cb({type:'image/png',size:42}); await tick(); await tick();
+  assert.equal(calls,0);
+  assert.match(h.el.note.textContent,/头像压缩组件加载失败/);
+  assert.equal(h.dialog.open,true); assert.equal(c.disabled,false); assert.equal(h.el.save.disabled,false);
+  h.encoder.fail=false;
+  h.el.save.click(); h.blobs[1].cb({type:'image/png',size:42}); await tick(); await tick();
+  assert.equal(h.encoder.loads,2); assert.equal(calls,1);
 });
 
 test('cancel completes and releases the image even when Cropper cleanup fails', async () => {
@@ -143,7 +171,7 @@ test('cancel completes and releases the image even when Cropper cleanup fails', 
 test('retrying a failed persistence call reuses the exact encoded File', async () => {
   const h = harness(); let attempts = 0; const files = [];
   const pending = h.open({ file: h.input(), onSave: file => { files.push(file); if (++attempts === 1) throw Error('profile unavailable'); } });
-  h.ready(); h.el.save.click(); h.blobs[0].cb({ type: 'image/png', size: 42 }); await tick();
+  h.ready(); h.el.save.click(); h.blobs[0].cb({ type: 'image/webp', size: 42 }); await tick();
   h.el.save.click(); const saved = await pending;
   assert.equal(h.blobs.length, 1); assert.equal(files.length, 2); assert.equal(files[0], files[1]); assert.equal(saved, files[0]);
 });

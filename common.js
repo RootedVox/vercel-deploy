@@ -1,6 +1,8 @@
 // Copyright (c) 2026 RootedVox · MIT License
 (function(){
-  const include=async(selector,path)=>{const target=document.querySelector(selector);if(!target)return;const response=await fetch(path);if(!response.ok)throw new Error(`${path} 加载失败`);target.innerHTML=await response.text()};
+  // scripts/sync-layout.mjs writes the header and footer into each page; a page that
+  // was not synced still gets them by request.
+  const include=async(selector,path)=>{const target=document.querySelector(selector);if(!target||target.childElementCount)return;const response=await fetch(path);if(!response.ok)throw new Error(`${path} 加载失败`);target.innerHTML=await response.text()};
   const normalizePage=value=>{const page=(value||'').split('/').pop().replace(/\.html$/,'');return !page||page==='index'?'main':page};
   const initHeader=()=>{
     const header=document.getElementById('siteHeader'),button=document.getElementById('menuBtn'),list=document.getElementById('navList');if(!header||!button||!list)return;

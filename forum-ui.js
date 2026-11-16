@@ -34,7 +34,7 @@
   function getFreshAvatar(src) {
       if (!src) return '';
       // Content-addressed avatars are immutable; legacy paths refresh once per visit.
-      if (/\.[a-f0-9]{64}\.png(?:[?#]|$)/.test(src)) return src;
+      if (/\.[a-f0-9]{64}\.webp(?:[?#]|$)/.test(src)) return src;
       return src + (src.includes('?') ? '&' : '?') + 't=' + avatarCacheVersion;
   }
 
@@ -167,5 +167,50 @@
       }
       return selected.map(file => uploads.get(file).url);
   }
-  window.ForumUI = { parseMessageContent, escapeHtml, renderMessageAvatars, getFreshAvatar, uploadFiles };
+  // Thumbnails open in an in-page viewer instead of a new tab. The listeners are
+  // delegated because feeds and threads add images after the page has loaded.
+  let viewer;
+  function openImage(image) {
+      const source = image.currentSrc || image.src;
+      if (!viewer) {
+          viewer = document.createElement('dialog');
+          viewer.className = 'image-viewer';
+          const close = document.createElement('button');
+          close.type = 'button';
+          close.textContent = '×';
+          close.setAttribute('aria-label', '关闭图片');
+          viewer.append(close, document.createElement('img'));
+          viewer.addEventListener('click', () => viewer.close());
+          document.body.append(viewer);
+      }
+      if (typeof viewer.showModal !== 'function') return window.open(source, '_blank', 'noopener');
+      const full = viewer.querySelector('img');
+      full.src = source;
+      full.alt = image.alt;
+      viewer.showModal();
+  }
+  if (typeof document !== 'undefined' && document.addEventListener) {
+      document.addEventListener('click', event => {
+          const image = event.target.closest?.('img.message-image');
+          if (image) openImage(image);
+      });
+      document.addEventListener('keydown', event => {
+          if (event.key === 'Enter' && event.target.matches?.('img.message-image')) openImage(event.target);
+      });
+  }
+  // Short messages shown in the page. Unlike alert() they do not block the page, and a
+  // live region announces them to screen readers.
+  let toast, toastTimer;
+  function notify(message, type = '') {
+      if (!toast) {
+          toast = document.createElement('div');
+          document.body.append(toast);
+      }
+      toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+      toast.className = `forum-toast show ${type}`.trim();
+      toast.textContent = message;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { toast.className = `forum-toast ${type}`.trim(); }, 5000);
+  }
+  window.ForumUI = { parseMessageContent, escapeHtml, renderMessageAvatars, getFreshAvatar, uploadFiles, notify };
 })();
