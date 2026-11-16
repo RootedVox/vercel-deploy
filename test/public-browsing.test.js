@@ -144,3 +144,16 @@ test('upload failure reports an error and releases the comment submit button', a
   assert.equal(h.input.value, '保留的评论');
   assert.match(h.alerts[0], /发布失败/);
 });
+
+test('a reply link identifies the thread and reply without inheriting list or composer state', async () => {
+  let copied;
+  const page = runPageScript('details.js', {
+    location: { search: '?id=4&compose=7&replyId=7' },
+    navigator: { clipboard: { async writeText(url) { copied = url; } } },
+    ForumUI: { escapeHtml: String, notify() {} }
+  }, { replace: { mainMsgId: '4' }, expose: ['renderComment', 'copyReplyLink'] });
+  const html = page.renderComment({ id: '7', reply_to: '4', username: 'A', content: 'B' });
+  const href = html.match(/class="copy-reply"[^>]*href="([^"]+)"/)[1].replaceAll('&amp;', '&');
+  await page.copyReplyLink(new URL(href, 'https://forum.example/details?id=4&compose=7#feed-x'));
+  assert.equal(copied, 'https://forum.example/details?id=4&replyId=7');
+});

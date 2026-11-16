@@ -20,6 +20,35 @@
         let feedCursor = null;
         const PAGE_AUTO_LOADS = 2;
         let pageAutoLoads = 0;
+        let restorePosition = null;
+
+        function rememberFeed(event) {
+            const link = event.target.closest('a.detail-btn');
+            if (!link || event.defaultPrevented) return;
+            const url = new URL(link.href);
+            const id = url.searchParams.get('id');
+            if (!id) return;
+            try {
+                const token = crypto.randomUUID();
+                const position = { id, pages: currentPage, search: location.search, token };
+                sessionStorage.setItem('rootedvox.feed.return', JSON.stringify(position));
+                window.history.replaceState({ ...window.history.state, forumPosition: position }, '', '#feed-' + token);
+                url.hash = 'feed-' + token;
+                link.href = url.href;
+            } catch { /* The ordinary detail link still works with storage disabled. */ }
+        }
+
+        function initialFeedPosition() {
+            let position = window.history?.state?.forumPosition;
+            if (location.hash?.startsWith('#feed-')) {
+                try {
+                    const saved = JSON.parse(sessionStorage.getItem('rootedvox.feed.return'));
+                    if (saved && location.hash === '#feed-' + saved.token) position = saved;
+                } catch { /* The normal first page remains available. */ }
+            }
+            return position?.search === location.search && Number.isSafeInteger(position.pages) &&
+                position.pages > 0 ? position : null;
+        }
         let currentUser = null;
         let currentUserEmail = '';
         let currentUserRealName = '';
@@ -374,45 +403,55 @@
             select.value = wasAnonymous ? '匿名用户' : currentUserRealName;
         }
 
-        let previewObjectUrls = [];
+        const postImages = [];
         function clearImagePreviews() {
             document.getElementById('previewContainer').replaceChildren();
-            previewObjectUrls.forEach(url => URL.revokeObjectURL(url));
-            previewObjectUrls = [];
+            for (const image of postImages) {
+                if (image.file) URL.revokeObjectURL(image.preview);
+            }
+            postImages.length = 0;
+        }
+
+        function addImagePreview(image) {
+            postImages.push(image);
+            const item = document.createElement('span');
+            item.className = 'post-image-preview';
+            const img = document.createElement('img');
+            img.src = image.preview;
+            img.alt = image.file?.name || '已上传的图片';
+            img.className = 'file-preview';
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.textContent = '移除';
+            remove.setAttribute('aria-label', '移除图片 ' + img.alt);
+            remove.onclick = () => {
+                postImages.splice(postImages.indexOf(image), 1);
+                if (image.file) URL.revokeObjectURL(image.preview);
+                item.remove();
+                saveImageDraft();
+            };
+            item.append(img, remove);
+            document.getElementById('previewContainer').append(item);
+        }
+
+        function saveImageDraft() {
+            ForumDrafts.save('post', { attachments: postImages.map(image => image.url).filter(Boolean) });
+            savePostDraft();
         }
 
         function previewImages(input) {
-            clearImagePreviews();
-            const files = Array.from(input.files);
-            // Validate the whole selection before allocating preview resources.
-            if (files.length > MAX_IMAGES) {
-                showFormStatus(`最多只能上传 ${MAX_IMAGES} 张图片。`, 'error');
-                input.value = '';
-                return;
+            const selected = Array.from(input.files);
+            input.value = '';
+            if (!selected.length) return;
+            const errors = [];
+            for (const file of selected) {
+                if (!file.type.startsWith('image/')) errors.push(file.name + '：仅支持图片文件');
+                else if (file.size > MAX_SIZE) errors.push(file.name + '：超过 5MB');
+                else if (postImages.length >= MAX_IMAGES) errors.push(file.name + '：最多选择 5 张');
+                else addImagePreview({ file, preview: URL.createObjectURL(file) });
             }
-            for (const file of files) {
-                if (!file.type.startsWith('image/')) {
-                    showFormStatus('仅支持图片文件。', 'error');
-                    input.value = '';
-                    return;
-                }
-                if (file.size > MAX_SIZE) {
-                    showFormStatus(`“${file.name}”超过 5MB，请压缩后重试。`, 'error');
-                    input.value = '';
-                    return;
-                }
-            }
-            const fragment = document.createDocumentFragment();
-            for (const file of files) {
-                const url = URL.createObjectURL(file);
-                previewObjectUrls.push(url);
-                const img = document.createElement('img');
-                img.src = url;
-                img.alt = file.name;
-                img.className = 'file-preview';
-                fragment.appendChild(img);
-            }
-            document.getElementById('previewContainer').appendChild(fragment);
+            saveImageDraft();
+            showFormStatus(errors.join('；'), errors.length ? 'error' : '');
         }
 
         async function uploadImages(files) {
@@ -453,11 +492,7 @@
                 document.getElementById('contentCount').textContent = text.value.length + ' / 1000';
                 showFormStatus(draft.attachments?.length ? '已恢复草稿和已上传的图片。' : '已恢复文字草稿。');
                 for (const src of draft.attachments || []) {
-                    const img = document.createElement('img');
-                    img.className = 'file-preview';
-                    img.src = src;
-                    img.alt = '已上传的图片';
-                    document.getElementById('previewContainer').append(img);
+                    addImagePreview({ url: src, preview: src });
                 }
                 discard.hidden = false;
                 setComposeOpen(true);
@@ -465,10 +500,6 @@
             text.addEventListener('input', savePostDraft);
             zone.addEventListener('change', savePostDraft);
             nickname.addEventListener('change', savePostDraft);
-            document.getElementById('messagePicFile').addEventListener('change', () => {
-                ForumDrafts.save('post', { text: text.value, attachments: [] });
-                savePostDraft();
-            });
             discard.onclick = () => {
                 ForumDrafts.clear('post');
                 text.value = '';
@@ -484,7 +515,7 @@
             const anonymous = document.getElementById('nicknameSelect').value === '匿名用户';
             const content = document.getElementById('messageContent').value.trim();
             const zone = document.getElementById('zoneSelect').value;
-            const files = document.getElementById('messagePicFile').files;
+            const selection = postImages.slice();
             const submitBtn = document.getElementById('submitBtn');
             if (!content) {
                 showFormStatus('请先写下留言内容。', 'error');
@@ -497,7 +528,10 @@
             try {
                 savePostDraft();
                 const original = ForumDrafts.get('post');
-                const picUrls = files.length ? await uploadImages(Array.from(files)) : original?.attachments || [];
+                const pending = selection.filter(image => image.file);
+                const uploaded = await uploadImages(pending.map(image => image.file));
+                pending.forEach((image, index) => { image.url = uploaded[index]; });
+                const picUrls = selection.map(image => image.url);
                 const payload = { content, zone, anonymous, imageUrls: picUrls };
                 const submitted = ForumDrafts.prepare('post', original, payload);
                 showFormStatus('正在上传并提交…');
@@ -637,6 +671,21 @@
                 }
 
                 renderMessageAvatars(data.map(msg => document.getElementById(`message-${msg.id}`)).filter(Boolean));
+                if (restorePosition) {
+                    const card = document.getElementById('message-' + restorePosition.id);
+                    if (card) {
+                        restorePosition = null;
+                        card.scrollIntoView({ block: 'center' });
+                        card.querySelector('.detail-btn')?.focus({ preventScroll: true });
+                    } else if (hasMore && currentPage <= restorePosition.pages) {
+                        requestAnimationFrame(() => {
+                            if (!signal.aborted && restorePosition) loadMainMessages(true);
+                        });
+                        return;
+                    } else {
+                        restorePosition = null;
+                    }
+                }
                 // A tall form can leave the first page shorter than the feed viewport.
                 requestAnimationFrame(() => {
                     if (!signal.aborted && hasMore && feedHasRoom()) loadMainMessages(true);
@@ -722,7 +771,9 @@
                     if (value) url.searchParams.set(key, value);
                     else url.searchParams.delete(key);
                 }
-                history.replaceState(history.state, '', url);
+                restorePosition = null;
+                url.hash = '';
+                history.replaceState({ ...history.state, forumPosition: null }, '', url);
                 loadMainMessages(false);
             }
             search.addEventListener('input', event => {
@@ -734,8 +785,11 @@
             sort.addEventListener('change', applyFilters);
 
             // Public browsing must not wait for session or profile requests.
+            restorePosition = initialFeedPosition();
             loadMainMessages(false);
             const messageFeed = document.getElementById('messageFeed');
+            messageFeed.addEventListener('click', rememberFeed);
+            messageFeed.addEventListener('auxclick', rememberFeed);
             messageFeed.addEventListener('scroll', () => {
                 if (isLoadingMore || !hasMore || document.querySelector('.feed-retry')) return;
                 clearTimeout(scrollTimeout);
@@ -876,7 +930,8 @@
             }
         });
 
-        window.addEventListener('beforeunload', () => {
+        window.addEventListener('pagehide', event => {
+            if (event.persisted) return;
             clearImagePreviews();
             if (abortController) abortController.abort();
             if (scrollTimeout) clearTimeout(scrollTimeout);

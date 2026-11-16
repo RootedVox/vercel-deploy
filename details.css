@@ -293,3 +293,6 @@
                 height: 60px;
             }
         }
+
+.copy-reply { display: inline-block; margin-inline-start: 8px; padding: 6px; color: var(--muted); font-size: .875rem; }
+.reply-link-field { display: block; box-sizing: border-box; width: 100%; margin-top: 6px; }

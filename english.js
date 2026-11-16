@@ -61,6 +61,8 @@ window.rvEnglish = new Map(Object.entries({
   '重试': 'Retry', '评论暂时无法加载，请重试。': 'Comments couldn’t be loaded. Please try again.',
   '留言不存在或暂不可用': 'This post is unavailable.', '暂无可显示的评论': 'No comments to display.',
   '💬 评论': '💬 Comment', '这条回复已不可见或不属于当前主帖。': 'This reply is unavailable in this thread.',
+  '复制回复链接': 'Copy reply link', '已复制回复链接': 'Reply link copied', '移除': 'Remove',
+  '回复链接': 'Reply link', '已选中回复链接，可手动复制': 'Reply link selected. You can copy it manually.',
   '暂无评论': 'No comments yet', '💬 回复': '💬 Reply', '🖼️ 点击选择图片（可选）': '🖼️ Choose images (optional)',
   '匿名发布': 'Post anonymously', '发布评论': 'Post comment', '发布回复': 'Post reply', '写下你的评论...': 'Write a comment…',
   '关于平台与开发团队｜RootedVox 根源之声': 'About | RootedVox', '当前版本': 'Current version', '当前版本：': 'Current version',

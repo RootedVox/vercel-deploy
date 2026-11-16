@@ -5,33 +5,34 @@ import { readFileSync } from 'node:fs';
 
 import { runPageScript } from './page-script.js';
 
-test('new picture selections keep order and release old previews without allocating invalid selections', () => {
-  const allocated = [], revoked = [], images = [];
-  const container = {
-    replaceChildren() { images.length = 0; },
-    appendChild(fragment) { images.push(...fragment.items); }
-  };
+test('post pictures append in order, reject individual files and release only removed previews', () => {
+  const revoked = [], errors = [];
+  function node() {
+    return { children: [], setAttribute() {}, append(...items) { this.children.push(...items); },
+      replaceChildren() { this.children = []; }, remove() { container.children.splice(container.children.indexOf(this), 1); } };
+  }
+  const container = node();
   const page = runPageScript('messages.js', {
-    URL: { createObjectURL(file) { allocated.push(file); return 'blob:' + allocated.length; }, revokeObjectURL(url) { revoked.push(url); } },
-    document: {
-      getElementById() { return container; }, createElement() { return {}; },
-      createDocumentFragment() { return { items: [], appendChild(img) { this.items.push(img); } }; }
-    }
-  }, { replace: { showFormStatus() {} }, expose: ['previewImages', 'clearImagePreviews'] });
-  const context = { preview: page.previewImages, clear: page.clearImagePreviews };
+    URL: { createObjectURL: file => 'blob:' + file.name, revokeObjectURL: url => revoked.push(url) },
+    document: { getElementById: () => container, createElement: node }
+  }, { replace: { showFormStatus: message => errors.push(message), saveImageDraft() {} },
+    expose: ['previewImages', 'addImagePreview', 'clearImagePreviews'] });
   const image = name => ({ name, type: 'image/png', size: 1024 });
-  context.preview({ files: [image('first.png'), image('second.png')] });
-  assert.deepEqual(images.map(img => img.alt), ['first.png', 'second.png']);
-  context.preview({ files: [image('replacement.png')] });
-  assert.deepEqual(revoked, ['blob:1', 'blob:2']);
-  assert.equal(images.length, 1);
-  const invalid = { files: [image('good.png'), { name: 'large.png', type: 'image/png', size: 6 * 1024 * 1024 }], value: 'selection' };
-  context.preview(invalid);
-  assert.equal(invalid.value, '');
-  assert.equal(allocated.length, 3, 'a rejected selection must allocate no previews');
-  assert.deepEqual(revoked, ['blob:1', 'blob:2', 'blob:3']);
-  context.clear();
-  assert.equal(revoked.length, 3, 'cleanup is idempotent');
+  const labels = () => container.children.map(item => item.children[0].alt);
+  page.addImagePreview({ url: 'stored', preview: 'stored' });
+  page.previewImages({ files: [image('A'), image('B')] });
+  const picker = { files: [image('C'), { ...image('large'), size: 6000000 }, image('D'), image('excess')] };
+  page.previewImages(picker);
+  assert.equal(picker.value, '');
+  assert.deepEqual(labels(), ['已上传的图片', 'A', 'B', 'C', 'D']);
+  assert.match(errors.at(-1), /large.*excess/);
+  container.children[2].children[1].onclick();
+  assert.deepEqual(revoked, ['blob:B']);
+  page.previewImages({ files: [image('E')] });
+  assert.deepEqual(labels(), ['已上传的图片', 'A', 'C', 'D', 'E']);
+  page.clearImagePreviews();
+  page.clearImagePreviews();
+  assert.deepEqual(revoked, ['blob:B', 'blob:A', 'blob:C', 'blob:D', 'blob:E']);
 });
 
 test('loading more messages preserves existing avatar elements and updates changed avatars', async () => {

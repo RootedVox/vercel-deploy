@@ -102,3 +102,35 @@ test('a replaced request cannot auto-load another page from its old frame', asyn
   h.calls[1].resolve({ messages: [item], hasMore: false });
   await current;
 });
+
+test('returning to a post loads its saved pages and focuses the original card', async () => {
+  const pages = [], frames = [];
+  let focused = false, scrolled = false;
+  const card = {
+    scrollIntoView() { scrolled = true; },
+    querySelector() { return { focus() { focused = true; } }; }
+  };
+  const container = { innerHTML: '', insertAdjacentHTML(_where, html) { this.innerHTML += html; } };
+  const feed = { clientHeight: 100, scrollHeight: 800 };
+  const api = { async listMessages(options) {
+    pages.push(options.page);
+    return { messages: [{ ...item, id: String(options.page + 1) }], hasMore: true, nextCursor: 'more' };
+  } };
+  const page = runPageScript('messages.js', {
+    AbortController, RootedVoxPublicData: api, window: { RootedVoxPublicData: api },
+    requestAnimationFrame: fn => frames.push(fn),
+    ForumUI: { parseMessageContent: () => ({ zone: '', text: '' }), escapeHtml: String, renderMessageAvatars() {} },
+    document: { querySelector() { return null; }, getElementById(id) {
+      if (id === 'messageContainer') return container;
+      if (id === 'messageFeed') return feed;
+      if (id === 'message-2' && container.innerHTML.includes('id="message-2"')) return card;
+      return null;
+    } }
+  }, { replace: { restorePosition: { id: '2', pages: 2 } }, expose: ['loadMainMessages'] });
+  await page.loadMainMessages();
+  assert.equal(scrolled, false);
+  frames.shift()();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(pages, [0, 1]);
+  assert.ok(scrolled && focused);
+});
