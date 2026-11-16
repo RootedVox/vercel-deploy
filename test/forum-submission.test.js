@@ -85,6 +85,48 @@ test('lost response, concurrent submissions, edited payload, separate accounts a
   assert.equal((await post('broken')).status,400);
 });
 
+test('a reply reads the profile and its target together and reports failures in the old order', async t => {
+  const site = 'https://forum.example';
+  const keys = await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+  const jwk = await crypto.subtle.exportKey('jwk', keys.privateKey);
+  const env = { AUTH_STORE: 'supabase', AUTH_STORE_SUPABASE_SECRET_KEY: 'sb_secret_mock',
+    AUTH_ISSUER: 'https://auth.example', AUTH_CLIENT_ID: 'forum', AUTH_REDIRECT_URI: site + '/auth/callback',
+    BUSINESS_SUPABASE_URL: 'https://db.example', BUSINESS_SUPABASE_PUBLISHABLE_KEY: 'pub',
+    BUSINESS_SUPABASE_SIGNING_JWK: JSON.stringify({ ...jwk, kid: 'test' }) };
+  let profile, target, inFlight = 0, overlap = 0, inserts = 0;
+  t.mock.method(globalThis, 'fetch', async (input, init = {}) => {
+    const { pathname } = new URL(input);
+    if (pathname.endsWith('/isa_auth_store')) return Response.json({ user_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' });
+    if (pathname.endsWith('/claim_forum_review')) return Response.json(null);
+    if (pathname.endsWith('/messages') && init.method === 'POST') { inserts++; return Response.json([{ id: 'new' }]); }
+    const reply = pathname.endsWith('/approved_messages_public');
+    assert.ok(reply || pathname.endsWith('/business_users'));
+    inFlight++; overlap = Math.max(overlap, inFlight);
+    await new Promise(resolve => setTimeout(resolve, 5));
+    inFlight--;
+    const answer = reply ? target : profile;
+    return answer === 'fail' ? Response.json({ code: 'XX000' }, { status: 500 }) : Response.json(answer);
+  });
+  async function post() {
+    const response = await onRequestPost({ env, request: new Request(site + '/api/messages', {
+      method: 'POST', headers: { Origin: site, Cookie: '__Secure-rv_session=test' },
+      body: JSON.stringify({ content: 'reply', anonymous: false, replyTo: '1' })
+    }) });
+    return [response.status, (await response.json()).error];
+  }
+  [profile, target] = [[{ nickname: 'n' }], []];
+  assert.deepEqual(await post(), [404, 'reply_target_not_found']);
+  assert.equal(overlap, 2);
+  [profile, target] = ['fail', []];
+  assert.deepEqual(await post(), [503, 'profile_unavailable']);
+  [profile, target] = [[{ nickname: 'n' }], 'fail'];
+  assert.deepEqual(await post(), [503, 'message_save_failed']);
+  assert.equal(inserts, 0);
+  [profile, target] = [[{ nickname: 'n' }], [{ id: '1' }]];
+  assert.deepEqual(await post(), [201, undefined]);
+  assert.equal(inserts, 1);
+});
+
 test('an edit during upload or submission retains the newer draft', () => {
   const context = { window: {}, crypto, sessionStorage: { getItem() {}, setItem() {}, removeItem() {} } };
   vm.runInNewContext(readFileSync(new URL('../forum-drafts.js', import.meta.url), 'utf8'), context);

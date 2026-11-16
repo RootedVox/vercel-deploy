@@ -45,8 +45,12 @@ test('both deployments send a policy that only runs same-origin scripts', () => 
 });
 
 test('every browser script is syntax-checked by npm run check', () => {
-  const check = JSON.parse(read('package.json')).scripts.check;
-  for (const name of scripts) assert.ok(check.includes(`node --check ${name}`), name);
+  // scripts/check-syntax.mjs finds every .js/.mjs itself, apart from the folders it skips.
+  assert.equal(JSON.parse(read('package.json')).scripts.check, 'node scripts/check-syntax.mjs');
+  const skipped = read('scripts/check-syntax.mjs').match(/const skipped = new Set\(\[(.*)\]\)/)[1];
+  for (const name of scripts) {
+    assert.ok(!skipped.includes(`'${name.split('/')[0]}'`), name);
+  }
 });
 
 test('the forum pages load their own stylesheet and script as cacheable files', () => {

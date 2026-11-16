@@ -83,7 +83,10 @@
           location.href = safeReturnTo(result.returnTo);
         }
       } catch {
-        alert('未能确认退出结果，请检查网络后重试');
+        // Pages without forum-ui.js (checker and login pages) keep the plain dialog.
+        const message = '未能确认退出结果，请检查网络后重试';
+        if (typeof window.ForumUI?.notify === 'function') window.ForumUI.notify(message, 'error');
+        else alert(message);
       } finally {
         clearTimeout(timer);
         logoutPending = null;

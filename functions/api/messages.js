@@ -228,19 +228,25 @@ async function createMessage(request, env, waitUntil) {
     } catch { return json({ error: 'message_save_failed' }, 503, auth.headers); }
   }
 
+  // These reads do not depend on each other, so they share one round trip to the
+  // database. Their results are still checked in the original order.
+  const failed = Symbol('failed');
+  const [profile, target, queued] = await Promise.all([
+    body.anonymous === true ? null : requestBusinessData(
+      env,
+      auth.session,
+      `business_users?user_id=eq.${encodeURIComponent(auth.session.user_id)}&select=nickname,display_name&limit=1`
+    ).then(rows => rows[0] || {}, () => failed),
+    replyTo ? requestPublicData(
+      env,
+      `approved_messages_public?id=eq.${encodeURIComponent(replyTo)}&select=id&limit=1`
+    ).catch(() => failed) : null,
+    moderationQueueAvailable(env)
+  ]);
+
   let username = '匿名用户';
-  if (body.anonymous !== true) {
-    let profile;
-    try {
-      const rows = await requestBusinessData(
-        env,
-        auth.session,
-        `business_users?user_id=eq.${encodeURIComponent(auth.session.user_id)}&select=nickname,display_name&limit=1`
-      );
-      profile = rows[0] || {};
-    } catch {
-      return json({ error: 'profile_unavailable' }, 503, auth.headers);
-    }
+  if (profile) {
+    if (profile === failed) return json({ error: 'profile_unavailable' }, 503, auth.headers);
     username = cleanText(
       resolveProfileNickname(
         auth.session.user_id, profile.nickname,
@@ -250,21 +256,12 @@ async function createMessage(request, env, waitUntil) {
     );
   }
 
-  if (replyTo) {
-    let target;
-    try {
-      target = await requestPublicData(
-        env,
-        `approved_messages_public?id=eq.${encodeURIComponent(replyTo)}&select=id&limit=1`
-      );
-    } catch {
-      // Nothing was written yet, so the client can simply retry.
-      return json({ error: 'message_save_failed' }, 503, auth.headers);
-    }
+  if (target) {
+    // Nothing was written yet, so the client can simply retry.
+    if (target === failed) return json({ error: 'message_save_failed' }, 503, auth.headers);
     if (!target.length) return json({ error: 'reply_target_not_found' }, 404, auth.headers);
   }
 
-  const queued = await moderationQueueAvailable(env);
   let flag = 0;
   if (!queued) {
     // 20261113 迁移未执行时退回同步审核：只有模型明确通过才直接发布
