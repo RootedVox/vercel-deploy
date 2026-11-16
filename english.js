@@ -1,4 +1,6 @@
 window.rvEnglish = new Map(Object.entries({
+  "RootedVox 4.5.2 · 界面体验优化": "RootedVox 4.5.2 · Interface improvements",
+  "手机上帖子和回复更宽，筛选控件更紧凑。论坛新增相对时间和匿名头像，精华帖更容易辨认，联系页支持直接拨号和发邮件。": "Posts and replies have more room on phones, and filters are more compact. The forum shows relative times, clearer anonymous avatars and more visible featured posts. The contact page links directly to phone and email.",
   "RootedVox 4.5.1 · 精华额度查询优化": "RootedVox 4.5.1 · Featured quota lookup",
   "勾选投稿到精华时才查询剩余次数，普通浏览和发帖可以少一次请求。": "The forum looks up your remaining quota only when you select featured submission, saving a request when browsing or posting normally.",
   "RootedVox 4.5.0 · 精华投稿": "RootedVox 4.5.0 · Featured posts",

@@ -11,9 +11,8 @@
     node.textContent = value || '';
     return node.innerHTML;
   };
-  const relativeTime = (value) => {
+  const relativeTime = (value, locale = document.documentElement?.lang === 'en' ? 'en' : 'zh-CN') => {
     const seconds = Math.max(1, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
-    const locale = document.documentElement?.lang === 'en' ? 'en' : 'zh-CN';
     const formatter = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
     if (seconds < 60) return formatter.format(-seconds, 'second');
     const minutes = Math.floor(seconds / 60);
@@ -42,7 +41,7 @@
       // The card shows at most two posts, so a count said nothing. The badge instead
       // tells how recently the zone was active.
       const newest = Math.max(...posts.map(item => Date.parse(item.created_at)).filter(Number.isFinite));
-      const badge = locked ? '需登录' : Number.isFinite(newest) ? `${relativeTime(newest)}更新` : '暂无动态';
+      const badge = locked ? '需登录' : Number.isFinite(newest) ? `${relativeTime(newest, 'zh-CN')}更新` : '暂无动态';
       return `<article class="zone-card"><div class="zone-head"><div class="zone-title"><span class="zone-icon">${zone.icon}</span><div><h3>${zone.label}</h3><p>${zone.description}</p></div></div><span class="zone-count">${badge}</span></div><div class="zone-posts">${body}</div><a class="zone-link" href="messages.html?zone=${encodeURIComponent(zone.label)}">进入${zone.label} →</a></article>`;
     }).join('');
   }
