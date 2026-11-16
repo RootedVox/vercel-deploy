@@ -488,7 +488,14 @@
             .compose-toggle { display:block; }
             .compose-toggle:not([aria-expanded="true"]) + .compose-fields { display:none; }
             .compose-toggle[aria-expanded="true"] { margin-bottom:18px; color:var(--theme-color); background:var(--theme-soft); box-shadow:none; }
-            .feed-toolbar { grid-template-columns:1fr; }
+            /* Search on its own row, the two filters side by side below it. */
+            .feed-controls .feed-toolbar, .feed-controls .feed-toolbar:has(.forum-sort) { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+            .feed-toolbar > #messageSearch { grid-column:1 / -1; }
+            /* Avatar, name and time share the first row; the post itself then uses the
+               card's full width instead of a column indented past the avatar. */
+            .message-item { position:relative; display:block; }
+            .message-item > .message-avatar-box { position:absolute; top:16px; left:16px; }
+            .message-item > div:last-child > .message-header { min-height:44px; padding-left:56px; margin-bottom:8px; }
             .message-form-section { padding:20px; }
             .submit-btn {
                 width: 100%;
@@ -528,7 +535,6 @@
 .post-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .forum-sort { position: relative; min-width: 0; }
 .feed-toolbar:has(.forum-sort) { grid-template-columns: minmax(0, 1fr) minmax(120px, auto) minmax(140px, auto); }
-@media (max-width: 700px) { .feed-toolbar:has(.forum-sort) { grid-template-columns: 1fr; } }
 .forum-sort summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--surface); }
 .forum-sort summary::-webkit-details-marker { display: none; }
 .forum-sort summary::after { content: ""; border: solid var(--muted); border-width: 0 2px 2px 0; width: 7px; height: 7px; margin: -4px 2px 0; transform: rotate(45deg); flex: none; }
@@ -537,3 +543,21 @@
 .forum-sort-menu legend { position: absolute; clip-path: inset(50%); }
 .forum-sort-menu label { display: flex; cursor: pointer; align-items: center; gap: 6px; padding: 5px; white-space: nowrap; }
 .forum-sort-menu .forum-sort-feature { border-top: 1px solid var(--line); }
+
+/* UI polish (feat/ui-polish) ------------------------------------------------------- */
+/* Signed out, the same button reads 登录: it was drawn in the warning red of 退出登录. */
+.logout-btn.login-btn { color: var(--action-ink); border-color: var(--theme-color); background: var(--theme-color); }
+.logout-btn.login-btn:hover { border-color: var(--action-hover); background: var(--action-hover); }
+
+/* The sort menu looks like the two selects beside it: same height, corners and chevron,
+   and a long label ("最新发布 · 精华优先") is cut short instead of wrapping. */
+.forum-sort summary {
+    display: block; min-height: 44px; height: auto; padding: 10px 40px 10px 12px; border-radius: 12px;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis; line-height: 22px;
+    background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23858c87' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 15px center / 12px 8px;
+}
+.forum-sort summary::after { display: none; }
+.forum-sort[open] summary, .forum-sort summary:focus-visible { border-color: var(--theme-color); }
+
+/* Featured threads stand out in the list, not only by the stamp at the card's foot. */
+.message-item.is-featured { border-color: color-mix(in srgb, var(--theme-color) 45%, var(--line)); background: color-mix(in srgb, var(--theme-color) 5%, var(--surface)); }

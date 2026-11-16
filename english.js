@@ -4,6 +4,7 @@ window.rvEnglish = new Map(Object.entries({
   "RootedVox 4.5.0 · 精华投稿": "RootedVox 4.5.0 · Featured posts",
   "主楼可以投稿到精华，审核通过后会显示精华戳印。论坛排序菜单可开启精华优先。": "Submit a new thread for featured review. Approved threads receive a stamp, and you can choose to show featured posts first.",
   "投稿到精华": "Submit for featuring",
+  "写邮件给我们": "Email us",
   "精华优先": "Featured first",
   "精华": "Featured",
   "最新发布 · 精华优先": "Newest · Featured first",

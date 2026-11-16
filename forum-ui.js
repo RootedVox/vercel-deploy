@@ -56,7 +56,8 @@
           box.style.removeProperty("gap");
 
           if (username === "匿名用户") {
-              box.innerHTML = `<div style="width:38px;height:38px;border-radius:50%;background:#000;"></div>`;
+              // A neutral silhouette: the old solid black disc vanished on the dark theme.
+              box.innerHTML = `<div class="anonymous-avatar" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="12" cy="8.5" r="4"/><path d="M4 20.5c.6-4.2 3.9-6.5 8-6.5s7.4 2.3 8 6.5z"/></svg></div>`;
               return;
           }
 
@@ -215,5 +216,27 @@
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => { toast.className = `forum-toast ${type}`.trim(); }, 5000);
   }
-  window.ForumUI = { parseMessageContent, escapeHtml, renderMessageAvatars, getFreshAvatar, uploadFiles, notify };
+  // Post times read like the homepage ("5 分钟前") for the first week, then as a date.
+  // The exact time stays available as the element's tooltip and datetime.
+  function formatPostTime(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return { text: '', title: '', iso: '' };
+      const locale = document.documentElement?.lang === 'en' ? 'en' : 'zh-CN';
+      const title = date.toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' });
+      const seconds = Math.max(1, Math.floor((Date.now() - date.getTime()) / 1000));
+      const relative = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+      let text;
+      if (seconds < 60) text = locale === 'en' ? 'just now' : '刚刚';
+      else if (seconds < 3600) text = relative.format(-Math.floor(seconds / 60), 'minute');
+      else if (seconds < 86400) text = relative.format(-Math.floor(seconds / 3600), 'hour');
+      else if (seconds < 7 * 86400) text = relative.format(-Math.floor(seconds / 86400), 'day');
+      else text = date.toLocaleDateString(locale, date.getFullYear() === new Date().getFullYear()
+          ? { month: 'short', day: 'numeric' } : { year: 'numeric', month: 'short', day: 'numeric' });
+      return { text, title, iso: date.toISOString() };
+  }
+  function postTimeHtml(value) {
+      const time = formatPostTime(value);
+      return `<time class="message-time" datetime="${escapeHtml(time.iso)}" title="${escapeHtml(time.title)}">${escapeHtml(time.text)}</time>`;
+  }
+  window.ForumUI = { parseMessageContent, escapeHtml, renderMessageAvatars, getFreshAvatar, uploadFiles, notify, formatPostTime, postTimeHtml };
 })();

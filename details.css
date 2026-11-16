@@ -296,3 +296,21 @@
 
 .copy-reply { display: inline-block; margin-inline-start: 8px; padding: 6px; color: var(--muted); font-size: .875rem; }
 .reply-link-field { display: block; box-sizing: border-box; width: 100%; margin-top: 6px; }
+
+/* UI polish (feat/ui-polish): the heading matches the other pages (left, ink colour),
+   and the comment and reply actions look like buttons rather than stray text. */
+.detail-heading { margin: 4px 0 20px; color: var(--ink); text-align: left; font-size: clamp(28px, 5vw, 40px); line-height: 1.15; letter-spacing: -.03em; }
+.detail-heading::after { display: none; }
+.main-message-card, .comment-section { border: 1px solid var(--line); border-radius: 20px; }
+.reply-btn, .comment-btn { margin-top: 6px; padding: 6px 12px; border-radius: 10px; background: var(--theme-soft); font-weight: 700; }
+.reply-btn:hover, .comment-btn:hover { background: color-mix(in srgb, var(--theme-color) 16%, var(--surface)); }
+.copy-reply { vertical-align: middle; }
+
+@media (max-width: 768px) {
+    .main-message-card, .comment-section { padding: 14px; }
+    .section-title { margin-top: 4px; }
+    .message-item { position: relative; display: block; padding: 14px; }
+    .message-item > .message-avatar-box { position: absolute; top: 14px; left: 14px; }
+    .message-item > div:last-child > .message-header { min-height: 44px; padding-left: 56px; margin-bottom: 8px; }
+    .message-item.level-2 { margin-left: 12px; }
+}
