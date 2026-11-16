@@ -508,3 +508,18 @@
     position: absolute; bottom: 4px; right: 4px; padding: 4px 8px;
     border: 0; border-radius: 6px; background: #202724; color: white; cursor: pointer;
 }
+
+/* The whole post card opens its thread (messages.js openCard). */
+.message-item { cursor: pointer; }
+.comment-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; padding: 4px 0; border-radius: 6px; background: none; color: var(--muted); font-size: 13px; font-weight: 600; }
+.comment-link:hover, .message-item:hover .comment-link { background: none; color: var(--theme-color); }
+.comment-link:focus-visible { outline: 2px solid var(--theme-color); outline-offset: 3px; }
+
+/* One drawn chevron with room to breathe, instead of each browser's own arrow pressed
+   against the edge. Mid grey reads on both the light and the dark theme. */
+.feed-toolbar select, select.form-control {
+    -webkit-appearance: none; appearance: none; padding-right: 40px; cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23858c87' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 15px center; background-size: 12px 8px;
+}
+

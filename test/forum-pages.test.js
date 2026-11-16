@@ -109,7 +109,8 @@ test('posts link to their thread and thumbnails are keyboard-reachable viewer ta
   const first = h.load();
   h.calls[0].resolve({ messages: [post], hasMore: false });
   await first;
-  assert.match(h.container.innerHTML, /<a class="detail-btn" href="details\.html\?id=1">/);
+  assert.match(h.container.innerHTML, /<a class="detail-btn comment-link" href="details\.html\?id=1"><span aria-hidden="true">💬<\/span> 查看评论<\/a>/);
+  assert.doesNotMatch(h.container.innerHTML, /查看详情/);
   assert.match(h.container.innerHTML, /<img src="https:\/\/db\.example\/a\.webp" class="message-image" alt="测试 发布的图片" loading="lazy" decoding="async" tabindex="0">/);
   assert.match(h.container.innerHTML, /2026\/1\/1 \d{2}:\d{2}</);
 });
@@ -288,4 +289,37 @@ test('every script and stylesheet URL carries the hash of the current file', () 
     }
   }
   assert.ok(checked > 100, `only ${checked} references found`);
+});
+
+test('the comment link shows the reply count when the server sends one', async () => {
+  for (const [count, label] of [[3, '3 条评论'], [0, '发表评论'], [undefined, '查看评论']]) {
+    const h = feed('auto');
+    const first = h.load();
+    h.calls[0].resolve({ messages: [{ ...post, reply_count: count }], hasMore: false });
+    await first;
+    assert.match(h.container.innerHTML, new RegExp(`<span aria-hidden="true">💬</span> ${label}</a>`), String(count));
+  }
+});
+
+test('a click anywhere on a post card opens it, except on links, images and selected text', () => {
+  const { openCard } = runPageScript('messages.js', {
+    document: { createElement: () => ({}), querySelector: () => null, getElementById: () => null },
+    window: { RootedVoxPublicData: {}, getSelection: () => selection },
+    ForumUI: {}
+  }, { expose: ['openCard'] });
+  let selection = '', opened = 0;
+  const link = { click: () => { opened++; } };
+  const card = { querySelector: selector => selector === 'a.detail-btn' ? link : null };
+  const target = interactive => ({ closest: selector => selector === '.message-item' ? card : interactive });
+  const click = (interactive = null, extra = {}) => openCard({ button: 0, target: target(interactive), ...extra });
+  click();
+  assert.equal(opened, 1);
+  click({ tagName: 'IMG' });
+  click({ tagName: 'A' });
+  click(null, { metaKey: true });
+  click(null, { button: 1 });
+  click(null, { defaultPrevented: true });
+  selection = '复制这段文字';
+  click();
+  assert.equal(opened, 1);
 });
