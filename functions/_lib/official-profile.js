@@ -23,8 +23,7 @@ const RESERVED_NICKNAMES = new Map([
   ['bychhh', '7376359f-3f5f-5b7d-b005-48777fb32b42'],
   ['yzxzyz', 'ce424600-49b0-5fe9-a000-30ece8db38cc'],
   ['sam.li', 'e1b791d0-5815-5c02-97f2-4d331351d715'],
-  // Owner not confirmed yet, so nobody may use it.
-  ['曹颢喆 jerry', null]
+  ['曹颢喆 jerry', '1d850588-d352-52f8-99bd-b0d8ae8b9343']
 ]);
 export const DEFAULT_NICKNAME = '校园用户';
 

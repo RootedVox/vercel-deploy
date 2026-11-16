@@ -35,11 +35,12 @@ test('a developer name belongs to its owner and to nobody else', () => {
   assert.equal(isReservedNickname('Jer⁠ry', OTHER), true);
   assert.equal(isReservedNickname('yzxzyz', YZ), false);
   assert.equal(isReservedNickname('yzxzyz', OTHER), true);
-  // Names without a confirmed owner stay closed to everyone.
-  for (const id of [JERRY, OTHER, null]) {
-    assert.equal(isReservedNickname('匿名用户', id), true);
-    assert.equal(isReservedNickname('曹颢喆 Jerry', id), true);
-  }
+  // Jerry also owns his full name; "匿名用户" stays closed to everyone.
+  assert.equal(isReservedNickname('曹颢喆 Jerry', JERRY), false);
+  assert.equal(isReservedNickname('曹颢喆  jerry', JERRY), false);
+  assert.equal(isReservedNickname('曹颢喆 Jerry', SAM), true);
+  assert.equal(isReservedNickname('曹颢喆 Jerry', OTHER), true);
+  for (const id of [JERRY, OTHER, null]) assert.equal(isReservedNickname('匿名用户', id), true);
   assert.equal(isReservedNickname('小明', OTHER), false);
 });
 
@@ -47,6 +48,7 @@ test('the owner can save their own name as a nickname; others still cannot', asy
   t.mock.method(globalThis, 'fetch', async (input, init) => Response.json([JSON.parse(init.body)]));
   for (const [user, nickname, status] of [
     [JERRY, 'Jerry', 200], [SAM, 'Sam.Li', 200], [YZ, 'yzxzyz', 200],
+    [JERRY, '曹颢喆 Jerry', 200], [OTHER, '曹颢喆 Jerry', 400],
     [SAM, 'Jerry', 400], [OTHER, 'Jerry', 400], [OTHER, 'yzxzyz', 400], [JERRY, '匿名用户', 400]
   ]) {
     const response = await saveProfile({ request: write('/api/profile', 'PUT', { nickname }), env: await environment({ user_id: user }) });
@@ -77,7 +79,7 @@ test('a developer whose name comes from Keycloak keeps it; anyone else with that
 test('every name with an owner also gets the Dev badge in the forum UI', () => {
   const source = readFileSync(new URL('../functions/_lib/official-profile.js', import.meta.url), 'utf8');
   const owned = [...source.matchAll(/\['([^']+)', '[0-9a-f-]{36}'\]/g)].map(match => match[1]);
-  assert.deepEqual(owned.sort(), ['bychhh', 'jerry', 'maod1e', 'sam.li', 'yzxzyz']);
+  assert.deepEqual(owned.sort(), ['bychhh', 'jerry', 'maod1e', 'sam.li', 'yzxzyz', '曹颢喆 jerry']);
   const badge = readFileSync(new URL('../forum-ui.js', import.meta.url), 'utf8').match(/DEVELOPER_NICKNAMES = \[([\s\S]*?)\]/)[1];
   const names = [...badge.matchAll(/"([^"]+)"/g)].map(match => match[1].toLowerCase());
   for (const name of owned) assert.ok(names.includes(name), name);
