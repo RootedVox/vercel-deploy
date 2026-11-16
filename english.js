@@ -1,4 +1,6 @@
 window.rvEnglish = new Map(Object.entries({
+  "RootedVox 4.4.5 · 论坛加载与图片上传优化": "RootedVox 4.4.5 · Forum loading and photo uploads",
+  "减少登录后加载论坛所需的请求，让浏览器复用未变化的脚本。部分 iPhone 浏览器会使用 JPEG 上传照片，避免转换后体积变大。": "The signed-in forum loads with fewer requests, and browsers can reuse unchanged scripts. Some iPhone browsers upload photos as JPEG to keep conversion from increasing file size.",
   "RootedVox 4.4.4 · 论坛体验优化": "RootedVox 4.4.4 · Forum usability improvements",
   "从帖子返回论坛时会恢复筛选条件和浏览位置。发帖可以分次添加图片并单独移除，也可以复制单条回复的链接。": "Return from a thread to your previous filters and position in the forum. Add images in batches, remove them individually, and copy links to specific replies.",
   "RootedVox 4.4.3 · 开发者昵称修复": "RootedVox 4.4.3 · Developer nickname fix",
