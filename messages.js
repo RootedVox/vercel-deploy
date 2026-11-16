@@ -23,6 +23,7 @@
         let currentUser = null;
         let currentUserEmail = '';
         let currentUserRealName = '';
+        let sessionDisplayName = '';
         let userId = '';
 
         async function refreshNotificationDot() {
@@ -139,6 +140,24 @@
             }
         }
 
+        // The session carries the name from sign-in, which a later nickname change does not
+        // update, and /api/profile, which has the current nickname, answers a moment later.
+        // Showing the session name first made the old nickname flash. The last nickname this
+        // browser saw for the account is shown instead (a placeholder the first time), and
+        // the session name is used only when the profile cannot be loaded. No extra request.
+        const nicknameKey = () => 'rv-nickname:' + userId;
+        function rememberNickname(name) {
+            try { if (userId && name) localStorage.setItem(nicknameKey(), name); } catch {}
+        }
+        function rememberedNickname() {
+            try { return localStorage.getItem(nicknameKey()) || ''; } catch { return ''; }
+        }
+        function useSessionNickname() {
+            if (currentUserRealName) return;
+            currentUserRealName = sessionDisplayName;
+            initNicknameSelect();
+        }
+
         async function initUserExtra() {
             const response = await request('/api/profile', { credentials: 'include', cache: 'no-store' });
             const data = response.ok ? await response.json() : {};
@@ -146,7 +165,10 @@
 
             if (data.nickname) {
                 currentUserRealName = data.nickname;
+                rememberNickname(data.nickname);
                 initNicknameSelect();
+            } else {
+                useSessionNickname();
             }
 
             if (url) {
@@ -305,6 +327,7 @@
                     throw new Error(result.error === 'invalid_nickname' ? '该昵称不可使用，请换一个' : '保存失败');
                 }
                 currentUserRealName = result.nickname || nickname;
+                rememberNickname(currentUserRealName);
                 input.value = currentUserRealName;
                 initNicknameSelect();
                 showProfileStatus('昵称已更新，之后发布的留言会使用新昵称。', 'success');
@@ -322,7 +345,8 @@
                 currentUser = session.user;
                 userId = session.user.id;
                 currentUserEmail = session.user.email || '';
-                currentUserRealName = session.user.name || session.user.email?.split('@')[0] || '用户';
+                sessionDisplayName = session.user.name || session.user.email?.split('@')[0] || '用户';
+                currentUserRealName = rememberedNickname();
                 return true;
             } catch {
                 return false;
@@ -364,14 +388,14 @@
             const wasAnonymous = select.value === '匿名用户';
             select.innerHTML = '';
             const optionReal = document.createElement('option');
-            optionReal.value = currentUserRealName;
-            optionReal.textContent = currentUserRealName;
+            optionReal.value = currentUserRealName || 'real';
+            optionReal.textContent = currentUserRealName || '加载昵称中…';
             const optionAnon = document.createElement('option');
             optionAnon.value = '匿名用户';
             optionAnon.textContent = '匿名用户';
             select.appendChild(optionReal);
             select.appendChild(optionAnon);
-            select.value = wasAnonymous ? '匿名用户' : currentUserRealName;
+            select.value = wasAnonymous ? '匿名用户' : optionReal.value;
         }
 
         let previewObjectUrls = [];
@@ -812,7 +836,7 @@
                 showModal(document.getElementById('profileModal'), null, avatarBtn);
                 setAvatarMenu(false);
                 const nicknameInput = document.getElementById('profileNickname');
-                nicknameInput.value = currentUserRealName;
+                nicknameInput.value = currentUserRealName || sessionDisplayName;
                 nicknameInput.focus();
             };
 
@@ -823,7 +847,7 @@
                 try {
                     await loadAvatarAssets();
                     closeProfileModal();
-                    await window.RootedVoxAvatarEditor.open({ name: currentUserRealName, onSave: uploadAvatar });
+                    await window.RootedVoxAvatarEditor.open({ name: currentUserRealName || sessionDisplayName, onSave: uploadAvatar });
                 } catch (error) {
                     notify(error.message || '头像组件加载失败，请重试', 'error');
                 } finally { changeAvatar.disabled = false; }
@@ -872,7 +896,10 @@
             });
 
             if (loggedIn) {
-                initUserExtra().catch(() => showFormStatus('个人资料暂时无法同步，可稍后重新打开页面重试。', 'error'));
+                initUserExtra().catch(() => {
+                    useSessionNickname();
+                    showFormStatus('个人资料暂时无法同步，可稍后重新打开页面重试。', 'error');
+                });
             }
         });
 
