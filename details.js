@@ -174,6 +174,7 @@ function renderComment(r) {
                 <div class="message-content">${escapeHtml(r.content).replace(/\n/g, '<br>')}</div>
                 <div class="message-images">${r.pic_url ? r.pic_url.map(u => `<img loading="lazy" src="${escapeHtml(u)}" class="message-image" alt="${escapeHtml(r.username)} 发布的图片" tabindex="0">`).join('') : ''}</div>
                 <button class="reply-btn" data-action="reply" data-id="${escapeHtml(r.id)}">💬 回复</button>
+                <a class="copy-reply" data-action="copy" href="?id=${encodeURIComponent(mainMsgId)}&amp;replyId=${encodeURIComponent(r.id)}">复制回复链接</a>
                 <div id="reply-box-${r.id}" class="comment-input-container"></div>
             </div>
         </div>`;
@@ -381,10 +382,67 @@ function jumpToComment(targetId) {
 // ==================== 事件委托 ====================
 // The Content-Security-Policy blocks on* attributes, so each rendered control names an
 // action and this one listener dispatches it.
+function configureFeedReturn() {
+    let saved = window.history?.state?.forumReturn;
+    try {
+        if (location.hash?.startsWith('#feed-')) {
+            saved = JSON.parse(sessionStorage.getItem('rootedvox.feed.return'));
+            if (!saved || location.hash !== '#feed-' + saved.token) return;
+            if (saved.id !== getMsgIdFromUrl()) return;
+            // Keep the list context in this history entry. The address is shareable.
+            history.replaceState({ ...history.state, forumReturn: saved }, '', location.pathname + location.search);
+        }
+        if (!saved || saved.id !== getMsgIdFromUrl()) return;
+        const link = document.getElementById('backToFeed');
+        const back = new URL('/messages', location.origin);
+        back.search = saved.search;
+        back.hash = 'feed-' + saved.token;
+        link.href = back.href;
+        link.addEventListener('click', event => {
+            // Prefer the original list entry, including its browser-cached DOM.
+            const nav = window.navigation;
+            const previous = nav?.entries()[nav.currentEntry.index - 1];
+            if (!event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey &&
+                previous?.url && new URL(previous.url).hash === back.hash &&
+                /^\/messages(?:\.html)?\/?$/.test(new URL(previous.url).pathname)) {
+                event.preventDefault();
+                history.back();
+            } else {
+                try { sessionStorage.setItem('rootedvox.feed.return', JSON.stringify(saved)); } catch {}
+            }
+        });
+    } catch { /* Shared links and private browsing use the default forum link. */ }
+}
+
+async function copyReplyLink(link) {
+    try {
+        await navigator.clipboard.writeText(link.href);
+        notify('已复制回复链接', 'success');
+    } catch {
+        let field = link.parentElement.querySelector('.reply-link-field');
+        if (!field) {
+            field = document.createElement('input');
+            field.className = 'reply-link-field';
+            field.readOnly = true;
+            field.setAttribute('aria-label', '回复链接');
+            link.after(field);
+        }
+        field.value = link.href;
+        field.focus();
+        field.select();
+        notify('已选中回复链接，可手动复制');
+    }
+}
+
 const actions = {
     retry: () => retryThread(),
     comment: id => showMainCommentBox(id),
     reply: id => showReplyBox(id),
+    copy: (_id, _kind, event) => {
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        copyReplyLink(event.target.closest('a'));
+    },
     jump: id => jumpToComment(id),
     // The hidden file input sits inside the container, so its own click bubbles back here.
     pick: (id, kind, event) => { if (!event.target.closest('input')) document.getElementById(`imageUpload-${id}`)?.click(); },
@@ -399,6 +457,7 @@ document.addEventListener('change', event => {
 });
 // ==================== 初始化 ====================
 document.addEventListener('DOMContentLoaded', () => {
+    configureFeedReturn();
     authReady = initAuth();
     retryThread();
 });

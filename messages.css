@@ -502,3 +502,9 @@
                 height: 80px;
             }
         }
+
+.post-image-preview { position: relative; display: inline-flex; }
+.post-image-preview button {
+    position: absolute; bottom: 4px; right: 4px; padding: 4px 8px;
+    border: 0; border-radius: 6px; background: #202724; color: white; cursor: pointer;
+}
