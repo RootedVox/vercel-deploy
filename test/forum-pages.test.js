@@ -245,3 +245,23 @@ test('menu items and reply links are buttons, and dialogs take and return focus'
   assert.equal(modal.style.display, 'none');
   assert.deepEqual(focused, ['close button', 'menu button']);
 });
+
+test('Cloudflare serves every static file without invoking Functions', t => {
+  // Vercel serves static files from its CDN without running functions, so it has no list.
+  if (!files.includes('_routes.json')) return t.skip('Cloudflare only');
+  // Each Functions request counts toward the daily request quota. With a root
+  // _middleware.js and no _routes.json, every script, stylesheet and image counted.
+  const routes = JSON.parse(read('_routes.json'));
+  assert.equal(routes.version, 1);
+  assert.deepEqual(routes.include, ['/*']);
+  assert.ok(routes.include.length + routes.exclude.length <= 100, 'Cloudflare allows at most 100 rules');
+  for (const rule of routes.exclude) assert.ok(rule.startsWith('/') && rule.length <= 100, rule);
+  const excluded = new Set(routes.exclude);
+  for (const name of [...scripts, ...files.filter(name => name.endsWith('.css'))]) assert.ok(excluded.has('/' + name), `${name} is missing from _routes.json`);
+  for (const rule of ['/images/*', '/vendor/*', '/favicon.ico']) assert.ok(excluded.has(rule), rule);
+  // Pages, the APIs, and anything the middleware keeps private still go through it.
+  for (const rule of routes.exclude) {
+    assert.doesNotMatch(rule, /^\/(?:api|auth|functions|docs|supabase|test|scripts|migrations)(?:\/|$)|\.(?:md|sql|jsonc?|toml|ya?ml)$|^\/\*$/, rule);
+    if (rule.endsWith('.html')) assert.match(rule, /^\/(?:header|header-checker|footer)\.html$/, rule);
+  }
+});
