@@ -14,7 +14,7 @@ function validNickname(value, userId) {
     && value.length <= MAX_NICKNAME_LENGTH
     && !/[\u0000-\u001f\u007f]/.test(value)
     && (!isOfficialNickname(value) || userId === OFFICIAL_USER_ID)
-    && !isReservedNickname(value);
+    && !isReservedNickname(value, userId);
 }
 
 export async function onRequestGet({ request, env }) {
