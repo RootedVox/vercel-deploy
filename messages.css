@@ -495,16 +495,15 @@
         .community-heading p { max-width:440px; margin:10px 0 0; color:var(--muted); }
         .logout-bar { margin:0; }
         .logout-btn { color:var(--error-ink); border:1px solid currentColor; border-radius:12px; background:var(--error-surface); padding:8px 18px; cursor:pointer; font-weight:700; }
-        .community-layout { display:grid; grid-template-columns:minmax(300px,.8fr) minmax(0,1.35fr); gap:20px; align-items:start; }
+        .community-layout { display:grid; grid-template-columns:minmax(300px,.8fr) minmax(0,1.35fr); gap:20px; align-items:stretch; }
         .message-form-section,.message-list-section { margin:0; border:1px solid var(--line); border-radius:22px; background:var(--surface); box-shadow:var(--shadow-sm); }
-        /* The whole page scrolls, on desktops as on phones. The feed used to scroll in its
-           own box that was taller than the window: two scrollbars, and the wheel stopped at
-           the box's end. The form stays beside the list instead, scrolling on its own only
-           when it is taller than the window. */
-        .message-form-section { position:sticky; top:96px; max-height:calc(100vh - 112px); overflow-y:auto; padding:26px; }
-        .message-list-section { padding:26px; }
-        .feed-controls { scroll-margin-top:90px; }
-        .message-feed { padding:4px 0 0; }
+        .message-form-section { padding:26px; }
+        /* The form determines the grid row height; the feed never stretches the page. */
+        .message-list-section { position:relative; min-height:0; padding:0; }
+        .message-list-inner { position:absolute; inset:26px; display:flex; flex-direction:column; min-height:0; }
+        .feed-controls { flex:none; }
+        .message-feed { flex:1; min-height:0; overflow-y:auto; overscroll-behavior-y:contain; scrollbar-gutter:stable; padding:4px 4px 0; }
+        .message-feed:focus-visible { outline:2px solid var(--theme-color); outline-offset:4px; border-radius:12px; }
         .form-title { margin:0; color:var(--ink); text-align:left; font-size:20px; }
         .section-copy { margin:4px 0 22px; color:var(--muted); font-size:14px; }
         .form-control { min-height:46px; padding:11px 13px; border-color:var(--line); border-radius:12px; background:var(--surface); font-size:15px; }
@@ -570,7 +569,8 @@
             .feed-toolbar { margin:12px 0; }
             /* The feed grows with the page here: a scroll box inside a scrolling page traps
                touch scrolling, and its frame left a phone about ten characters per line. */
-            .message-list-section { padding:0; border:0; border-radius:0; background:none; box-shadow:none; }
+            .message-list-section { border:0; border-radius:0; background:none; box-shadow:none; }
+            .message-list-inner { position:static; display:block; }
             .message-feed { overflow:visible; padding:0; scrollbar-gutter:auto; }
             .message-item { padding:14px; gap:12px; }
             /* Reading comes first on a phone, so the form opens on demand. */

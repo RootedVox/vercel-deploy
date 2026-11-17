@@ -882,10 +882,6 @@
                 restorePosition = null;
                 url.hash = '';
                 history.replaceState({ ...history.state, forumPosition: null }, '', url);
-                // The page scrolls as a whole, so a new filter far down the list would
-                // otherwise leave the reader below a list that just became shorter.
-                const controls = document.querySelector('.feed-controls');
-                if (controls?.getBoundingClientRect?.().top < 0) controls.scrollIntoView({ block: 'start' });
                 loadMainMessages(false);
             }
             search.addEventListener('input', event => {

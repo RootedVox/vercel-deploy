@@ -325,16 +325,16 @@ test('a click anywhere on a post card opens it, except on links, images and sele
   assert.equal(opened, 1);
 });
 
-test('the feed scrolls with the page on every screen size and cards do not lift on hover', () => {
+test('the desktop feed keeps its own scroll box and cards do not lift on hover', () => {
   const css = read('messages.css');
   const desktop = css.slice(0, css.lastIndexOf('@media (max-width: 768px)'));
-  // No inner scroll box: two scrollbars, and a wheel that stopped at the box's end.
-  assert.doesNotMatch(desktop, /\.message-feed \{[^}]*overflow-y:auto/);
-  assert.doesNotMatch(desktop, /\.message-list-inner \{[^}]*position:absolute/);
-  assert.match(desktop, /\.message-form-section \{ position:sticky;/);
+  // The feed scrolls inside its own box beside the form; the page itself stays put.
+  assert.match(desktop, /\.message-feed \{[^}]*overflow-y:auto/);
+  assert.match(desktop, /\.message-list-inner \{[^}]*position:absolute/);
+  assert.doesNotMatch(desktop, /\.message-form-section \{ position:sticky;/);
   assert.doesNotMatch(css, /\.message-item:hover \{[^}]*transform/);
   assert.match(css, /#messageContainer > \.message-item \{ content-visibility:auto;/);
-  assert.doesNotMatch(read('messages.html'), /id="messageFeed"[^>]*tabindex/);
+  assert.match(read('messages.html'), /id="messageFeed"[^>]*tabindex="0"/);
 });
 
 test('phones drop the guest compose card and the live header blur', () => {
