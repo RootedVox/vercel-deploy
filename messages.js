@@ -416,6 +416,8 @@
         }
 
         function initGuestMode() {
+            // On phones the compose card only repeated the 登录 button above it.
+            document.body?.classList?.add('is-guest');
             const nickname = document.getElementById('nicknameSelect');
             nickname.innerHTML = '<option>登录后可发布</option>';
             nickname.disabled = true;
@@ -738,9 +740,9 @@
                         <div style="flex:1">
                             <div class="message-header">
                                 <span class="message-author">${escapeHtml(msg.username)}</span>
+                                <span class="message-zone">${escapeHtml(parsedContent.zone)}</span>
                                 ${time}
                             </div>
-                            <span class="message-zone">${escapeHtml(parsedContent.zone)}</span>
                             <div class="message-content">${escapeHtml(parsedContent.text).replace(/\n/g, '<br>')}</div>
                             ${imageHtml}
                             <div class="post-card-footer"><a class="detail-btn comment-link" href="details.html?id=${encodeURIComponent(msg.id)}"><span aria-hidden="true">💬</span> ${commentLabel(msg.reply_count)}</a>${msg.is_featured === true ? ' <span class="featured-stamp"><img src="/images/rootedvox.svg" alt="">精华</span>' : ''}</div>
@@ -880,6 +882,10 @@
                 restorePosition = null;
                 url.hash = '';
                 history.replaceState({ ...history.state, forumPosition: null }, '', url);
+                // The page scrolls as a whole, so a new filter far down the list would
+                // otherwise leave the reader below a list that just became shorter.
+                const controls = document.querySelector('.feed-controls');
+                if (controls?.getBoundingClientRect?.().top < 0) controls.scrollIntoView({ block: 'start' });
                 loadMainMessages(false);
             }
             search.addEventListener('input', event => {
@@ -908,14 +914,18 @@
             messageFeed.addEventListener('click', openCard);
             messageFeed.addEventListener('click', rememberFeed);
             messageFeed.addEventListener('auxclick', rememberFeed);
+            // Checked at most every 100 ms while scrolling, not only once scrolling stops:
+            // a debounce never fired during a long swipe, so readers hit the end and waited.
+            // The next page is asked for about one screen before the end comes into view.
+            const lookAhead = () => Math.max(SCROLL_THRESHOLD, window.innerHeight || 0);
             messageFeed.addEventListener('scroll', () => {
-                if (isLoadingMore || !hasMore || document.querySelector('.feed-retry')) return;
-                clearTimeout(scrollTimeout);
+                if (scrollTimeout || isLoadingMore || !hasMore || document.querySelector('.feed-retry')) return;
                 scrollTimeout = setTimeout(() => {
-                    if (messageFeed.scrollTop + messageFeed.clientHeight >= messageFeed.scrollHeight - SCROLL_THRESHOLD) {
+                    scrollTimeout = null;
+                    if (messageFeed.scrollTop + messageFeed.clientHeight >= messageFeed.scrollHeight - lookAhead()) {
                         loadMainMessages(true);
                     }
-                }, 120);
+                }, 100);
             });
 
             // A feed that grows with the page would keep the footer out of reach, so after
@@ -929,12 +939,13 @@
             window.addEventListener('scroll', () => {
                 if (isLoadingMore || !hasMore || !feedScrollsWithPage(messageFeed) || document.querySelector('.feed-retry')) return;
                 if (pageAutoLoads >= PAGE_AUTO_LOADS) { feedMore.hidden = false; return; }
-                clearTimeout(scrollTimeout);
+                if (scrollTimeout) return;
                 scrollTimeout = setTimeout(() => {
-                    if (messageFeed.getBoundingClientRect().bottom > window.innerHeight + SCROLL_THRESHOLD) return;
+                    scrollTimeout = null;
+                    if (messageFeed.getBoundingClientRect().bottom > window.innerHeight + lookAhead()) return;
                     pageAutoLoads++;
                     loadMainMessages(true);
-                }, 120);
+                }, 100);
             }, { passive: true });
 
             const loggedIn = await authReady;

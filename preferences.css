@@ -84,6 +84,7 @@
 :root[data-theme="light"] body { background: var(--surface-alt); }
 :root[data-theme="light"] .header { background: #f5f7f6f2; }
 :root[data-theme="light"] .header.scrolled { border-color: var(--line); }
+@media (max-width: 860px) { :root[data-theme="light"] .header { background: #f5f7f6; } }
 :root[data-theme="light"] .nav-links a { color: var(--muted); }
 :root[data-theme="light"] .nav-links a.active { color: #fff; }
 :root[data-theme="light"] .menu-toggle { background: var(--surface); }

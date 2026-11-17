@@ -324,3 +324,23 @@ test('a click anywhere on a post card opens it, except on links, images and sele
   click();
   assert.equal(opened, 1);
 });
+
+test('the feed scrolls with the page on every screen size and cards do not lift on hover', () => {
+  const css = read('messages.css');
+  const desktop = css.slice(0, css.lastIndexOf('@media (max-width: 768px)'));
+  // No inner scroll box: two scrollbars, and a wheel that stopped at the box's end.
+  assert.doesNotMatch(desktop, /\.message-feed \{[^}]*overflow-y:auto/);
+  assert.doesNotMatch(desktop, /\.message-list-inner \{[^}]*position:absolute/);
+  assert.match(desktop, /\.message-form-section \{ position:sticky;/);
+  assert.doesNotMatch(css, /\.message-item:hover \{[^}]*transform/);
+  assert.match(css, /#messageContainer > \.message-item \{ content-visibility:auto;/);
+  assert.doesNotMatch(read('messages.html'), /id="messageFeed"[^>]*tabindex/);
+});
+
+test('phones drop the guest compose card and the live header blur', () => {
+  const css = read('messages.css');
+  const phone = css.slice(css.lastIndexOf('@media (max-width: 768px)'));
+  assert.match(phone, /\.is-guest \.message-form-section \{ display:none; \}/);
+  assert.match(phone, /\.message-form-section \{ position:static;/);
+  assert.match(read('common.css'), /@media\(max-width:860px\)\{\.header,\.header\.scrolled\{backdrop-filter:none;/);
+});

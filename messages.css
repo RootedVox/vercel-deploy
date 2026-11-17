@@ -480,11 +480,6 @@
             cursor: pointer;
             padding: 0 8px;
         }
-        .message-avatar-box img:hover {
-            box-shadow: 0 0 5px rgba(0,0,0,0.2);
-            transform: scale(1.05);
-            transition: all 0.2s ease;
-        }
         .list-loading-tip {
             padding: 20px 0;
             color: var(--muted);
@@ -500,15 +495,16 @@
         .community-heading p { max-width:440px; margin:10px 0 0; color:var(--muted); }
         .logout-bar { margin:0; }
         .logout-btn { color:var(--error-ink); border:1px solid currentColor; border-radius:12px; background:var(--error-surface); padding:8px 18px; cursor:pointer; font-weight:700; }
-        .community-layout { display:grid; grid-template-columns:minmax(300px,.8fr) minmax(0,1.35fr); gap:20px; align-items:stretch; }
+        .community-layout { display:grid; grid-template-columns:minmax(300px,.8fr) minmax(0,1.35fr); gap:20px; align-items:start; }
         .message-form-section,.message-list-section { margin:0; border:1px solid var(--line); border-radius:22px; background:var(--surface); box-shadow:var(--shadow-sm); }
-        .message-form-section { padding:26px; }
-        /* The form determines the grid row height; the feed never stretches the page. */
-        .message-list-section { position:relative; min-height:0; padding:0; }
-        .message-list-inner { position:absolute; inset:26px; display:flex; flex-direction:column; min-height:0; }
-        .feed-controls { flex:none; }
-        .message-feed { flex:1; min-height:0; overflow-y:auto; overscroll-behavior-y:contain; scrollbar-gutter:stable; padding:4px 4px 0; }
-        .message-feed:focus-visible { outline:2px solid var(--theme-color); outline-offset:4px; border-radius:12px; }
+        /* The whole page scrolls, on desktops as on phones. The feed used to scroll in its
+           own box that was taller than the window: two scrollbars, and the wheel stopped at
+           the box's end. The form stays beside the list instead, scrolling on its own only
+           when it is taller than the window. */
+        .message-form-section { position:sticky; top:96px; max-height:calc(100vh - 112px); overflow-y:auto; padding:26px; }
+        .message-list-section { padding:26px; }
+        .feed-controls { scroll-margin-top:90px; }
+        .message-feed { padding:4px 0 0; }
         .form-title { margin:0; color:var(--ink); text-align:left; font-size:20px; }
         .section-copy { margin:4px 0 22px; color:var(--muted); font-size:14px; }
         .form-control { min-height:46px; padding:11px 13px; border-color:var(--line); border-radius:12px; background:var(--surface); font-size:15px; }
@@ -526,8 +522,18 @@
         .form-status.error { color:var(--error-ink); }
         .feed-toolbar { display:grid; grid-template-columns:1fr 140px 140px; gap:10px; margin:18px 0; }
         .feed-toolbar input[type="search"],.feed-toolbar select { width:100%; min-height:44px; padding:9px 12px; border:1px solid var(--line); border-radius:12px; color:var(--ink); background:var(--surface); }
-        .message-item { margin:0 0 12px; padding:20px; border:1px solid var(--line); border-radius:17px; background:var(--surface); transition:transform .2s,box-shadow .2s,border-color .2s; }
-        .message-item:hover { transform:translateY(-2px); border-color:#535b54; box-shadow:0 12px 28px rgba(10,37,17,.08); }
+        .message-item { margin:0 0 10px; padding:16px 18px; border:1px solid var(--line); border-radius:17px; background:var(--surface); transition:border-color .15s; }
+        /* Only the border answers the pointer. Lifting each card with a large shadow made
+           the list shimmer while a mouse sat still over a scrolling feed. */
+        @media (hover: hover) and (pointer: fine) { .message-item:hover { border-color:#535b54; } }
+        /* Cards off screen are not laid out or painted until they come near, so a feed
+           that has grown to hundreds of posts scrolls like a short one. */
+        #messageContainer > .message-item { content-visibility:auto; contain-intrinsic-size:auto 160px; }
+        /* Name, zone and time share one row; the post starts right below it. */
+        .message-header { justify-content:flex-start; flex-wrap:wrap; gap:4px 8px; margin-bottom:6px; }
+        .message-header .message-zone { margin:0; padding:2px 8px; font-size:11px; }
+        .message-header .message-time { margin-left:auto; }
+        .message-item .message-content { margin-bottom:4px; }
         .message-content { color:var(--muted); }
         .detail-btn { padding:7px 12px; border-radius:10px; background:var(--theme-soft); font-weight:700; }
         .modal-box { overflow:hidden; border:1px solid var(--line); border-radius:20px; box-shadow:var(--shadow-lg); }
@@ -549,16 +555,24 @@
                 margin: 0 auto 40px;
                 padding: 92px 15px 0;
             }
-            .community-heading { display:block; }
-            .logout-bar { margin-top:18px; justify-content:flex-start; }
-            .avatar-dropdown { left:0; right:auto; }
-            .community-layout { grid-template-columns:1fr; }
+            /* Title and the sign-in or avatar button share one row, so posts start higher. */
+            .community-heading { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; column-gap:12px; margin-bottom:16px; }
+            .community-heading > div:first-child { display:contents; }
+            .community-heading .page-title { font-size:32px; }
+            .community-heading p { grid-column:1 / -1; margin-top:6px; font-size:14px; }
+            .logout-bar { grid-row:1; grid-column:2; margin-top:0; justify-content:flex-end; }
+            .avatar-dropdown { left:auto; right:0; }
+            .community-layout { grid-template-columns:1fr; gap:16px; }
+            .message-form-section { position:static; max-height:none; overflow:visible; }
+            /* Signed out, the compose card held only a second 登录 button. */
+            .is-guest .message-form-section { display:none; }
+            .feed-controls .section-copy { display:none; }
+            .feed-toolbar { margin:12px 0; }
             /* The feed grows with the page here: a scroll box inside a scrolling page traps
                touch scrolling, and its frame left a phone about ten characters per line. */
-            .message-list-section { border:0; border-radius:0; background:none; box-shadow:none; }
-            .message-list-inner { position:static; display:block; }
+            .message-list-section { padding:0; border:0; border-radius:0; background:none; box-shadow:none; }
             .message-feed { overflow:visible; padding:0; scrollbar-gutter:auto; }
-            .message-item { padding:16px; gap:12px; }
+            .message-item { padding:14px; gap:12px; }
             /* Reading comes first on a phone, so the form opens on demand. */
             .compose-toggle { display:block; }
             .compose-toggle:not([aria-expanded="true"]) + .compose-fields { display:none; }
@@ -569,8 +583,8 @@
             /* Avatar, name and time share the first row; the post itself then uses the
                card's full width instead of a column indented past the avatar. */
             .message-item { position:relative; display:block; }
-            .message-item > .message-avatar-box { position:absolute; top:16px; left:16px; }
-            .message-item > div:last-child > .message-header { min-height:44px; padding-left:56px; margin-bottom:8px; }
+            .message-item > .message-avatar-box { position:absolute; top:14px; left:14px; }
+            .message-item > div:last-child > .message-header { min-height:42px; padding-left:52px; margin-bottom:6px; align-content:center; }
             .message-form-section { padding:20px; }
             .submit-btn {
                 width: 100%;
@@ -593,7 +607,7 @@
 
 /* The whole post card opens its thread (messages.js openCard). */
 .message-item { cursor: pointer; }
-.comment-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; padding: 4px 0; border-radius: 6px; background: none; color: var(--muted); font-size: 13px; font-weight: 600; }
+.comment-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; padding: 4px 0; border-radius: 6px; background: none; color: var(--muted); font-size: 13px; font-weight: 600; }
 .comment-link:hover, .message-item:hover .comment-link { background: none; color: var(--theme-color); }
 .comment-link:focus-visible { outline: 2px solid var(--theme-color); outline-offset: 3px; }
 
