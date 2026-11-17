@@ -1,5 +1,7 @@
 window.rvEnglish = new Map(Object.entries({
   "收起": "Show less",
+  "RootedVox 4.7.1 · 审核判定分级": "RootedVox 4.7.1 · Graded review verdicts",
+  "多家审核模型一致判定内容不适宜公开发布时，留言会被直接拒绝并说明原因，作者会收到「留言未通过审核」的站内通知，认为误判可以联系管理员复核。只要模型之间存在分歧，仍然交给人工判断，不会因为一家模型的意见就否掉留言。": "When every review model agrees that a post is unsuitable for public display, it is rejected outright with a stated reason and the author is notified that the post did not pass review; if you believe this is a mistake, contact an administrator to have it re-checked. The moment the models disagree, the decision goes to a human instead — no single model's opinion can reject a post on its own.",
   "RootedVox 4.7.0 · 审核通知与联系方式拦截": "RootedVox 4.7.0 · Review notices and contact-info blocking",
   "AI 审核通过的留言会在几秒内自动出现在页面上，不用手动刷新；未通过自动审核时会收到「留言转为人工审核」的提示，不再是无声等待。留言里出现微信号、QQ 号、手机号等联系方式会自动转人工复核。": "Posts the AI approves now appear on the page within seconds, with no manual reload. When a post is not approved automatically you receive a notice that it has been passed to a human reviewer instead of waiting in silence. Messages containing a WeChat ID, QQ number, phone number or similar contact details are sent to a human for review.",
   "RootedVox 4.6.0 · 审核多供应商": "RootedVox 4.6.0 · Multi-provider moderation",

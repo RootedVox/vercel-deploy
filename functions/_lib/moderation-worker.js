@@ -56,11 +56,18 @@ export async function processModerationBatch(env, size = 4) {
 // the featured wording never applies here.
 export const AI_APPROVAL_NOTICE = { title: '留言审核通过', content: '你的留言、评论或回复已审核通过并公开显示', type: 'audit' };
 
-// Every non-approved verdict leaves the post at flag=0, waiting for a human: unsafe, an
-// off-topic borderline call, a lexicon hit, or no verdict at all. To the author these are
-// the same situation, so they get one amber "a human is looking at it" notice rather than
-// a rejection. The wording must not imply the post was refused — it is still in the queue.
+// Any verdict short of a rejection leaves the post at flag=0, waiting for a human: a
+// split unsafe call, an off-topic borderline call, a lexicon hit, or no verdict at all.
+// To the author these are the same situation, so they get one amber "a human is looking
+// at it" notice rather than a rejection. The wording must not imply the post was refused
+// — it is still in the queue.
 export const AI_MANUAL_NOTICE = { title: '留言转为人工审核', content: '你的留言已由 AI 初审，正在人工复核，通过后会公开显示', type: 'audit' };
+
+// Unanimous unsafe. The post becomes flag=2, the same terminal state as a human
+// rejection, so it needs the same notice — otherwise the author only sees the post
+// vanish. The reason is deliberately generic (the category names are internal) and
+// points at the appeal path, since this decision was made without a person reading it.
+export const AI_REJECT_NOTICE = { title: '留言未通过审核', content: '拒绝原因：内容安全模型一致判定为不适宜公开发布。如认为误判，可联系管理员复核', type: 'audit' };
 
 async function loadAuthor(env, id) {
   const rows = await serviceRequest(env,
@@ -90,6 +97,18 @@ async function notifyManual(env, id) {
   return pushNotice(env, id, row.business_user_id, AI_MANUAL_NOTICE);
 }
 
+async function notifyRejected(env, id) {
+  const row = await loadAuthor(env, id);
+  if (!row?.business_user_id) return false;
+  if (row.flag === 2) return pushNotice(env, id, row.business_user_id, AI_REJECT_NOTICE);
+  // flag=0 means the migration that teaches finish_forum_review about flag=2 has not run
+  // yet. The verdict is still unanimous-unsafe, but the post is in fact sitting in the
+  // human queue, so say that instead of claiming a refusal that did not happen.
+  if (row.flag === 0) return pushNotice(env, id, row.business_user_id, AI_MANUAL_NOTICE);
+  // flag=1: a human restored it (or approved while the AI was thinking). Stay quiet.
+  return false;
+}
+
 export async function processNextModeration(env, id = null) {
   const job = await call(env, 'claim_forum_review', { target: id });
   if (!job) return false;
@@ -101,9 +120,11 @@ export async function processNextModeration(env, id = null) {
     target: job.id, lease: job.lease, decision: result.verdict, reason: result.reason
   });
   if (finished === true) {
-    const approved = result.verdict === 'safe' && result.reason === 'model_safe';
+    const notify = result.verdict === 'safe' && result.reason === 'model_safe' ? notifyApproved
+      : result.verdict === 'blocked' && result.reason === 'model_unsafe' ? notifyRejected
+      : notifyManual;
     // The review outcome is already stored; a failed notice must not undo or repeat it.
-    try { await (approved ? notifyApproved : notifyManual)(env, job.id); }
+    try { await notify(env, job.id); }
     catch (error) {
       console.error('[AI Check] 审核结果通知发送失败：', error?.message);
     }

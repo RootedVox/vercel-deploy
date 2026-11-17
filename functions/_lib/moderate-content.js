@@ -8,10 +8,16 @@ const PROVIDER_DETAIL_MAX = 120;
  *
  * 判定顺序固定，谁先命中就听谁的：
  *
- *   1. 任一家 blocked        -> 拦截        （一票否决）
- *   2. 任一家 controversial  -> 转人工      （模型明确说擦边，不是故障）
- *   3. 任一家 safe           -> 放行        （一票放行，配几家都不会更容易进人工）
- *   4. 全部 error            -> 转人工      （upstream_unavailable）
+ *   1. 全部 blocked          -> 拒绝        （flag=2，多家一致认定不安全）
+ *   2. 任一家 blocked        -> 转人工      （只有部分说不安全，另一家没表态/说别的不够格拒绝）
+ *   3. 任一家 controversial  -> 转人工      （模型明确说擦边，不是故障）
+ *   4. 任一家 safe           -> 放行        （一票放行，配几家都不会更容易进人工）
+ *   5. 全部 error            -> 转人工      （upstream_unavailable）
+ *
+ * 第 1 条为什么要求「全部」而不是「任一」：拒绝（flag=2）是不可逆的终态，作者会
+ * 看到「未通过审核」。只要还有一家给了别的结论（safe / 擦边 / 没拿到结论），
+ * 就说明存在争议或没问全，这种情形交给人判，比机器单方面毙掉更合适。
+ * 注意 error 也算「没拿到结论」——一家说 unsafe、另一家超时，仍然转人工。
  *
  * 关键区分：controversial 是**模型给的结论**，error 是**没拿到结论**。
  * 前者要转人工，后者只跳过。把两者混成一个 'uncertain' 会让「一家超时」
@@ -29,9 +35,18 @@ export function mergeVerdicts(results) {
     ...(r.error ? { error: String(r.error).slice(0, PROVIDER_DETAIL_MAX) } : {})
   }));
 
-  const blocked = results.find(r => r.verdict === 'blocked');
-  if (blocked) {
-    return { verdict: 'blocked', reason: blocked.reason || 'model_unsafe', providers: summary };
+  const blocked = results.filter(r => r.verdict === 'blocked');
+
+  // 全部一致判不安全 -> 直接拒绝（flag=2）。reason 固定 model_unsafe，
+  // finish_forum_review 只对这一个 reason 置 flag=2，词库命中（lexicon）不在此列。
+  if (blocked.length && blocked.length === results.length) {
+    return { verdict: 'blocked', reason: 'model_unsafe', providers: summary };
+  }
+
+  // 只有部分判不安全：有争议，交给人。不拒绝，因为另一家可能给了 safe、判了擦边，
+  // 或者干脆没拿到结论（error），都够不上「一致认定」。
+  if (blocked.length) {
+    return { verdict: 'uncertain', reason: 'model_unsafe_partial', providers: summary };
   }
 
   const controversial = results.find(r => r.verdict === 'controversial');

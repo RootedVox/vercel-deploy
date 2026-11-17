@@ -10,7 +10,7 @@ import {
   isBusyError
 } from '../functions/_lib/ai-providers.js';
 import { mergeVerdicts, runAiCheck } from '../functions/_lib/moderate-content.js';
-import { AI_APPROVAL_NOTICE, AI_MANUAL_NOTICE, moderationBatchSize, processNextModeration } from '../functions/_lib/moderation-worker.js';
+import { AI_APPROVAL_NOTICE, AI_MANUAL_NOTICE, AI_REJECT_NOTICE, moderationBatchSize, processNextModeration } from '../functions/_lib/moderation-worker.js';
 
 const LEXICON = { get: async () => '霸凌\n色情' };
 
@@ -70,26 +70,40 @@ test('NVIDIA 兼容旧输出的解析逻辑保持不变', () => {
   assert.equal(parseNemotronVerdict('noise').verdict, 'error');
 });
 
-test('判定合并：先否决、再擦边、再放行，全失败才转人工', () => {
+test('判定合并：全都说不安全才拒绝，有一家说别的就转人工', () => {
   const r = (...items) => items.map(([id, verdict, reason]) => ({ id, verdict, reason }));
 
-  // 一票否决：任一家说不安全就拦，不管另一家怎么说。
-  assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'blocked'])).verdict, 'blocked');
-  assert.equal(mergeVerdicts(r(['a', 'blocked'], ['b', 'error'])).verdict, 'blocked');
-  assert.equal(mergeVerdicts(r(['a', 'blocked'], ['b', 'controversial'])).verdict, 'blocked');
+  // 0 = safe, 1 = controversial, 2 = blocked(unsafe), 3 = error
+  // 2,2 -> 拒绝（flag=2）。这是本次改动唯一新增的终态。
+  const rejected = mergeVerdicts(r(['a', 'blocked'], ['b', 'blocked']));
+  assert.equal(rejected.verdict, 'blocked');
+  assert.equal(rejected.reason, 'model_unsafe');
+
+  // 0,0 与 0,3 -> 放行（一家明确安全，另一家没意见或者没给结论）
+  assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'safe'])).verdict, 'safe');
+  assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'error'])).verdict, 'safe');
+
+  // 有一家说不安全但另一家没说「不安全」-> 有争议，交给人，不拒绝
+  for (const other of ['safe', 'controversial', 'error']) {
+    const merged = mergeVerdicts(r(['a', 'blocked'], ['b', other]));
+    assert.equal(merged.verdict, 'uncertain', `2,${other} 应转人工`);
+    assert.equal(merged.reason, 'model_unsafe_partial');
+  }
 
   // 擦边压过放行：模型明确说擦边就转人工，不能被另一家的 safe 盖掉。
   assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'controversial'])).verdict, 'uncertain');
   assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'controversial'])).reason, 'model_controversial');
   assert.equal(mergeVerdicts(r(['a', 'controversial'], ['b', 'error'])).verdict, 'uncertain');
+  assert.equal(mergeVerdicts(r(['a', 'controversial'], ['b', 'controversial'])).verdict, 'uncertain');
 
-  // 一票放行：没有否决也没有擦边时，一家 safe 就过。
-  assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'safe'])).verdict, 'safe');
-  assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'error'])).verdict, 'safe');
-
-  // 全失败才转人工。
+  // 全失败才落到 upstream_unavailable
   assert.equal(mergeVerdicts(r(['a', 'error'], ['b', 'error'])).reason, 'upstream_unavailable');
+
+  // 三家时同样要求「全部」：2,2,3 转人工，2,2,2 才是拒绝。
+  assert.equal(mergeVerdicts(r(['a', 'blocked'], ['b', 'blocked'], ['c', 'error'])).verdict, 'uncertain');
+  assert.equal(mergeVerdicts(r(['a', 'blocked'], ['b', 'blocked'], ['c', 'blocked'])).verdict, 'blocked');
 });
+
 
 test('解析失败算 error 而不是擦边，不会被误判成需要人工的结论', () => {
   const parsed = mergeVerdicts([
@@ -296,7 +310,7 @@ test('多家并发审核：每家只请求一次，且都判 safe 时放行', as
   }
 });
 
-test('一家说 safe 另一家说 unsafe 时以拦截为准', async () => {
+test('一家说 safe 另一家说 unsafe 是分歧，转人工而不是直接拒绝', async () => {
   const stub = stubFetch(url => (
     url.includes('bigmodel')
       ? chat('{"verdict":"unsafe","categories":["Bullying"]}')
@@ -310,8 +324,8 @@ test('一家说 safe 另一家说 unsafe 时以拦截为准', async () => {
       QWEN_GUARD_BASE_URL: 'https://qg.test/v1',
       AI_REVIEW_PROVIDERS: 'qwenguard,glm'
     });
-    assert.equal(result.verdict, 'blocked');
-    assert.equal(result.reason, 'model_unsafe');
+    assert.equal(result.verdict, 'uncertain');
+    assert.equal(result.reason, 'model_unsafe_partial');
   } finally {
     stub.restore();
   }
@@ -398,8 +412,38 @@ test('AI 审核通过后给作者发站内通知，内容与人工通过一致',
   }
 });
 
+test('AI 一致判不安全时发「未通过审核」通知，作者不会只看到留言消失', async () => {
+  const stub = workerFetch('Unsafe', { flag: 2 });
+  try {
+    assert.equal(await processNextModeration(workerEnv), true);
+    const notice = stub.calls.find(c => c.path.endsWith('/business_notifications'));
+    assert.ok(notice, '拒绝后应当通知作者');
+    assert.deepEqual(notice.body, { user_id: 'u1', ...AI_REJECT_NOTICE, related_id: 'm1' });
+    assert.deepEqual(AI_REJECT_NOTICE, {
+      title: '留言未通过审核',
+      content: '拒绝原因：内容安全模型一致判定为不适宜公开发布。如认为误判，可联系管理员复核',
+      type: 'audit'
+    });
+    // 必须给出申诉路径，因为这条没有人看过就定终态了。
+    assert.match(AI_REJECT_NOTICE.content, /联系管理员/);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('迁移未执行时拒绝结论退回「转人工」通知，不谎报未通过', async () => {
+  const stub = workerFetch('Unsafe', { flag: 0 });
+  try {
+    await processNextModeration(workerEnv);
+    const notice = stub.calls.find(c => c.path.endsWith('/business_notifications'));
+    assert.deepEqual(notice.body, { user_id: 'u1', ...AI_MANUAL_NOTICE, related_id: 'm1' });
+  } finally {
+    stub.restore();
+  }
+});
+
 test('AI 没放行时发「转为人工审核」通知，而不是当成拒绝', async () => {
-  for (const verdict of ['Unsafe', 'Controversial']) {
+  for (const verdict of ['Controversial']) {
     // A non-approved verdict leaves the row at flag=0 for a human.
     const stub = workerFetch(verdict, { flag: 0 });
     try {
