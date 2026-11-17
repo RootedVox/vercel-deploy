@@ -151,11 +151,24 @@ QWEN_GUARD_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 QWEN_GUARD_MODEL=qwen3guard-gen-8b
 ```
 
-## 三、NVIDIA NIM（已不可用）
+## 三、NVIDIA NIM（已下线，建议删除 key）
 
-2026-11-17 线上日志：`http_404 ... Function id '3e84ff75-...' version 'null': Specified function ... is not found`。
+2026-11-17 线上日志：
 
-这不是临时故障，是那个 NIM 函数在 NVIDIA 账户里已经被删掉了，**重试永远不会成功**。留着 `NVAPI_KEY` 只会让每次审核都白打一次请求、多几百毫秒。**建议直接删掉这个环境变量**，代码会自动跳过。
+```
+http_404 {"status":404,"title":"Not Found",
+"detail":"Function id '3e84ff75-...' version 'null': Specified function ... is not found"}
+```
+
+**这不是 key 过期，也不是临时故障**，是 NVIDIA 侧承载该模型的函数实例已经被下线。第三方实测的时间线：
+
+- **2026-11-03**：该模型 endpoint 已 0% 可用，每次调用返回 503/404，但目录页仍挂着，看起来还在。
+- **2026-11-10**：`nvidia/nemotron-3.5-content-safety` 的 `:free` 端点正式结束，API 里已找不到 provider。
+- 现在它作为付费模型存在（约 $0.2/百万 token）。
+
+**结论：重试永远不会成功。** 留着 `NVAPI_KEY` 只会让每次审核白打一次 404 请求、多几百毫秒，还会把日志刷满。**直接删掉这个环境变量**，代码会自动跳过。
+
+另外这个模型本身是 4B（Gemma-3-4B 微调）、以英文训练为主，中文审核本来就不如 Qwen3Guard。它退场对中文内容审核质量没有损失。
 
 ## 四、上线前先用 curl 自测
 
