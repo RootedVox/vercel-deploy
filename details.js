@@ -54,6 +54,17 @@ function renderPreviews(id) {
         img.src = image.preview || image.url;
         img.alt = '回复图片';
         box.appendChild(img);
+        if (image.needsReplacement) {
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.textContent = '移除这张图片';
+            remove.onclick = () => {
+                replyImages.set(id, replyImages.get(id).filter(item => item !== image));
+                renderPreviews(id);
+                saveReplyImageDraft(id);
+            };
+            box.appendChild(remove);
+        }
     }
 }
 function saveReplyImageDraft(id) {
@@ -88,15 +99,14 @@ function previewImages(id) {
 // ==================== 加载内容 ====================
 const messageIdPattern = /^(?:\d+|[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
 const linkedId = new URLSearchParams(location.search).get('replyId')?.toLowerCase();
-const replyId = linkedId === getMsgIdFromUrl() ? null : linkedId;
+const replyId = linkedId !== getMsgIdFromUrl() && messageIdPattern.test(linkedId || '') ? linkedId : null;
 let replyParentName = null;
 async function loadMainMessage() {
     mainMsgId = getMsgIdFromUrl();
     if (!messageIdPattern.test(mainMsgId || '')) return location.replace('/messages.html');
     try {
         if (!window.RootedVoxPublicData) throw new Error('public_data_unavailable');
-        const target = messageIdPattern.test(replyId || '') ? replyId : null;
-        const page = await RootedVoxPublicData.threadPage(mainMsgId, null, target);
+        const page = await RootedVoxPublicData.threadPage(mainMsgId, null, replyId);
         replyParentName = page.parentName;
         allMessages = page.messages;
         threadCursor = page.nextCursor;
@@ -369,6 +379,11 @@ async function submitComment(rid, type) {
             body: JSON.stringify(payload)
         });
         if (response.status === 401) throw new Error('login_required');
+        if (response.status === 409 && (await response.json()).error === 'draft_media_expired') {
+            notify(ForumUI.recoverDraftImages(images), 'error');
+            renderPreviews(rid);
+            return;
+        }
         if (!response.ok) throw new Error('comment_failed');
         notify('发布成功，审核通过后会公开。', 'success');
         if (!submitted || ForumDrafts.get(key) !== submitted) return;

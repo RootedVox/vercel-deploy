@@ -646,6 +646,9 @@
                     refreshFeaturedQuota();
                     throw new Error('今日已用完 3 次精华投稿机会。');
                 }
+                if (response.status === 409 && (await response.json()).error === 'draft_media_expired') {
+                    throw new Error(ForumUI.recoverDraftImages(selection));
+                }
                 if (!response.ok) throw new Error('留言服务暂时不可用');
                 const result = await response.json();
                 showFormStatus(featured ? '已投稿，等待精华专审。' : '发布成功，审核结果会通过站内通知告知你。', 'success');

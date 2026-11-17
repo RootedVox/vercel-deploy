@@ -18,3 +18,17 @@ test('a failed canvas allocation rejects the upload and releases the preview URL
   await assert.rejects(window.ForumUI.uploadFiles([{ type: 'image/png', size: 150000 }]), /图片压缩失败/);
   assert.deepEqual(released, ['blob:photo']);
 });
+
+test('an expired draft retries local files and leaves restored URLs available for removal', async () => {
+  const window = {};
+  let sends = 0;
+  runPageScript('forum-ui.js', { window, FormData, request: async () => Response.json({ urls: ['url' + ++sends] }) });
+  const file = new File(['data'], 'test.png', { type: 'image/png' });
+  const [url] = await window.ForumUI.uploadFiles([file]);
+  const local = { file, url }, restored = { url: 'restored' };
+  window.ForumUI.recoverDraftImages([local, restored]);
+  assert.equal(local.url, undefined);
+  assert.equal(restored.needsReplacement, true);
+  assert.equal(restored.url, 'restored');
+  assert.deepEqual([...await window.ForumUI.uploadFiles([file])], ['url2']);
+});

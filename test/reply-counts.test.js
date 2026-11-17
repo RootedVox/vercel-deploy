@@ -80,3 +80,22 @@ test('featured-first pagination crosses groups without losing the normal-post cu
   assert.equal(second.hasMore, false);
   assert.deepEqual(groups, [['eq.true', false], ['eq.false', false], ['eq.true', true], ['eq.false', false]]);
 });
+
+test('featured cursors need a position after the section prefix', async () => {
+  const handler = await load();
+  for (const cursor of ['f:', 'n:']) {
+    const response = await get(handler, 'featuredFirst=1&cursor=' + cursor);
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).error, 'invalid_cursor');
+  }
+});
+
+test('featured searches use a literal case-insensitive pattern', async t => {
+  const filters = [];
+  t.mock.method(globalThis, 'fetch', async input => {
+    filters.push(new URL(input).searchParams.get('content'));
+    return Response.json([]);
+  });
+  await get(await load(), 'featuredFirst=1&search=' + encodeURIComponent('A(B)*_50%'));
+  assert.deepEqual(filters, Array(2).fill(String.raw`imatch.A\(B\)\*_50%`));
+});
