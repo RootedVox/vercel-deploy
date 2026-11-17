@@ -97,11 +97,12 @@ export function parseQwenGuard(content) {
 }
 
 /**
- * GLM 是通用模型，靠 prompt + JSON 输出约束。解析容错：允许模型在 JSON 前后
- * 夹带说明文字，取第一个 { 到最后一个 }。
+ * GLM 是通用模型，靠 prompt + JSON 输出约束。解析容错：
+ * - 推理模型（glm-z1-flash）会先输出 `…` 思考块，必须先剥掉；
+ * - 允许模型在 JSON 前后夹带说明文字，取第一个 { 到最后一个 }。
  */
 export function parseGlmVerdict(content) {
-  const raw = String(content || '');
+  const raw = String(content || '').replace(/<think>[\s\S]*?<\/think>/gi, '');
   const start = raw.indexOf('{');
   const end = raw.lastIndexOf('}');
   if (start < 0 || end <= start) return { verdict: 'error', reason: 'unparsed_output' };
@@ -212,7 +213,9 @@ export const PROVIDERS = {
                 { role: 'user', content: text }
               ],
               temperature: 0.01,
-              max_tokens: 120,
+              // 200 而不是 120：备用池里有推理模型（glm-z1-flash），思考块会先吃掉
+              // 一部分 token，留够余量才轮得到 JSON。
+              max_tokens: 200,
               response_format: { type: 'json_object' }
             },
             timeout: timeoutMs(env)

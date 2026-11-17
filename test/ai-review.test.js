@@ -56,6 +56,13 @@ test('GLM 的 JSON 判定允许前后夹带说明文字', () => {
   assert.equal(parseGlmVerdict('{"verdict":"weird"}').reason, 'unparsed_verdict');
 });
 
+test('推理模型的思考块先剥掉再解析，否则 {} 会被 think 里的文字污染', () => {
+  const withThink = '<think>\n嗯，用户发来一段吐槽，需要判断是否违规。\n判断标准是 {安全: 是}\n</think>\n{"verdict":"safe","categories":[]}';
+  assert.equal(parseGlmVerdict(withThink).verdict, 'safe');
+  // 思考块被截断、只剩半个 think 时无法解析，必须算 error 而不是放行。
+  assert.equal(parseGlmVerdict('<think>\n嗯，用户发来').verdict, 'error');
+});
+
 test('NVIDIA 兼容旧输出的解析逻辑保持不变', () => {
   assert.equal(parseNemotronVerdict('User Safety: safe').verdict, 'safe');
   assert.equal(parseNemotronVerdict('User Safety: unsafe').verdict, 'blocked');
