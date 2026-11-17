@@ -1,5 +1,5 @@
 # Template for local development. Copy to `.dev.vars` (which is gitignored) and fill in.
-# The real values live only in the Cloudflare Pages or Vercel project settings; never commit them.
+# The real values live only in the Cloudflare Pages project settings; never commit them.
 
 # --- Authorization Server (OIDC) ---
 AUTH_ISSUER=https://idp.example.com/realms/your-realm
@@ -27,14 +27,6 @@ BUSINESS_SESSION_TTL_SECONDS=28800
 BUSINESS_SESSION_ABSOLUTE_TTL_SECONDS=604800
 BUSINESS_SESSION_ROTATE_AFTER_SECONDS=1800
 OAUTH_TRANSACTION_TTL_SECONDS=600
-# Vercel has no D1 binding. Set these only on the Vercel deployment (and on
-# Cloudflare after both sides are intentionally switched to the shared store).
-AUTH_STORE=supabase
-AUTH_STORE_SUPABASE_SECRET_KEY=sb_secret_xxx
-# The session is shared only by the two business-site subdomains, never with Keycloak.
-BUSINESS_SESSION_COOKIE_DOMAIN=.celestivast.com
-BUSINESS_FRONTEND_URL=https://rv.celestivast.com
-CORS_ALLOWED_ORIGINS=https://rv.celestivast.com,https://rv-vc.celestivast.com
 
 # --- Business Supabase project ---
 BUSINESS_SUPABASE_URL=https://your-project.supabase.co
@@ -46,6 +38,33 @@ BUSINESS_SUPABASE_SIGNING_JWK={"kty":"EC","crv":"P-256","kid":"...","x":"...","y
 # --- Inner test gate (only active when the request hostname contains "test") ---
 INNER_TEST_PASSWORD=change-me
 
-# Same worker secret as the scheduler. Provide the same newline-delimited lexicon as Cloudflare.
+
+# Reuse the existing shared Supabase auth store on both deployments.
+AUTH_STORE=supabase
+AUTH_STORE_SUPABASE_SECRET_KEY=
+
+# Server-only credential for the scheduled POST /api/moderation-worker.
 FORUM_WORKER_SECRET=
-FORUM_LEXICON_WORDS=
+
+# --- L2 AI review providers ---
+# Docs, registration steps and free-tier limits: docs/AI_REVIEW_PROVIDERS.zh-CN.md
+# Only configured providers are called; leave a key empty to disable that provider.
+# Order matters only for logging; all configured providers are called concurrently.
+AI_REVIEW_PROVIDERS=qwenguard,glm,nvidia
+AI_REVIEW_TIMEOUT_MS=8000
+
+# Qwen3Guard (primary). Free ticket: OVHcloud AI Endpoints or Alibaba Cloud Bailian.
+QWEN_GUARD_KEY=
+QWEN_GUARD_BASE_URL=https://endpoints.ai.cloud.ovh.net/v1
+QWEN_GUARD_MODEL=Qwen3Guard-Gen-8B
+
+# GLM-4-Flash (backup, permanently free at 30 concurrency).
+GLM_KEY=
+GLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+GLM_MODEL=glm-4-flash
+
+# NVIDIA NIM (third fallback, the original provider).
+NVAPI_KEY=
+
+# KV binding holding the L1 lexicon. Without it the review fails safe to human.
+# LEXICON_KV is a binding, not a variable: declare it in the Pages project settings.

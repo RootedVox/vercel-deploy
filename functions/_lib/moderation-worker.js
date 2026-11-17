@@ -1,4 +1,5 @@
 import { runAiCheck } from './moderate-content.js';
+import { resolveProviderChain } from './ai-providers.js';
 import { withDeadline } from './fetch-timeout.js';
 import { serviceKeyHeaders } from './supabase.js';
 
@@ -30,9 +31,20 @@ export async function cleanExpiredMedia(env) {
 
 // One scheduled run. The first claim tells whether anything is waiting; only then are
 // more claimed, so an idle queue costs one database call instead of four.
+//
+// Batch size is bounded by the runtime connection limit: Cloudflare Workers allows 6
+// simultaneous open connections per invocation, and each review now fans out to every
+// configured provider. 4 jobs x 3 providers would queue past the deadline, so scale the
+// batch down to what the fanout allows. Vercel has no such limit and keeps `size`.
+export function moderationBatchSize(env, size = 4) {
+  const fanout = Math.max(1, resolveProviderChain(env).length);
+  return Math.max(1, Math.min(size, Math.floor(6 / fanout)));
+}
+
 export async function processModerationBatch(env, size = 4) {
+  const batch = moderationBatchSize(env, size);
   if (!await processNextModeration(env)) return 0;
-  const rest = await Promise.all(Array.from({ length: size - 1 }, () => processNextModeration(env)));
+  const rest = await Promise.all(Array.from({ length: batch - 1 }, () => processNextModeration(env)));
   return 1 + rest.filter(Boolean).length;
 }
 

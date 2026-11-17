@@ -1,5 +1,7 @@
 window.rvEnglish = new Map(Object.entries({
   "收起": "Show less",
+  "RootedVox 4.6.0 · 审核多供应商": "RootedVox 4.6.0 · Multi-provider moderation",
+  "内容审核改为多家模型并发判定：任一模型判为不安全即转人工，全部通过才自动发布。单家供应商故障不再影响其余判定，发帖与浏览也不会因此中断。": "Content moderation now asks several models at once: one unsafe verdict sends a post to human review, and a post only auto-publishes when every model passes. A single provider going down no longer affects the other verdicts, and posting and browsing keep working.",
   "RootedVox 4.5.9 · 草稿与额度修复": "RootedVox 4.5.9 · Draft and quota fixes",
   "提交失败后清空再重填不会重复发布；退出失败不再丢草稿；精华投稿额度过了零点会自动刷新；详情页重新加载不再重复追加评论。": "Clearing and retyping after a failed submission no longer posts twice, a failed sign-out keeps your draft, the featured quota refreshes after midnight, and reloading a thread no longer appends duplicate comments.",
   "RootedVox 4.5.8 · 备用站切换与回复修复": "RootedVox 4.5.8 · Failover and reply fixes",

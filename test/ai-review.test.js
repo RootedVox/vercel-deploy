@@ -1,0 +1,193 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  parseQwenGuard,
+  parseGlmVerdict,
+  parseNemotronVerdict,
+  resolveProviderChain
+} from '../functions/_lib/ai-providers.js';
+import { mergeVerdicts, runAiCheck } from '../functions/_lib/moderate-content.js';
+import { moderationBatchSize } from '../functions/_lib/moderation-worker.js';
+
+const LEXICON = { get: async () => '霸凌\n色情' };
+
+function stubFetch(handler) {
+  const original = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), body: JSON.parse(init.body) });
+    const payload = await handler(String(url), JSON.parse(init.body));
+    return new Response(JSON.stringify(payload), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  };
+  return {
+    calls,
+    restore() { globalThis.fetch = original; }
+  };
+}
+
+function chat(content) {
+  return { choices: [{ message: { content } }] };
+}
+
+test('Qwen3Guard 的三档判定与容错解析', () => {
+  assert.equal(parseQwenGuard('Safety: Safe\nCategories: None').verdict, 'safe');
+  assert.equal(parseQwenGuard('Safety: Unsafe\nCategories: Violent').verdict, 'blocked');
+  assert.equal(parseQwenGuard('Safety: Controversial\nCategories: Bullying').verdict, 'uncertain');
+  assert.equal(parseQwenGuard('完全不像判定的输出').reason, 'unparsed_output');
+  assert.equal(parseQwenGuard('').verdict, 'uncertain');
+});
+
+test('Qwen3Guard 取最后一次判定，避免回显干扰', () => {
+  const echoed = 'Safety: Safe\n用户原文\nSafety: Unsafe\nCategories: Hate';
+  assert.equal(parseQwenGuard(echoed).verdict, 'blocked');
+});
+
+test('GLM 的 JSON 判定允许前后夹带说明文字', () => {
+  assert.equal(parseGlmVerdict('{"verdict":"safe","categories":[]}').verdict, 'safe');
+  assert.equal(parseGlmVerdict('判定如下：{"verdict":"unsafe","categories":["Bullying"]} 以上').verdict, 'blocked');
+  assert.equal(parseGlmVerdict('{"verdict":"controversial"}').verdict, 'uncertain');
+  assert.equal(parseGlmVerdict('not json').reason, 'unparsed_output');
+  assert.equal(parseGlmVerdict('{"verdict":"weird"}').reason, 'unparsed_verdict');
+});
+
+test('NVIDIA 兼容旧输出的解析逻辑保持不变', () => {
+  assert.equal(parseNemotronVerdict('User Safety: safe').verdict, 'safe');
+  assert.equal(parseNemotronVerdict('User Safety: unsafe').verdict, 'blocked');
+  assert.equal(parseNemotronVerdict('noise').verdict, 'uncertain');
+});
+
+test('判定合并：任一 blocked 即拦截，其余需要所有响应的供应商都 safe', () => {
+  const r = (...items) => items.map(([id, verdict, reason]) => ({ id, verdict, reason }));
+
+  assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'safe'])).verdict, 'safe');
+  assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'blocked'])).verdict, 'blocked');
+  assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'uncertain'])).verdict, 'uncertain');
+  assert.equal(mergeVerdicts(r(['a', 'error'], ['b', 'error'])).reason, 'upstream_unavailable');
+});
+
+test('判定合并：单家故障不拖垮其余判定，可用性优先', () => {
+  const merged = mergeVerdicts([
+    { id: 'qwenguard', verdict: 'error', reason: 'provider_error' },
+    { id: 'glm', verdict: 'safe', reason: 'model_safe' }
+  ]);
+  assert.equal(merged.verdict, 'safe');
+  assert.equal(merged.providers.find(p => p.id === 'qwenguard').verdict, 'error');
+});
+
+test('审核批次随供应商并发数收缩，避免撞上 Workers 的 6 连接上限', () => {
+  assert.equal(moderationBatchSize({ NVAPI_KEY: 'k', AI_REVIEW_PROVIDERS: 'nvidia' }, 4), 4);
+  assert.equal(moderationBatchSize({ GLM_KEY: 'k', NVAPI_KEY: 'k', AI_REVIEW_PROVIDERS: 'glm,nvidia' }, 4), 3);
+  assert.equal(moderationBatchSize({ GLM_KEY: 'k', QWEN_GUARD_KEY: 'k', NVAPI_KEY: 'k' }, 4), 2);
+  assert.equal(moderationBatchSize({}, 4), 4);
+});
+
+test('放行结论固定带 model_safe，因为数据库只认这一对才置 flag=1', () => {
+  const merged = mergeVerdicts([
+    { id: 'a', verdict: 'safe', reason: 'whatever_model_said' },
+    { id: 'b', verdict: 'safe', reason: 'model_safe' }
+  ]);
+  assert.equal(merged.verdict, 'safe');
+  assert.equal(merged.reason, 'model_safe');
+});
+
+test('供应商链按配置顺序生效，跳过没有 key 的和未知的', () => {
+  const chain = resolveProviderChain({
+    AI_REVIEW_PROVIDERS: 'glm, qwenguard, nvidia, nonsense',
+    GLM_KEY: 'k',
+    QWEN_GUARD_KEY: 'k'
+  });
+  assert.deepEqual(chain.map(p => p.id), ['glm', 'qwenguard']);
+});
+
+test('没有配置任何 key 时明确转人工，而不是静默放行', async () => {
+  const result = await runAiCheck('今天食堂的饭还行', [], { LEXICON_KV: LEXICON, AI_REVIEW_PROVIDERS: 'glm' });
+  assert.equal(result.verdict, 'uncertain');
+  // 必须复用 missing_key：finish_forum_review 只对这个 reason 重试。
+  assert.equal(result.reason, 'missing_key');
+});
+
+test('词库命中直接拦截，不浪费 API 调用', async () => {
+  const stub = stubFetch(() => chat('{"verdict":"safe","categories":[]}'));
+  try {
+    const result = await runAiCheck('这是一条霸凌同学的留言', [], {
+      LEXICON_KV: LEXICON,
+      GLM_KEY: 'k',
+      AI_REVIEW_PROVIDERS: 'glm'
+    });
+    assert.equal(result.verdict, 'blocked');
+    assert.equal(result.reason, 'lexicon');
+    assert.equal(stub.calls.length, 0);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('多家并发审核：全部 safe 才放行，且每家只请求一次', async () => {
+  const stub = stubFetch((url, body) => {
+    if (url.includes('bigmodel')) return chat('{"verdict":"safe","categories":[]}');
+    return chat('Safety: Safe\nCategories: None');
+  });
+  try {
+    const result = await runAiCheck('今天操场人挺多的', [], {
+      LEXICON_KV: LEXICON,
+      GLM_KEY: 'k1',
+      QWEN_GUARD_KEY: 'k2',
+      AI_REVIEW_PROVIDERS: 'qwenguard,glm'
+    });
+    assert.equal(result.verdict, 'safe');
+    assert.equal(result.reason, 'model_safe');
+    assert.equal(stub.calls.length, 2);
+    const qwen = stub.calls.find(c => !c.url.includes('bigmodel'));
+    assert.equal(qwen.body.messages.length, 1);
+    assert.equal(qwen.body.messages[0].role, 'user');
+    const glm = stub.calls.find(c => c.url.includes('bigmodel'));
+    assert.equal(glm.body.response_format.type, 'json_object');
+  } finally {
+    stub.restore();
+  }
+});
+
+test('一家说 safe 另一家说 unsafe 时以拦截为准', async () => {
+  const stub = stubFetch(url => (
+    url.includes('bigmodel')
+      ? chat('{"verdict":"unsafe","categories":["Bullying"]}')
+      : chat('Safety: Safe\nCategories: None')
+  ));
+  try {
+    const result = await runAiCheck('你这个人真有意思', [], {
+      LEXICON_KV: LEXICON,
+      GLM_KEY: 'k1',
+      QWEN_GUARD_KEY: 'k2',
+      AI_REVIEW_PROVIDERS: 'qwenguard,glm'
+    });
+    assert.equal(result.verdict, 'blocked');
+    assert.equal(result.reason, 'model_unsafe');
+  } finally {
+    stub.restore();
+  }
+});
+
+test('一家挂掉时另一家仍可放行，审核链路不会整体瘫痪', async () => {
+  const original = globalThis.fetch;
+  let call = 0;
+  globalThis.fetch = async (url) => {
+    call += 1;
+    if (String(url).includes('bigmodel')) throw new Error('network_error');
+    return new Response(JSON.stringify(chat('Safety: Safe\nCategories: None')), { status: 200 });
+  };
+  try {
+    const result = await runAiCheck('周末有没有人打球', [], {
+      LEXICON_KV: LEXICON,
+      GLM_KEY: 'k1',
+      QWEN_GUARD_KEY: 'k2',
+      AI_REVIEW_PROVIDERS: 'qwenguard,glm'
+    });
+    assert.equal(call, 2);
+    assert.equal(result.verdict, 'safe');
+  } finally {
+    globalThis.fetch = original;
+  }
+});

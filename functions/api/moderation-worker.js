@@ -8,7 +8,11 @@ export async function onRequestPost({ request, env }) {
     return json({ error: 'forbidden' }, 403);
   }
   try {
-    const [processed, cleaned] = await Promise.all([processModerationBatch(env), cleanExpiredMedia(env)]);
+    // Cleanup runs after the review batch rather than alongside it: Cloudflare Workers
+    // allows 6 simultaneous open connections per invocation, and each review now fans
+    // out to every configured provider. Overlapping the two would queue past the deadline.
+    const processed = await processModerationBatch(env);
+    const cleaned = await cleanExpiredMedia(env);
     return json({ processed, cleaned });
   } catch { return json({ error: 'worker_unavailable' }, 503); }
 }
