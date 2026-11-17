@@ -651,7 +651,6 @@
             isLoadingMore = true;
             const container = document.getElementById('messageContainer');
             document.querySelector('.feed-retry')?.remove();
-            const loadMoreWrap = document.getElementById('loadMoreWrapper');
 
             if (!isLoadMore) {
                 container.innerHTML = '<div class="loading">加载留言中...</div>';
@@ -661,7 +660,6 @@
                 currentPage = 0;
                 feedCursor = null;
                 hasMore = true;
-                if (loadMoreWrap) loadMoreWrap.remove();
                 document.querySelector('.no-more-tip')?.remove();
             } else {
                 if (!document.querySelector('.list-loading-tip')) {
@@ -713,7 +711,7 @@
                     }
 
                     html += `
-                    <div class="message-item${msg.is_featured === true ? ' is-featured' : ''}" id="message-${msg.id}" data-avatar-url="${escapeHtml(msg.avatar_url || '')}" data-official="${msg.is_official === true}" data-developer="${msg.is_developer === true}" data-anonymous="${msg.username === '匿名用户' ? 'true' : 'false'}">
+                    <div class="message-item${msg.is_featured === true ? ' is-featured' : ''}" id="message-${msg.id}" data-avatar-url="${escapeHtml(msg.avatar_url || '')}" data-official="${msg.is_official === true}" data-developer="${msg.is_developer === true}">
                         <div class="message-avatar-box"></div>
                         <div style="flex:1">
                             <div class="message-header">
@@ -794,8 +792,6 @@
         }
 
         function showNoMoreTip() {
-            const wrap = document.getElementById('loadMoreWrapper');
-            if (wrap) wrap.remove();
             document.getElementById('feedMore')?.setAttribute('hidden', '');
             const container = document.getElementById('messageContainer');
             if (!document.querySelector('.no-more-tip')) {
@@ -825,8 +821,7 @@
             const search = document.getElementById('messageSearch');
             const sort = document.getElementById('forumSort');
             const priority = document.getElementById('featuredFirst');
-            const legacySort = document.getElementById('messageSort');
-            const selectedSort = () => sort?.querySelector?.('input[name=forumTimeSort]:checked')?.value || legacySort?.value || 'newest';
+            const selectedSort = () => sort?.querySelector?.('input[name=forumTimeSort]:checked')?.value || 'newest';
             const zone = document.getElementById('messageZoneFilter');
             const params = new URLSearchParams(location.search);
             const initialZone = params.get('zone') === '校园生活' ? '日常分享' : params.get('zone');
@@ -838,7 +833,6 @@
             if (priority) priority.checked = activeFeaturedFirst;
             const timeChoice = sort?.querySelector?.('input[value=' + activeSort + ']');
             if (timeChoice) timeChoice.checked = true;
-            if (legacySort) legacySort.value = activeSort;
             function updateSortLabel() {
                 const label = document.getElementById('sortLabel');
                 if (label) label.textContent = (activeSort === 'oldest' ? '最早发布' : '最新发布') + (activeFeaturedFirst ? ' · 精华优先' : '');
@@ -872,7 +866,7 @@
             });
             search.addEventListener('compositionend', applyFilters);
             zone.addEventListener('change', applyFilters);
-            (sort || legacySort)?.addEventListener('change', applyFilters);
+            sort?.addEventListener('change', applyFilters);
             if (sort) {
                 document.addEventListener('click', event => {
                     if (!sort.contains(event.target)) sort.open = false;

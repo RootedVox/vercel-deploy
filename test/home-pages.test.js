@@ -64,7 +64,7 @@ test('zone cards show when the zone was last active, not how many posts they sho
       { id: '1', content: '作业求助', zone: '学习互助', username: 'A', created_at: older },
       { id: '2', content: '数学题', zone: '学习互助', username: 'B', created_at: hour }
     ] }) },
-    ForumUI: { parseMessageContent: (content, zone) => ({ zone, text: content }) },
+    ForumUI: { parseMessageContent: (content, zone) => ({ zone, text: content }), escapeHtml: String },
     performance: { getEntriesByType: () => [{ type: 'reload' }] },
     document: {
       addEventListener: (type, fn) => { listeners[type] = fn; },

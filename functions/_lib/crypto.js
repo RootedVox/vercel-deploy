@@ -24,6 +24,12 @@ export async function sha256Base64Url(value) {
   return base64UrlEncode(new Uint8Array(digest));
 }
 
+// Hex SHA-256 of raw bytes: the content address of an uploaded file.
+export async function sha256Hex(bytes) {
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+  return Array.from(digest, byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
 export function parseJwtPart(value) {
   try {
     return JSON.parse(new TextDecoder().decode(base64UrlDecode(value)));

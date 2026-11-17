@@ -73,6 +73,20 @@ function requestToken(env, session) {
   return requestTokens.get(session);
 }
 
+// Headers for the server-only secret key (session store, moderation queue, anonymous
+// media). Legacy service_role JWTs need Authorization; sb_secret keys use apikey alone.
+export function serviceKeyHeaders(env, headers = {}) {
+  const key = String(env.AUTH_STORE_SUPABASE_SECRET_KEY || '').trim();
+  if (!key) return null;
+  return key.startsWith('sb_secret_') ? { apikey: key, ...headers } : { apikey: key, Authorization: `Bearer ${key}`, ...headers };
+}
+
+async function parseBody(response) {
+  if (response.status === 204) return null;
+  const text = await response.text();
+  return text ? JSON.parse(text) : null;
+}
+
 async function databaseError(response, route, method) {
   const body = await response.text().catch(() => '');
   let code, storageStatus, reason;
@@ -115,9 +129,7 @@ async function requestSupabase(env, session, route, init = {}) {
       }
     });
     if (!response.ok) throw await databaseError(response, route, init.method);
-    if (response.status === 204) return null;
-    const text = await response.text();
-    return text ? JSON.parse(text) : null;
+    return parseBody(response);
   });
 }
 
@@ -137,9 +149,7 @@ export async function requestPublicData(env, path, init = {}, timeoutMs) {
       }
     });
     if (!response.ok) throw await databaseError(response);
-    if (response.status === 204) return null;
-    const text = await response.text();
-    return text ? JSON.parse(text) : null;
+    return parseBody(response);
   }, timeoutMs);
 }
 
@@ -198,11 +208,16 @@ export async function resolveIdentity(env, claims) {
   return { ...session, userId, is_checker: rows[0].is_checker === true };
 }
 
-export async function refreshChecker(env, session) {
+// The signed-in account's own business_users row, or undefined when it has none.
+export async function readOwnProfile(env, session, columns, init) {
   const rows = await requestBusinessData(env, session,
-    `business_users?user_id=eq.${encodeURIComponent(session.user_id)}&select=is_checker&limit=1`
+    `business_users?user_id=eq.${encodeURIComponent(session.user_id)}&select=${columns}&limit=1`, init
   );
-  return rows?.[0]?.is_checker === true;
+  return rows?.[0];
+}
+
+export async function refreshChecker(env, session) {
+  return (await readOwnProfile(env, session, 'is_checker'))?.is_checker === true;
 }
 
 export function listAvatarObjects(env, session, offset = 0) {

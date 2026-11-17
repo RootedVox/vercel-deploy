@@ -83,3 +83,18 @@ test('Vercel sends the same security headers as the Cloudflare _headers file', a
     assert.equal(sent[name], expected, name);
   }
 });
+
+// Vercel serves static files with max-age=0, so every page view asked again for each
+// script and stylesheet. Pages load them as ?v=<content hash> (sync-asset-versions.mjs):
+// such a URL never changes its content and may be kept for good. A request without
+// ?v= gets no rule and is still revalidated.
+test('versioned scripts and styles are cached for good, unversioned ones are not', async () => {
+  const vercel = JSON.parse(await readFile(new URL('../vercel.json', import.meta.url), 'utf8'));
+  const rule = vercel.headers.find(entry => entry.headers.some(h => h.key === 'Cache-Control' && h.value.includes('immutable') && h.value.includes('31536000')));
+  assert.deepEqual(rule.has, [{ type: 'query', key: 'v' }]);
+  const pattern = new RegExp('^' + rule.source + '$');
+  for (const path of ['/messages.js', '/common.css', '/vendor/webp/webp_enc.js']) assert.match(path, pattern);
+  for (const path of ['/messages', '/api/messages', '/auth/session', '/images/logo.png']) assert.doesNotMatch(path, pattern);
+  const images = vercel.headers.find(entry => entry.source === '/images/(.*)');
+  assert.match(images.headers[0].value, /max-age=604800/);
+});

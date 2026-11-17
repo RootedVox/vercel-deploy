@@ -1,18 +1,16 @@
 import { withDeadline } from './fetch-timeout.js';
+import { serviceKeyHeaders } from './supabase.js';
 // Server-only shared session store. Never use a browser publishable key here.
 async function call(env, operation, args = {}) {
   const url = String(env.BUSINESS_SUPABASE_URL || '').replace(/\/$/, '');
-  const key = String(env.AUTH_STORE_SUPABASE_SECRET_KEY || '').trim();
-  if (!url.startsWith('https://') || !key) throw new Error('auth_store_not_configured');
-  const headers = { apikey: key, 'Content-Type': 'application/json' };
-  // Legacy service_role JWTs require Authorization; sb_secret keys use apikey.
-  if (!key.startsWith('sb_secret_')) headers.Authorization = `Bearer ${key}`;
+  const headers = serviceKeyHeaders(env, { 'Content-Type': 'application/json' });
+  if (!url.startsWith('https://') || !headers) throw new Error('auth_store_not_configured');
   return withDeadline(async signal => {
     const response = await fetch(`${url}/rest/v1/rpc/isa_auth_store`, {
       method: 'POST', headers, signal, body: JSON.stringify({ operation, args })
-  });
-  if (!response.ok) throw new Error(`auth_store_unavailable:${response.status}`);
-  return response.json();
+    });
+    if (!response.ok) throw new Error(`auth_store_unavailable:${response.status}`);
+    return response.json();
   });
 }
 export const createTransaction = (env, value) => call(env, 'create_transaction', value);

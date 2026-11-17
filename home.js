@@ -6,11 +6,7 @@
     { key: 'lost', label: '失物招领', icon: '寻', description: '寻找物品与归还线索' }
   ];
 
-  const escapeHtml = (value) => {
-    const node = document.createElement('div');
-    node.textContent = value || '';
-    return node.innerHTML;
-  };
+  const { escapeHtml } = ForumUI;
   const relativeTime = (value, locale = document.documentElement?.lang === 'en' ? 'en' : 'zh-CN') => {
     const seconds = Math.max(1, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
     const formatter = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
@@ -46,50 +42,6 @@
     }).join('');
   }
 
-  function initGreeting() {
-    const node = document.getElementById('dayGreeting');
-    if (!node) return;
-    const hour = new Date().getHours();
-    const part = hour < 6 ? '夜深了' : hour < 11 ? '早上好' : hour < 14 ? '中午好' : hour < 18 ? '下午好' : '晚上好';
-    node.textContent = `${part} · 社区在线`;
-  }
-  function initCarousel() {
-    const slides = [...document.querySelectorAll('.hero-slide')];
-    const host = document.getElementById('heroDots');
-    if (!slides.length || !host) return;
-    let current = 0;
-    let timer;
-    const dots = slides.map((slide, index) => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = `hero-dot${index === 0 ? ' active' : ''}`;
-      button.setAttribute('aria-label', `显示第 ${index + 1} 张：${slide.dataset.label}`);
-      button.setAttribute('aria-pressed', String(index === 0));
-      host.appendChild(button);
-      return button;
-    });
-    const schedule = () => {
-      clearInterval(timer);
-      if (!matchMedia('(prefers-reduced-motion: reduce)').matches) timer = setInterval(() => show(current + 1), 6000);
-    };
-    const show = (next, restart = false) => {
-      current = (next + slides.length) % slides.length;
-      slides.forEach((slide, index) => slide.classList.toggle('active', index === current));
-      dots.forEach((dot, index) => {
-        dot.classList.toggle('active', index === current);
-        dot.setAttribute('aria-pressed', String(index === current));
-      });
-      if (restart) schedule();
-    };
-    dots.forEach((dot, index) => dot.addEventListener('click', () => show(index, true)));
-    document.getElementById('prevSlide')?.addEventListener('click', () => show(current - 1, true));
-    document.getElementById('nextSlide')?.addEventListener('click', () => show(current + 1, true));
-    document.querySelector('.hero')?.addEventListener('mouseenter', () => clearInterval(timer));
-    document.querySelector('.hero')?.addEventListener('mouseleave', schedule);
-    document.addEventListener('visibilitychange', () => document.hidden ? clearInterval(timer) : schedule());
-    schedule();
-  }
-
   async function loadFeed() {
     const host = document.getElementById('latestFeed');
     if (!host) return;
@@ -121,8 +73,6 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     protectHomeBack();
-    initGreeting();
-    initCarousel();
     loadFeed();
   });
 })();

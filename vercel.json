@@ -27,6 +27,19 @@
         { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' blob: https://rv.celestivast.com https://rv-vc.celestivast.com; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'" },
         { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains" }
       ]
+    },
+    {
+      "source": "/(.*)\\.(js|css)",
+      "has": [{ "type": "query", "key": "v" }],
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/images/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=604800, immutable" }
+      ]
     }
   ]
 }

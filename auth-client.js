@@ -3,7 +3,7 @@
   'use strict';
 
   const SAFE_PAGES = new Set([
-    '/main', '/messages', '/meal-rating', '/details',
+    '/main', '/messages', '/details',
     '/checker-pending', '/checker-approved', '/checker-deleted'
   ]);
 

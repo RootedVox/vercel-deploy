@@ -3,6 +3,8 @@
 // container instead of trusting the multipart MIME label: a well-formed RIFF/WebP file,
 // one still image (no animation), the exact 256x256 size in the bitstream header, and
 // no chunk running past the end of the file.
+import { sha256Hex } from './crypto.js';
+
 export const AVATAR_SIZE = 256;
 export const AVATAR_LIMIT = 64;
 export const AVATAR_RETENTION_MS = 7 * 86400000;
@@ -70,6 +72,5 @@ export async function validateAvatar(file) {
   const [width, height] = bitstreamSize(image.type, image.data);
   if (width !== AVATAR_SIZE || height !== AVATAR_SIZE) fail();
 
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
-  return [...digest].map(byte => byte.toString(16).padStart(2, '0')).join('');
+  return sha256Hex(bytes);
 }
