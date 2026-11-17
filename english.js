@@ -1,5 +1,4 @@
 window.rvEnglish = new Map(Object.entries({
-  "展开全文": "Show more",
   "收起": "Show less",
   "RootedVox 4.5.4 · 通知中心绿版与性能清理": "RootedVox 4.5.4 · Green notification center and cleanup",
   "通知中心统一为终端绿卡片样式，精华投稿有专属标识。修复草稿图片丢失与未读提醒漏报，并减少数据库请求、清理停用功能。": "The notification center now uses terminal-green cards with a distinct badge for featured posts. Fixed lost draft images and missed unread alerts, reduced database requests and removed retired features.",

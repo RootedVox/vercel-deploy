@@ -134,38 +134,3 @@ test('returning to a post loads its saved pages and focuses the original card', 
   assert.deepEqual(pages, [0, 1]);
   assert.ok(scrolled && focused);
 });
-
-test('long posts are folded with a 展开全文 button; short ones are left alone', async () => {
-  const element = (scrollHeight, clientHeight) => {
-    const classes = new Set();
-    const button = { hidden: true };
-    const text = {
-      nextElementSibling: button,
-      classList: { add: name => classes.add(name), remove: name => classes.delete(name), contains: name => classes.has(name) },
-      get scrollHeight() { return classes.has('is-folded') ? scrollHeight : clientHeight; },
-      clientHeight
-    };
-    return { text, button, classes, card: { querySelector: () => text } };
-  };
-  const long = element(600, 160), short = element(80, 80);
-  const container = { innerHTML: '', insertAdjacentHTML(_where, html) { this.innerHTML += html; } };
-  const api = { async listMessages() { return { messages: [{ ...item, id: 'a' }, { ...item, id: 'b' }], hasMore: false }; } };
-  const page = runPageScript('messages.js', {
-    AbortController, RootedVoxPublicData: api, window: { RootedVoxPublicData: api },
-    requestAnimationFrame() {},
-    ForumUI: { parseMessageContent: () => ({ zone: '', text: '' }), escapeHtml: String, renderMessageAvatars() {} },
-    document: { querySelector() { return null; }, getElementById(id) {
-      if (id === 'messageContainer') return container;
-      if (id === 'messageFeed') return { clientHeight: 100, scrollHeight: 800 };
-      if (id === 'message-a') return long.card;
-      if (id === 'message-b') return short.card;
-      return null;
-    } }
-  }, { replace: { showNoMoreTip() {} }, expose: ['loadMainMessages'] });
-  await page.loadMainMessages();
-  assert.match(container.innerHTML, /<button type="button" class="expand-post" aria-expanded="false" hidden>展开全文<\/button>/);
-  assert.ok(long.classes.has('is-folded'));
-  assert.equal(long.button.hidden, false);
-  assert.ok(!short.classes.has('is-folded'));
-  assert.equal(short.button.hidden, true);
-});

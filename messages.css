@@ -534,10 +534,6 @@
         .message-header .message-zone { margin:0; padding:2px 8px; font-size:11px; }
         .message-header .message-time { margin-left:auto; }
         .message-item .message-content { margin-bottom:4px; }
-        .message-content.is-folded { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:6; overflow:hidden; }
-        .expand-post { padding:4px 0; border:0; background:none; color:var(--theme-color); cursor:pointer; font-size:13px; font-weight:700; }
-        .expand-post[hidden] { display:none; }
-        .expand-post:focus-visible { outline:2px solid var(--theme-color); outline-offset:2px; border-radius:4px; }
         .message-content { color:var(--muted); }
         .detail-btn { padding:7px 12px; border-radius:10px; background:var(--theme-soft); font-weight:700; }
         .modal-box { overflow:hidden; border:1px solid var(--line); border-radius:20px; box-shadow:var(--shadow-lg); }
