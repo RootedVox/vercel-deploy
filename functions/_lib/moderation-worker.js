@@ -1,11 +1,10 @@
 import { runAiCheck } from './moderate-content.js';
 import { withDeadline } from './fetch-timeout.js';
+import { serviceKeyHeaders } from './supabase.js';
 
 async function serviceRequest(env, path, method, args) {
-  const key = env.AUTH_STORE_SUPABASE_SECRET_KEY;
-  if (!key) throw new Error('moderation_store_not_configured');
-  const headers = { apikey: key, 'Content-Type': 'application/json' };
-  if (!key.startsWith('sb_secret_')) headers.Authorization = `Bearer ${key}`;
+  const headers = serviceKeyHeaders(env, { 'Content-Type': 'application/json' });
+  if (!headers) throw new Error('moderation_store_not_configured');
   return withDeadline(async signal => {
     const response = await fetch(`${env.BUSINESS_SUPABASE_URL.replace(/\/$/, '')}/${path}`, {
       method, headers, body: JSON.stringify(args), signal
@@ -20,20 +19,6 @@ function call(env, name, args) {
   return serviceRequest(env, 'rest/v1/rpc/' + name, 'POST', args);
 }
 
-// 迁移未执行时，审核队列不存在。只缓存可用状态，迁移上线后下一次请求即生效。
-let queueReadyAt = 0;
-export async function moderationQueueAvailable(env) {
-  if (Date.now() - queueReadyAt < 60_000) return true;
-  if (!env.AUTH_STORE_SUPABASE_SECRET_KEY) return false;
-  try {
-    await call(env, 'claim_forum_review', { target: crypto.randomUUID() });
-    queueReadyAt = Date.now();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export async function cleanExpiredMedia(env) {
   const rows = await call(env, 'claim_forum_media_cleanup', {});
   const names = rows.map(row => row.object_name);
@@ -41,6 +26,14 @@ export async function cleanExpiredMedia(env) {
   await serviceRequest(env, 'storage/v1/object/message-pics', 'DELETE', { prefixes: names });
   await call(env, 'finish_forum_media_cleanup', { names });
   return names.length;
+}
+
+// One scheduled run. The first claim tells whether anything is waiting; only then are
+// more claimed, so an idle queue costs one database call instead of four.
+export async function processModerationBatch(env, size = 4) {
+  if (!await processNextModeration(env)) return 0;
+  const rest = await Promise.all(Array.from({ length: size - 1 }, () => processNextModeration(env)));
+  return 1 + rest.filter(Boolean).length;
 }
 
 export async function processNextModeration(env, id = null) {

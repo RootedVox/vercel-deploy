@@ -6,11 +6,7 @@
     { key: 'lost', label: '失物招领', icon: '寻', description: '寻找物品与归还线索' }
   ];
 
-  const escapeHtml = (value) => {
-    const node = document.createElement('div');
-    node.textContent = value || '';
-    return node.innerHTML;
-  };
+  const { escapeHtml } = ForumUI;
   const relativeTime = (value, locale = document.documentElement?.lang === 'en' ? 'en' : 'zh-CN') => {
     const seconds = Math.max(1, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
     const formatter = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
@@ -46,13 +42,6 @@
     }).join('');
   }
 
-  function initGreeting() {
-    const node = document.getElementById('dayGreeting');
-    if (!node) return;
-    const hour = new Date().getHours();
-    const part = hour < 6 ? '夜深了' : hour < 11 ? '早上好' : hour < 14 ? '中午好' : hour < 18 ? '下午好' : '晚上好';
-    node.textContent = `${part} · 社区在线`;
-  }
   function initCarousel() {
     const slides = [...document.querySelectorAll('.hero-slide')];
     const host = document.getElementById('heroDots');
@@ -121,7 +110,6 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     protectHomeBack();
-    initGreeting();
     initCarousel();
     loadFeed();
   });

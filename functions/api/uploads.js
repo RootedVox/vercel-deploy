@@ -1,14 +1,10 @@
 import { authenticateApi } from '../_lib/api.js';
 import { json, methodNotAllowed } from '../_lib/http.js';
-import { uploadBusinessObject, requestBusinessData, listAvatarObjects, deleteAvatarObjects } from '../_lib/supabase.js';
-
+import { sha256Hex } from '../_lib/crypto.js';
+import { uploadBusinessObject, readOwnProfile, requestBusinessData, listAvatarObjects, deleteAvatarObjects } from '../_lib/supabase.js';
 import { validateAvatar, AVATAR_LIMIT, AVATAR_RETENTION_MS } from '../_lib/avatar.js';
 
-const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
-
-function extensionFor(type) {
-  return ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' })[type];
-}
+const EXTENSIONS = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
 
 function avatarStorageError(error) {
   const status = error.storageStatus || error.status;
@@ -58,7 +54,7 @@ export async function onRequestPost({ request, env }) {
   const kind = form.get('kind') === 'avatar' ? 'avatar' : 'message';
   const files = form.getAll('files').filter(value => typeof value !== 'string');
   const maxFiles = kind === 'avatar' ? 1 : 5;
-  if (!files.length || files.length > maxFiles || files.some(file => !file.size || !ALLOWED_TYPES.has(file.type) || file.size > 5 * 1024 * 1024)) {
+  if (!files.length || files.length > maxFiles || files.some(file => !file.size || !Object.hasOwn(EXTENSIONS, file.type) || file.size > 5 * 1024 * 1024)) {
     return json({ error: 'invalid_upload' }, 400, auth.headers);
   }
   const bucket = kind === 'avatar' ? 'avatars' : 'message-pics';
@@ -80,9 +76,9 @@ export async function onRequestPost({ request, env }) {
       if (expired.length) {
         stage = 'cleanup';
         try {
-          const rows = await requestBusinessData(env, auth.session, `business_users?user_id=eq.${encodeURIComponent(auth.session.user_id)}&select=avatar_url&limit=1`);
-          if (!Array.isArray(rows) || rows.length !== 1) throw new Error('profile_unavailable');
-          const currentPath = rows[0].avatar_url ? new URL(rows[0].avatar_url).pathname : null;
+          const profile = await readOwnProfile(env, auth.session, 'avatar_url');
+          if (!profile) throw new Error('profile_unavailable');
+          const currentPath = profile.avatar_url ? new URL(profile.avatar_url).pathname : null;
           const obsolete = expired.filter(item => '/storage/v1/object/public/avatars/business/' + item.name !== currentPath);
           if (obsolete.length) {
             await deleteAvatarObjects(env, auth.session, obsolete.map(item => 'business/' + item.name));
@@ -100,28 +96,26 @@ export async function onRequestPost({ request, env }) {
       return json(storageFailure(stage, error), 503, auth.headers);
     }
   }
-  const urls = [];
   try {
-    for (const file of files) {
-      const hash = kind === 'message'
-        ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', await file.arrayBuffer())), byte => byte.toString(16).padStart(2, '0')).join('')
-        : null;
-      const path = kind === 'avatar'
-        ? avatarPath
-        : `business/${auth.session.user_id}/${hash}.${extensionFor(file.type)}`;
-      if (kind === 'message') {
-        let ready = true;
-        try {
-          ready = await requestBusinessData(env, auth.session, 'rpc/prepare_forum_media', {
-            method: 'POST', body: JSON.stringify({ object_name: path })
-          });
-        } catch {
-          // 迁移未执行时跳过登记，沿用旧上传流程
-        }
-        if (ready === false) throw new Error('upload_cleanup_pending');
-      }
-      urls.push(await uploadBusinessObject(env, auth.session, bucket, path, file, false, true));
+    if (kind === 'avatar') {
+      const url = await uploadBusinessObject(env, auth.session, bucket, avatarPath, files[0], false, true);
+      return json({ urls: [url] }, 201, auth.headers);
     }
+    // Up to five images are stored side by side instead of one after another; the
+    // answer keeps the order the files were sent in.
+    const urls = await Promise.all(files.map(async file => {
+      const path = `business/${auth.session.user_id}/${await sha256Hex(await file.arrayBuffer())}.${EXTENSIONS[file.type]}`;
+      let ready = true;
+      try {
+        ready = await requestBusinessData(env, auth.session, 'rpc/prepare_forum_media', {
+          method: 'POST', body: JSON.stringify({ object_name: path })
+        });
+      } catch {
+        // 迁移未执行时跳过登记，沿用旧上传流程
+      }
+      if (ready === false) throw new Error('upload_cleanup_pending');
+      return uploadBusinessObject(env, auth.session, bucket, path, file, false, true);
+    }));
     return json({ urls }, 201, auth.headers);
   } catch (error) {
     return json(kind === 'avatar' ? storageFailure('upload', error) : { error: 'upload_failed' }, 503, auth.headers);

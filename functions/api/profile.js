@@ -1,7 +1,7 @@
 import { authenticateApi, cleanText } from '../_lib/api.js';
 import { json, methodNotAllowed } from '../_lib/http.js';
-import { isOfficialNickname, isReservedNickname, nicknameKey, OFFICIAL_USER_ID, resolveProfileNickname } from '../_lib/official-profile.js';
-import { requestBusinessData } from '../_lib/supabase.js';
+import { isOfficialNickname, isReservedNickname, nicknameKey, OFFICIAL_USER_ID, profileNickname, resolveProfileNickname } from '../_lib/official-profile.js';
+import { readOwnProfile, requestBusinessData } from '../_lib/supabase.js';
 
 const MAX_NICKNAME_LENGTH = 40;
 
@@ -21,13 +21,9 @@ export async function onRequestGet({ request, env }) {
   const auth = await authenticateApi(request, env);
   if (auth.response) return auth.response;
   try {
-    const rows = await requestBusinessData(env, auth.session, `business_users?user_id=eq.${encodeURIComponent(auth.session.user_id)}&select=nickname,display_name,avatar_url&limit=1`);
-    const row = rows[0] || {};
+    const row = await readOwnProfile(env, auth.session, 'nickname,display_name,avatar_url') || {};
     return json({
-      nickname: resolveProfileNickname(
-        auth.session.user_id, row.nickname,
-        row.display_name || auth.session.display_name || auth.session.email?.split('@')[0] || '校园用户'
-      ),
+      nickname: profileNickname(auth.session, row),
       customNickname: row.nickname || null,
       avatarUrl: row.avatar_url || null
     }, 200, auth.headers);

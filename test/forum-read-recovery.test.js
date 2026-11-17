@@ -1,6 +1,6 @@
-import test from 'node:test';
+import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { onRequestGet } from '../functions/api/messages.js';
+import { clearPublicReadCache, onRequestGet } from '../functions/api/messages.js';
 import { onRequestPatch } from '../functions/api/notifications.js';
 
 const site = 'https://forum.example';
@@ -9,6 +9,8 @@ const env = {
   BUSINESS_SUPABASE_URL: 'https://db.example', BUSINESS_SUPABASE_PUBLISHABLE_KEY: 'public'
 };
 const missingRpc = () => Response.json({ code: 'PGRST202' }, { status: 404 });
+// Each test stands for a fresh server instance, without answers kept from another test.
+beforeEach(clearPublicReadCache);
 const messages = query => onRequestGet({ request: new Request(site + '/api/messages?' + query), env });
 
 test('homepage reads two approved root posts per zone when the overview RPC is missing', async t => {

@@ -4,7 +4,7 @@ import { getBusinessSession } from './session.js';
 import { refreshChecker } from './supabase.js';
 
 export async function authenticateApi(request, env, options = {}) {
-  if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && !sameOriginRequest(request, env)) {
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && !sameOriginRequest(request)) {
     return { response: json({ error: 'invalid_origin' }, 403) };
   }
   let config;
@@ -34,12 +34,4 @@ export function integerParam(value, fallback, min, max) {
 export function cleanText(value, maxLength) {
   const text = String(value ?? '').trim();
   return text ? text.slice(0, maxLength) : '';
-}
-
-export function shanghaiDate() {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit'
-  }).formatToParts(new Date());
-  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
-  return `${values.year}-${values.month}-${values.day}`;
 }

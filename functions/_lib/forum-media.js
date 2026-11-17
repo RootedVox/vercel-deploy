@@ -1,5 +1,6 @@
 import { json, SECURITY_HEADERS } from './http.js';
 import { withDeadline } from './fetch-timeout.js';
+import { serviceKeyHeaders } from './supabase.js';
 
 export function publicMessageMedia(row) {
   if (row.username !== '匿名用户' || !Array.isArray(row.pic_url)) return row;
@@ -13,10 +14,8 @@ export async function readAnonymousImage(env, id, slot) {
   const database = new URL(env.BUSINESS_SUPABASE_URL);
   if (database.protocol !== 'https:') return json({ error: 'media_unavailable' }, 503);
   const origin = database.origin;
-  const key = env.AUTH_STORE_SUPABASE_SECRET_KEY;
-  if (!key) return json({ error: 'media_unavailable' }, 503);
-  const headers = { apikey: key };
-  if (!key.startsWith('sb_secret_')) headers.Authorization = 'Bearer ' + key;
+  const headers = serviceKeyHeaders(env);
+  if (!headers) return json({ error: 'media_unavailable' }, 503);
   const select = new URLSearchParams({ id: 'eq.' + id, username: 'eq.匿名用户', flag: 'eq.1', select: 'pic_url', limit: '1' });
   const rows = await withDeadline(async signal => {
     const res = await fetch(origin + '/rest/v1/messages?' + select, { headers, signal, redirect: 'error' });

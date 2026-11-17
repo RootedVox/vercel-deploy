@@ -35,6 +35,12 @@ export function isReservedNickname(nickname, userId = null) {
   return owner === null || owner !== userId;
 }
 
+// The name an account posts under: its site nickname, else the name its sign-in gave.
+export function profileNickname(session, row = {}) {
+  return resolveProfileNickname(session.user_id, row.nickname,
+    row.display_name || session.display_name || session.email?.split('@')[0] || DEFAULT_NICKNAME);
+}
+
 export function resolveProfileNickname(userId, nickname, fallback) {
   if (userId === OFFICIAL_USER_ID && (!nickname || isOfficialNickname(nickname))) {
     return OFFICIAL_NICKNAME;

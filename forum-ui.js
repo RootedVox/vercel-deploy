@@ -43,53 +43,20 @@
           if (box.dataset.renderKey === renderKey) return;
           box.dataset.renderKey = renderKey;
 
-          const devWrapStyle = isDeveloper
-              ? `position:relative;padding:2px;border-radius:50%;background:linear-gradient(135deg,#ffd700,#ff9500);`
-              : ``;
-          const devInnerStyle = isDeveloper
-              ? `border-radius:50%;background:#fff;padding:1px;`
-              : ``;
-
-          box.style.removeProperty("display");
-          box.style.removeProperty("flex-direction");
-          box.style.removeProperty("align-items");
-          box.style.removeProperty("gap");
-
           if (username === "匿名用户") {
               // A neutral silhouette: the old solid black disc vanished on the dark theme.
               box.innerHTML = `<div class="anonymous-avatar" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="12" cy="8.5" r="4"/><path d="M4 20.5c.6-4.2 3.9-6.5 8-6.5s7.4 2.3 8 6.5z"/></svg></div>`;
               return;
           }
 
-          let avatarCore = "";
-
-          if (avatarUrl) {
-              if (isDeveloper) {
-                  avatarCore = `
-                  <div style="${devWrapStyle}">
-                      <div style="${devInnerStyle}">
-                          <img loading="lazy" decoding="async" width="38" height="38" alt="" src="${escapeHtml(getFreshAvatar(avatarUrl))}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:block;">
-                      </div>
-                      <span style="position:absolute;right:-6px;bottom:-2px;font-size:9px;font-weight:bold;color:#171000;background:#e3ac21;padding:1px 4px;border-radius:6px;white-space:nowrap;z-index:2;">Dev</span>
-                  </div>`;
-              } else {
-                  avatarCore = `<img loading="lazy" decoding="async" width="38" height="38" alt="" src="${escapeHtml(getFreshAvatar(avatarUrl))}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">`;
-              }
-          } else {
-              if (isDeveloper) {
-                  avatarCore = `
-                  <div style="${devWrapStyle}">
-                      <div style="${devInnerStyle}">
-                          <div style="width:38px;height:38px;border-radius:50%;background:var(--theme-soft);display:flex;align-items:center;justify-content:center;color:var(--ink);">${escapeHtml(firstChar)}</div>
-                      </div>
-                      <span style="position:absolute;right:-6px;bottom:-2px;font-size:9px;font-weight:bold;color:#171000;background:#e3ac21;padding:1px 4px;border-radius:6px;white-space:nowrap;z-index:2;">Dev</span>
-                  </div>`;
-              } else {
-                  avatarCore = `<div style="width:38px;height:38px;border-radius:50%;background:var(--theme-soft);display:flex;align-items:center;justify-content:center;color:var(--ink);">${escapeHtml(firstChar)}</div>`;
-              }
-          }
-
-          box.innerHTML = avatarCore;
+          // The picture, or the first character of the name when there is none.
+          const face = avatarUrl
+              ? `<img loading="lazy" decoding="async" width="38" height="38" alt="" src="${escapeHtml(getFreshAvatar(avatarUrl))}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;${isDeveloper ? 'display:block;' : ''}">`
+              : `<div style="width:38px;height:38px;border-radius:50%;background:var(--theme-soft);display:flex;align-items:center;justify-content:center;color:var(--ink);">${escapeHtml(firstChar)}</div>`;
+          // Developers and the official account get a gold ring and a Dev badge around it.
+          box.innerHTML = isDeveloper
+              ? `<div style="position:relative;padding:2px;border-radius:50%;background:linear-gradient(135deg,#ffd700,#ff9500);"><div style="border-radius:50%;background:#fff;padding:1px;">${face}</div><span style="position:absolute;right:-6px;bottom:-2px;font-size:9px;font-weight:bold;color:#171000;background:#e3ac21;padding:1px 4px;border-radius:6px;white-space:nowrap;z-index:2;">Dev</span></div>`
+              : face;
       });
   }
 

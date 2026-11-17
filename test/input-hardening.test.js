@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { onRequestPost as postMessage } from '../functions/api/messages.js';
 import { onRequestPut as saveProfile } from '../functions/api/profile.js';
-import { onRequestPut as saveMealRating } from '../functions/api/meal-ratings.js';
 import { onRequestPatch as moderate } from '../functions/api/checker/messages.js';
 import { onRequestGet as postLogout } from '../functions/auth/post-logout.js';
 import { exchangeCode, fetchUserInfo } from '../functions/_lib/oidc.js';
@@ -37,7 +36,6 @@ test('a JSON body that is not an object is a 400, not an unhandled exception', a
   for (const body of ['null', '42', '"text"', '[]']) {
     for (const [handler, path, method] of [
       [saveProfile, '/api/profile', 'PUT'],
-      [saveMealRating, '/api/meal-ratings', 'PUT'],
       [moderate, '/api/checker/messages', 'PATCH'],
       [postMessage, '/api/messages', 'POST']
     ]) {

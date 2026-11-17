@@ -26,14 +26,15 @@ test('no page relies on inline scripts or on* attributes, which the Content-Secu
   for (const name of scripts) assert.doesNotMatch(read(name), /<[^>`]+\son[a-z]+=\\?["']/i, name);
 });
 
-test('both deployments send a policy that only runs same-origin scripts', () => {
+test('both deployments send a policy that only runs same-origin scripts and the Cloudflare analytics beacon', () => {
   const policy = read('_headers').match(/^  Content-Security-Policy: (.+)$/m)[1];
   const directives = Object.fromEntries(policy.split(';').map(part => {
     const [name, ...values] = part.trim().split(/\s+/);
     return [name, values];
   }));
   // WebAssembly for the avatar WebP encoder; JavaScript eval stays blocked.
-  assert.deepEqual(directives['script-src'], ["'self'", "'wasm-unsafe-eval'"]);
+  // Cloudflare Web Analytics injects its beacon from static.cloudflareinsights.com.
+  assert.deepEqual(directives['script-src'], ["'self'", "'wasm-unsafe-eval'", 'https://static.cloudflareinsights.com']);
   assert.deepEqual(directives['default-src'], ["'self'"]);
   assert.deepEqual(directives['object-src'], ["'none'"]);
   assert.deepEqual(directives['frame-ancestors'], ["'none'"]);

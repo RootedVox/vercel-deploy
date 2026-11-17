@@ -1,9 +1,9 @@
 import { getConfig } from '../_lib/config.js';
 import { cookieNames, json, methodNotAllowed, parseCookies } from '../_lib/http.js';
 import { withDeadline } from '../_lib/fetch-timeout.js';
-import { resolveProfileNickname } from '../_lib/official-profile.js';
+import { profileNickname } from '../_lib/official-profile.js';
 import { getBusinessSession } from '../_lib/session.js';
-import { requestBusinessData } from '../_lib/supabase.js';
+import { readOwnProfile, requestBusinessData } from '../_lib/supabase.js';
 
 // The session keeps the name Keycloak gave at sign-in, but a nickname changed on the site
 // lives in business_users, so pages showed the old name until /api/profile answered.
@@ -15,18 +15,12 @@ import { requestBusinessData } from '../_lib/supabase.js';
 // avatarUrl is left out when the read failed, telling the page to ask /api/profile.
 const NICKNAME_DEADLINE_MS = 1500;
 async function currentProfile(env, session) {
-  const fallback = session.display_name || session.email?.split('@')[0] || '校园用户';
   try {
-    const rows = await withDeadline(signal => requestBusinessData(env, session,
-      `business_users?user_id=eq.${encodeURIComponent(session.user_id)}&select=nickname,display_name,avatar_url&limit=1`, { signal }
-    ), NICKNAME_DEADLINE_MS);
-    const row = rows?.[0] || {};
-    return {
-      name: resolveProfileNickname(session.user_id, row.nickname, row.display_name || fallback),
-      avatarUrl: row.avatar_url || null
-    };
+    const row = await withDeadline(signal => readOwnProfile(env, session, 'nickname,display_name,avatar_url', { signal }),
+      NICKNAME_DEADLINE_MS) || {};
+    return { name: profileNickname(session, row), avatarUrl: row.avatar_url || null };
   } catch {
-    return { name: resolveProfileNickname(session.user_id, null, fallback) };
+    return { name: profileNickname(session) };
   }
 }
 
