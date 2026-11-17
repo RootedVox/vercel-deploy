@@ -499,10 +499,13 @@
         .message-form-section,.message-list-section { margin:0; border:1px solid var(--line); border-radius:22px; background:var(--surface); box-shadow:var(--shadow-sm); }
         .message-form-section { padding:26px; }
         /* The form determines the grid row height; the feed never stretches the page. */
-        .message-list-section { position:relative; min-height:0; padding:0; }
+        /* Never taller than the window below the header, so the whole box fits on screen
+           once the page has scrolled to it (messages.js scrolls the page there first). */
+        .message-list-section { position:relative; min-height:0; max-height:calc(100vh - 112px); padding:0; }
         .message-list-inner { position:absolute; inset:26px; display:flex; flex-direction:column; min-height:0; }
         .feed-controls { flex:none; }
-        .message-feed { flex:1; min-height:0; overflow-y:auto; overscroll-behavior-y:contain; scrollbar-gutter:stable; padding:4px 4px 0; }
+        /* At either end of the list the wheel moves on to the page instead of stopping. */
+        .message-feed { flex:1; min-height:0; overflow-y:auto; scrollbar-gutter:stable; padding:4px 4px 0; }
         .message-feed:focus-visible { outline:2px solid var(--theme-color); outline-offset:4px; border-radius:12px; }
         .form-title { margin:0; color:var(--ink); text-align:left; font-size:20px; }
         .section-copy { margin:4px 0 22px; color:var(--muted); font-size:14px; }
@@ -569,7 +572,7 @@
             .feed-toolbar { margin:12px 0; }
             /* The feed grows with the page here: a scroll box inside a scrolling page traps
                touch scrolling, and its frame left a phone about ten characters per line. */
-            .message-list-section { border:0; border-radius:0; background:none; box-shadow:none; }
+            .message-list-section { max-height:none; border:0; border-radius:0; background:none; box-shadow:none; }
             .message-list-inner { position:static; display:block; }
             .message-feed { overflow:visible; padding:0; scrollbar-gutter:auto; }
             .message-item { padding:14px; gap:12px; }

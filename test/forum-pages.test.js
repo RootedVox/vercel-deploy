@@ -344,3 +344,45 @@ test('phones drop the guest compose card and the live header blur', () => {
   assert.match(phone, /\.message-form-section \{ position:static;/);
   assert.match(read('common.css'), /@media\(max-width:860px\)\{\.header,\.header\.scrolled\{backdrop-filter:none;/);
 });
+
+test('the desktop list box fits the window and the wheel never stops at its ends', () => {
+  const css = read('messages.css');
+  const cut = css.lastIndexOf('@media (max-width: 768px)');
+  assert.doesNotMatch(css, /overscroll-behavior/);
+  assert.match(css.slice(0, cut), /\.message-list-section \{ position:relative; min-height:0; max-height:calc\(100vh - 112px\);/);
+  assert.match(css.slice(cut), /\.message-list-section \{ max-height:none;/);
+});
+
+test('on desktop a wheel over the list first brings the whole box on screen', async () => {
+  let initialize, wheel, feedBottom = 1276, overflowY = 'auto';
+  const nodes = new Map(), scrolled = [];
+  const get = id => {
+    if (!nodes.has(id)) nodes.set(id, {
+      value: '', textContent: '', style: {}, options: [], hidden: true, setAttribute() {},
+      addEventListener(type, callback) { if (id === 'messageFeed' && type === 'wheel') wheel = callback; },
+      getBoundingClientRect: () => ({ bottom: feedBottom })
+    });
+    return nodes.get(id);
+  };
+  runPageScript('messages.js', {
+    document: { getElementById: get, querySelector: () => null, addEventListener(type, callback) { if (type === 'DOMContentLoaded') initialize = callback; } },
+    window: { innerHeight: 800, addEventListener() {}, scrollBy: options => scrolled.push(options) },
+    getComputedStyle: () => ({ overflowY })
+  }, { replace: { initAuth: async () => false, loadMainMessages: async () => {} } });
+  await initialize();
+  const turn = deltaY => {
+    let prevented = false;
+    wheel({ deltaY, deltaMode: 0, preventDefault() { prevented = true; } });
+    return prevented;
+  };
+  assert.equal(turn(100), true);
+  assert.equal(turn(900), true);
+  // The page moves no further than the hidden part of the box, without smooth scrolling.
+  assert.equal(JSON.stringify(scrolled), JSON.stringify([{ top: 100, behavior: 'instant' }, { top: 476, behavior: 'instant' }]));
+  feedBottom = 790;
+  assert.equal(turn(100), false, 'box fully on screen: the posts scroll');
+  feedBottom = 1276;
+  assert.equal(turn(-100), false, 'scrolling up is left to the browser');
+  overflowY = 'visible';
+  assert.equal(turn(100), false, 'phones scroll the page anyway');
+});
