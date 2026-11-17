@@ -92,7 +92,7 @@ function commentHarness(upload = async () => ['https://example.invalid/picture.w
   const alerts = [], writes = [];
   let clears = 0;
   const box = {style: { display:'block' }}, draft = {};
-  const context = { submit: runPageScript('details.js', {
+  const page = runPageScript('details.js', {
     location: { search: '?id=1' },
     document: { querySelector: () => button, getElementById(id) {
       if (id === 'reply-box-1') return box;
@@ -107,8 +107,11 @@ function commentHarness(upload = async () => ['https://example.invalid/picture.w
   }, { replace: {
     authReady: Promise.resolve(), currentUser: { id: 'test' }, uploadImages: upload,
     loadAllComments() {}
-  }, expose: ['submitComment'] }).submitComment };
-  return { button, input, file, writes, alerts, submit: context.submit, clears: () => clears, closed: () => box.style.display === 'none' };
+  }, expose: ['submitComment', 'replyImages'] });
+  // A picked file goes through previewImages first in the browser; place it in the
+  // same per-reply image state so submitComment sees a pending upload.
+  page.replyImages.set('1', [{ file: {} }]);
+  return { button, input, file, writes, alerts, submit: page.submitComment, clears: () => clears, closed: () => box.style.display === 'none' };
 }
 
 test('double-clicking a comment sends one write; network failure preserves draft and unlocks retry', async () => {

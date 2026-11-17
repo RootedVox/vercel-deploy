@@ -14,16 +14,22 @@ export async function onRequestGet({ request, env }) {
     user_id: `eq.${auth.session.user_id}`,
     select: 'id,title,content,type,related_id,read,created_at'
   });
-  if (!applyPage(params, url, page, limit)) return json({ error: 'invalid_cursor' }, 400, auth.headers);
   if (url.searchParams.get('exists') === '1') {
-    params.set('select', 'id');
-    params.set('limit', '1');
-    params.set('read', 'eq.false');
+    // The unread probe must see every unread row. Build it from scratch: reusing
+    // params would inherit applyPage()'s offset/cursor filters and report no
+    // unread notifications when a page or cursor is supplied.
+    const probe = new URLSearchParams({
+      user_id: `eq.${auth.session.user_id}`,
+      select: 'id',
+      limit: '1',
+      read: 'eq.false'
+    });
     try {
-      const rows = await requestBusinessData(env, auth.session, `business_notifications?${params}`);
+      const rows = await requestBusinessData(env, auth.session, `business_notifications?${probe}`);
       return json({ hasUnread: rows.length > 0 }, 200, auth.headers);
     } catch { return json({ error: 'notifications_unavailable' }, 503, auth.headers); }
   }
+  if (!applyPage(params, url, page, limit)) return json({ error: 'invalid_cursor' }, 400, auth.headers);
   if (unreadOnly) params.set('read', 'eq.false');
   try {
     const rows = await requestBusinessData(env, auth.session, `business_notifications?${params}`);
