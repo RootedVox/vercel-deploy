@@ -503,8 +503,9 @@
         .message-list-section { position:relative; min-height:0; padding:0; }
         .message-list-inner { position:absolute; inset:26px; display:flex; flex-direction:column; min-height:0; }
         .feed-controls { flex:none; }
-        /* At either end of the list the wheel moves on to the page instead of stopping. */
-        .message-feed { flex:1; min-height:0; overflow-y:auto; scrollbar-gutter:stable; padding:4px 4px 0; }
+        /* The list keeps growing as pages load, so the wheel stops at its current end
+           instead of running on into the page; the page scrolls with the pointer outside. */
+        .message-feed { flex:1; min-height:0; overflow-y:auto; overscroll-behavior-y:contain; scrollbar-gutter:stable; padding:4px 4px 0; }
         .message-feed:focus-visible { outline:2px solid var(--theme-color); outline-offset:4px; border-radius:12px; }
         .form-title { margin:0; color:var(--ink); text-align:left; font-size:20px; }
         .section-copy { margin:4px 0 16px; color:var(--muted); font-size:14px; }

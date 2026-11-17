@@ -345,9 +345,10 @@ test('phones drop the guest compose card and the live header blur', () => {
   assert.match(read('common.css'), /@media\(max-width:860px\)\{\.header,\.header\.scrolled\{backdrop-filter:none;/);
 });
 
-test('desktop cards end level and the wheel never stops at the list ends', () => {
+test('desktop cards end level and the wheel stays inside the growing list', () => {
   const css = read('messages.css');
-  assert.doesNotMatch(css, /overscroll-behavior/);
+  // A swipe past the list's current end must not carry the page down to the footer.
+  assert.match(css, /\.message-feed \{[^}]*overscroll-behavior-y:contain;/);
   assert.doesNotMatch(css, /\.message-list-section \{[^}]*max-height/);
   assert.match(css, /\.community-layout \{[^}]*align-items:stretch;/);
 });
