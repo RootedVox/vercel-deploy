@@ -164,7 +164,7 @@ export const PROVIDERS = {
 
   glm: {
     id: 'glm',
-    label: 'GLM-4-Flash',
+    label: 'GLM-4.7-Flash',
     isConfigured: env => Boolean(env?.GLM_KEY),
     async review(text, env) {
       const base = trimSlash(env?.GLM_BASE_URL) || 'https://open.bigmodel.cn/api/paas/v4';
@@ -172,7 +172,10 @@ export const PROVIDERS = {
         url: `${base}/chat/completions`,
         key: env.GLM_KEY,
         body: {
-          model: String(env?.GLM_MODEL || 'glm-4-flash').trim(),
+          // glm-4.7-flash：200K 上下文，输入/输出/缓存全免费（智谱 2026 官方口径）。
+          // 注意三个坑：glm-4-flash 已不在免费名单；glm-5.3-flash 是付费的
+          // （0.8 元/M 输入）；glm-4.7 旗舰也是付费的。名字像不代表免费。
+          model: String(env?.GLM_MODEL || 'glm-4.7-flash').trim(),
           messages: [
             { role: 'system', content: GLM_SYSTEM_PROMPT },
             { role: 'user', content: text }

@@ -26,7 +26,7 @@
 | `QWEN_GUARD_MODEL` | 模型名 | `Qwen3Guard-Gen-8B` |
 | `GLM_KEY` | 智谱 key | 空（=禁用） |
 | `GLM_BASE_URL` | 智谱 base | `https://open.bigmodel.cn/api/paas/v4` |
-| `GLM_MODEL` | 模型名 | `glm-4-flash` |
+| `GLM_MODEL` | 模型名，**必须是 `glm-4.7-flash`** | `glm-4.7-flash` |
 | `NVAPI_KEY` | NVIDIA NIM key | 空（=禁用） |
 
 留空即禁用该家，不需要改代码。
@@ -35,16 +35,31 @@
 
 | 通道 | 成本 | 有效期 | 能不能长期跑 |
 | --- | --- | --- | --- |
-| **GLM-4-Flash** | 免费，**不限 Token** | 永久 | ✅ 主力 |
+| **GLM-4.7-Flash** | 免费（输入输出） | 当前免费名单内 | ✅ 主力 |
 | **OVHcloud 匿名 Qwen3Guard** | 免费，免注册 | 无期限，限 2 次/分钟/IP | ✅ 交叉验证 |
 | 百炼 Qwen3Guard | 每模型 100 万 token | **90 天一次性，不补发不重置** | ❌ 只能算试用 |
 | 开源权重自部署 | 要 GPU | — | 有机器才行 |
 
 **百炼的额度是一次性的**：官方原文「额度到期自动失效，不支持补发、延期或重置」，90 天内用不完的部分直接作废，不会按月刷新。所以它不值得当主通道。而且百炼主要托管通义商业模型，Qwen3Guard 是开源权重模型，能不能在模型广场搜到要看当期政策，不建议把方案压在这上面。
 
-## 一、GLM-4-Flash（主力，永久免费）
+## 一、GLM-4.7-Flash（主力，输入输出免费）
 
-规格：9B 参数（开源对应 GLM-4-9B），128K 上下文，单次输出上限 4K，**永久免费不限 Token**，并发 30。新号另送 2000 万 Token。
+规格：**30B 参数，200K 上下文**，输入/输出/缓存全部免费（智谱 2026 年官方定价页口径），并发 30。
+
+### 先认清哪些免费、哪些别碰
+
+智谱的模型名很容易踩坑，`Flash` 不等于免费：
+
+| 模型 id | 状态 | 备注 |
+| --- | --- | --- |
+| **`glm-4.7-flash`** | ✅ **免费** | 200K，30B，就选这个 |
+| `glm-4-flash-250414` | ✅ 免费 | 128K，旧版免费 id |
+| `glm-z1-flash` | ✅ 免费 | 128K |
+| `glm-4-flash` | ❌ **已不在免费名单** | 老教程里的这个别用 |
+| `glm-5.3-flash` | ❌ 付费 | 0.8 元/M 输入，2.8 元/M 输出，名字最像但不免费 |
+| `glm-4.7` | ❌ 付费 | 355B 旗舰 |
+
+控制台「体验中心」默认选中的 **GLM-4.7-Flash** 就是对的；首页推的 **GLM-5.3-Flash 是要钱的**，别被位置误导。
 
 质量上它是通用对话模型，审核靠 prompt，判定边界会随措辞漂移，不如专训模型确定。所以策略是「GLM 保底 + Qwen3Guard 在能连上时交叉验证 + 词库第一道 + 人工最后一道」。
 
@@ -52,18 +67,23 @@
 
 1. 打开 `https://open.bigmodel.cn`，点右上角「登录/注册」。
 2. 输入手机号 → 获取验证码 → 勾选用户协议 → 注册完成。不需要信用卡，也不需要实名认证。
-3. 登录后进入控制台，左侧菜单找「API Keys」（有的版本叫「密钥管理」或「API 密钥」）。
-4. 点「新建 API Key」，给个名字（比如 `rootedvox`），确认后页面上会出现一串以 `sk-` 开头的 key。
-5. **立刻复制**——这串 key 通常只完整显示一次，关掉就看不到了。存到密码管理器或本地文本里。
-6. 额度确认：控制台的「费用中心」或「资源包」页面里能看到 `glm-4-flash` 标注为免费模型。不需要领券。
+3. 登录后进入控制台，左侧菜单点「API Key」→「标准 API key」。
+4. 点右上角「+ 新建 API Key」，填个项目名（比如 `rootedvox`），确认。
+5. 列表里 `API key` 那一列是**打码显示**的（形如 `f6ce...FV5J`），点右侧的复制按钮才拿得到完整值。
+6. 完整 key 是 `{id}.{secret}` 两段用点号连接的形式，**不是 `sk-` 开头**——网上很多教程写错了。
+7. 免费额度不用领：定价页标「免费」就是按 0 计价，没有需要激活的券。
 
 ### 配置
 
 ```
-GLM_KEY=sk-你复制到的那串
+GLM_KEY=复制到的完整 key
 GLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
-GLM_MODEL=glm-4-flash
+GLM_MODEL=glm-4.7-flash
 ```
+
+`GLM_MODEL` 不填时代码默认就是 `glm-4.7-flash`，所以其实只填 `GLM_KEY` 就能跑。
+
+**模型不是在任何界面里选的。** 站点前端完全不知道有模型这回事，审核跑在服务端后台（Pages Functions / Vercel Functions），模型名只由环境变量 `GLM_MODEL` 决定。控制台里点模型、勾「深度思考」、改体验中心的选项，都不会影响线上审核。
 
 代码里已经用 `response_format: {"type":"json_object"}` 锁死输出格式，不用你自己调 prompt。
 
@@ -124,16 +144,43 @@ curl -sS https://endpoints.ai.cloud.ovh.net/v1/chat/completions \
 curl -sS https://open.bigmodel.cn/api/paas/v4/chat/completions \
   -H "Authorization: Bearer $GLM_KEY" \
   -H 'Content-Type: application/json' \
-  -d '{"model":"glm-4-flash","messages":[{"role":"system","content":"判断输入是否适合校园留言板公开发布，只输出 JSON：{\"verdict\":\"safe|controversial|unsafe\",\"categories\":[]}"},{"role":"user","content":"今天食堂的饭真难吃"}],"response_format":{"type":"json_object"},"max_tokens":120}'
+  -d '{"model":"glm-4.7-flash","messages":[{"role":"system","content":"判断输入是否适合校园留言板公开发布，只输出 JSON：{\"verdict\":\"safe|controversial|unsafe\",\"categories\":[]}"},{"role":"user","content":"今天食堂的饭真难吃"}],"response_format":{"type":"json_object"},"max_tokens":120}'
 ```
 
 期望 `content` 是 `{"verdict":"safe","categories":[]}` 这样的 JSON。
 
 ## 五、填进部署环境
 
-**Cloudflare Pages**：项目 → Settings → Environment variables → 分别给 Production 和 Preview 加。`LEXICON_KV` 是 **KV binding**，在 Settings → Functions → KV namespace bindings 里绑，不是普通变量。
+**前端不用改任何东西。** 审核跑在服务端后台，需要填的只有环境变量。
 
-**Vercel**：Project → Settings → Environment Variables，同样两组（Production / Preview）。改完需要重新部署才生效。
+### Cloudflare Pages
+
+项目 → **Settings** → **Environment variables** → 点 **Add variable**。有两栏要分别填：**Production** 和 **Preview**，只填一栏的话另一半环境不会生效。
+
+最少只需要一条：
+
+| 变量名 | 值 |
+| --- | --- |
+| `GLM_KEY` | 你复制的完整 key |
+
+其余变量都有默认值，不填就是默认。可选加的：
+
+| 变量名 | 值 | 作用 |
+| --- | --- | --- |
+| `QWEN_GUARD_ANONYMOUS` | `1` | 启用免注册的 Qwen3Guard 交叉验证 |
+| `GLM_MODEL` | `glm-4.7-flash` | 换模型（默认已经是它） |
+
+填完点 **Save**，然后到 **Deployments** 页面对最新一次部署点 **Retry deployment**——环境变量不会自动热加载，必须重新部署才生效。
+
+`LEXICON_KV` 是 **KV binding**，在 Settings → Functions → KV namespace bindings 里绑，不是普通变量。它已经存在的话不用动。
+
+### Vercel
+
+Project → **Settings** → **Environment Variables**，同样分 Production / Preview 两组。Vercel 会问你要不要把新变量应用到哪几个环境，两个都勾上。改完到 Deployments 里 **Redeploy** 一次。
+
+### 顺序建议
+
+先只填 `GLM_KEY`，部署，发一条测试留言，日志里确认 `glm -> safe/model_safe`，再考虑加 Qwen3Guard 那条腿。一次只改一个变量，出问题好定位。
 
 ## 六、验证线上生效
 
@@ -152,11 +199,11 @@ curl -sS https://open.bigmodel.cn/api/paas/v4/chat/completions \
 
 单条留言约 200–300 token 输入 + 30 token 输出。
 
-| 日留言量 | GLM-4-Flash | OVHcloud 匿名 |
+| 日留言量 | GLM-4.7-Flash | OVHcloud 匿名 |
 | --- | --- | --- |
-| 50 条 | 不限量 | 约占 1.7% 的日配额 |
-| 100 条 | 不限量 | 约占 3.5% |
-| 500 条 | 不限量 | 约占 17% |
+| 50 条 | 按 0 计价 | 约占 1.7% 的日配额 |
+| 100 条 | 按 0 计价 | 约占 3.5% |
+| 500 条 | 按 0 计价 | 约占 17% |
 
 瓶颈只有「瞬时 2 次/分钟」。只要不是几十人同一分钟集中发帖就够用；撞到了也只是退回 GLM 单家。
 

@@ -66,10 +66,11 @@ QWEN_GUARD_KEY=
 QWEN_GUARD_BASE_URL=https://endpoints.ai.cloud.ovh.net/v1
 QWEN_GUARD_MODEL=Qwen3Guard-Gen-8B
 
-# GLM-4-Flash (backup, permanently free at 30 concurrency).
+# GLM-4.7-Flash (main fallback, 200K context, input/output free at 30B size).
+# Do NOT use glm-4-flash (no longer on the free list) or glm-5.3-flash (paid).
 GLM_KEY=
 GLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
-GLM_MODEL=glm-4-flash
+GLM_MODEL=glm-4.7-flash
 
 # NVIDIA NIM (third fallback, the original provider).
 NVAPI_KEY=
