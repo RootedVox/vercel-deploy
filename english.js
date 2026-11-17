@@ -1,5 +1,7 @@
 window.rvEnglish = new Map(Object.entries({
   "收起": "Show less",
+  "RootedVox 4.5.8 · 备用站切换与回复修复": "RootedVox 4.5.8 · Failover and reply fixes",
+  "账号额度用尽不再被误判为站点限流；切换回复对象、选择超限图片都不会再丢草稿里的图片；图片压缩失败会正常提示并可重试；回复数统计不再漏计超过 100 层的回复。": "Running out of an account quota is no longer mistaken for a site-wide rate limit. Switching reply targets or picking an oversized image no longer drops images already in the draft, a failed image compression now reports an error so you can retry, and reply counts no longer miss replies nested deeper than 100 levels.",
   "RootedVox 4.5.7 · 手机端布局修复": "RootedVox 4.5.7 · Phone layout fix",
   "修复手机端发帖卡片溢出屏幕的问题：超长昵称不再撑宽整张卡片，改为省略号裁切显示；帖子里的长链接与长英文也会自动换行。": "Fixes the compose card overflowing the screen on phones: a very long nickname no longer widens the card and is shortened with an ellipsis, and long links or unbroken text in posts now wrap.",
   "RootedVox 4.5.6 · 发帖表单与滚动优化": "RootedVox 4.5.6 · Composer and scrolling",
