@@ -391,6 +391,9 @@ async function submitComment(rid, type) {
         }
         if (!response.ok) throw new Error('comment_failed');
         notify('发布成功，审核通过后会公开。', 'success');
+        // Text replies are reviewed by the AI right after the save; watch for publication.
+        const result = (await response.json?.().catch(() => ({}))) ?? {};
+        if (result.id && result.published !== true && !urls.length) watchReplyPublication(result.id);
         if (!submitted || ForumDrafts.get(key) !== submitted) return;
         ForumDrafts.clear(key);
         releasePreviews(rid);
@@ -414,6 +417,43 @@ async function submitComment(rid, type) {
         commentSubmitting = false;
         if (button) { button.disabled = false; button.textContent = originalLabel; }
     }
+}
+// A text reply is saved as pending and the AI review publishes it a few seconds later.
+// The page asks for that reply in this thread a few times and, once it is public, adds it
+// to the end of the list (replies are listed oldest first) without reloading. Replies with
+// images wait for a human, so they are not watched. At most four small reads per reply.
+const PUBLISH_CHECKS = [3000, 6000, 12000, 24000];
+function watchReplyPublication(id) {
+    let attempt = 0;
+    const check = async () => {
+        try {
+            const page = await RootedVoxPublicData.threadPage(mainMsgId, null, id);
+            const reply = page?.messages?.find(message => String(message.id) === String(id));
+            if (reply) return showPublishedReply(reply);
+        } catch { /* A failed read is simply tried again at the next step. */ }
+        if (++attempt < PUBLISH_CHECKS.length) setTimeout(check, PUBLISH_CHECKS[attempt]);
+    };
+    setTimeout(check, PUBLISH_CHECKS[0]);
+}
+
+function showPublishedReply(reply) {
+    notify('你的回复已通过审核并公开。', 'success');
+    if (document.getElementById(`msg-${reply.id}`) || Object.hasOwn(userMap, reply.id)) return;
+    // Added only when the whole thread is already on the page, so the newest reply really is
+    // last; otherwise it shows up in place when the remaining comments are loaded. A page
+    // that shows a single linked reply is left as it is.
+    if (replyId || threadCursor || renderedComments < orderedComments.length) return;
+    const container = document.getElementById('commentContainer');
+    if (!container) return;
+    container.querySelector('.empty-comment')?.remove();
+    userMap[reply.id] = reply.username;
+    orderedComments.push(reply);
+    renderedComments += 1;
+    const template = document.createElement('template');
+    template.innerHTML = renderComment(reply);
+    const items = [...template.content.children];
+    container.append(template.content);
+    renderMessageAvatars(items);
 }
 // ==================== 跳转 + 高亮 ====================
 function jumpToComment(targetId) {
