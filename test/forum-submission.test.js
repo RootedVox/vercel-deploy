@@ -50,6 +50,7 @@ test('lost response, concurrent submissions, edited payload, separate accounts a
     assert.ok(pathname.endsWith('/messages'));
     if (init.method === 'POST') {
       const row = JSON.parse(init.body);
+      if (row.content === 'expired attachment') return Response.json({code:'P0001',message:'upload missing'}, {status:400});
       if (rows.has(row.id)) return Response.json({code:'23505'}, {status:409});
       if (row.is_featured && row.content === 'over quota') return Response.json({code:'P0001',message:'featured_daily_limit'}, {status:400});
       rows.set(row.id,row);
@@ -83,6 +84,9 @@ test('lost response, concurrent submissions, edited payload, separate accounts a
   assert.ok([...rows.values()].some(row => row.is_featured && row.flag === 0 && row.reply_to === null));
   assert.equal((await post(crypto.randomUUID(),'over quota',{featured:true})).status,429);
   assert.equal((await post(crypto.randomUUID(),'featured reply',{featured:true,replyTo:'1'})).status,400);
+  const expired = await post(crypto.randomUUID(), 'expired attachment');
+  assert.equal(expired.status, 409);
+  assert.equal((await expired.json()).error, 'draft_media_expired');
   const long = await post(crypto.randomUUID(), '文'.repeat(1001));
   assert.equal(long.status, 400);
   assert.equal((await long.json()).error, 'content_too_long');

@@ -104,6 +104,19 @@
 
   const uploads = new WeakMap();
   const uploadReuseMs = 24 * 60 * 60 * 1000;
+  function recoverDraftImages(images) {
+      for (const image of images) {
+          if (image.file) {
+              uploads.delete(image.file);
+              delete image.url;
+          } else {
+              image.needsReplacement = true;
+          }
+      }
+      return images.some(image => image.needsReplacement)
+          ? '草稿中有已失效的图片。请移除失效图片并重新选择，再提交。'
+          : '草稿图片已过期，再次提交会重新上传。';
+  }
   async function uploadFiles(files) {
       const selected = Array.from(files);
       if (selected.length > 5 || selected.some(file => !file.type.startsWith('image/') || file.size > 5 * 1024 * 1024)) {
@@ -193,5 +206,5 @@
       const time = formatPostTime(value);
       return `<time class="message-time" datetime="${escapeHtml(time.iso)}" title="${escapeHtml(time.title)}">${escapeHtml(time.text)}</time>`;
   }
-  window.ForumUI = { parseMessageContent, escapeHtml, renderMessageAvatars, getFreshAvatar, uploadFiles, notify, formatPostTime, postTimeHtml };
+  window.ForumUI = { parseMessageContent, escapeHtml, renderMessageAvatars, getFreshAvatar, uploadFiles, recoverDraftImages, notify, formatPostTime, postTimeHtml };
 })();

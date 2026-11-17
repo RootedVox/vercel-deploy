@@ -110,7 +110,7 @@ async function withReplyCounts(env, page) {
 async function featuredFirstFeed(env, url, params, limit, publicColumns, direction) {
   const rawCursor = url.searchParams.get('cursor');
   const section = rawCursor?.slice(0, 2);
-  if (rawCursor && !['f:', 'n:'].includes(section)) return json({ error: 'invalid_cursor' }, 400);
+  if (rawCursor && (rawCursor.length <= 2 || !['f:', 'n:'].includes(section))) return json({ error: 'invalid_cursor' }, 400);
   const cursorUrl = new URL(url);
   if (rawCursor) cursorUrl.searchParams.set('cursor', rawCursor.slice(2));
   const query = new URLSearchParams(params);
@@ -209,7 +209,9 @@ async function listMessages(request, env) {
   const direction = url.searchParams.get('sort') === 'oldest' ? 'asc' : 'desc';
   const filter = zoneFilter(zone);
   if (filter) params.set('zone', filter);
-  if (search) params.set('content', `ilike.*${search.replace(/[,*()]/g, ' ')}*`);
+  // PostgreSQL's case-insensitive regex filter treats the escaped search as literal
+  // text, including '*', which PostgREST expands as a wildcard in ilike filters.
+  if (search) params.set('content', 'imatch.' + search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
   if (url.searchParams.get('featuredFirst') === '1') {
     return featuredFirstFeed(env, url, params, limit, publicColumns, direction);
   }
@@ -365,6 +367,9 @@ async function createMessage(request, env, waitUntil) {
     }
     return json({ ok: true, id: messageId, published: flag === 1 }, 201, auth.headers);
   } catch (error) {
+    if (error.code === 'P0001' && ['upload missing', 'upload expired'].includes(error.reason)) {
+      return json({ error: 'draft_media_expired' }, 409, auth.headers);
+    }
     if (error.code === 'P0001' && error.reason === 'featured_daily_limit') {
       return json({ error: 'featured_daily_limit' }, 429, auth.headers);
     }
