@@ -1,6 +1,5 @@
 import { publicMessageMedia, readAnonymousImage } from '../_lib/forum-media.js';
 import { moderationQueueAvailable, processNextModeration } from '../_lib/moderation-worker.js';
-import { runAiCheck } from '../_lib/moderate-content.js';
 import { authenticateApi, cleanText, integerParam } from '../_lib/api.js';
 import { json, methodNotAllowed } from '../_lib/http.js';
 import { applyPage, pageResult } from '../_lib/pagination.js';
@@ -344,16 +343,11 @@ async function createMessage(request, env, waitUntil) {
     if (!target.length) return json({ error: 'reply_target_not_found' }, 404, auth.headers);
   }
 
-  let flag = 0;
-  if (!queued && !featured) {
-    // 20261113 迁移未执行时退回同步审核：只有模型明确通过才直接发布
-    try {
-      const review = await runAiCheck(content, imageUrls, env);
-      if (review.verdict === 'safe' && review.reason === 'model_safe') flag = 1;
-    } catch {
-      flag = 0;
-    }
-  }
+  // 公开发布权只属于云端审核流程：本站写入永远停在 flag=0。
+  // 此前“队列不可用时同步跑 AI 并写 flag=1”的降级分支已移除——它试图绕过
+  // messages_insert_self_pending 的 RLS（只允许 flag=0），且会给登录用户
+  // 留下自我放行的路径。迁移未执行时新留言留在待审核队列，由人工/定时任务处理。
+  const flag = 0;
 
   try {
     const rows = await requestBusinessData(env, auth.session, 'messages?select=id', {
