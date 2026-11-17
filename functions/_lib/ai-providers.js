@@ -128,12 +128,15 @@ export const PROVIDERS = {
     label: 'Qwen3Guard',
     isConfigured: env => Boolean(env?.QWEN_GUARD_KEY),
     async review(text, env) {
-      const base = trimSlash(env?.QWEN_GUARD_BASE_URL) || 'https://endpoints.ai.cloud.ovh.net/v1';
+      // 默认走阿里云百炼：大陆网络直连、支付宝注册、每个模型 100 万 token 免费额度。
+      // OVHcloud 也能用，但它需要支付方式验证才能拿到 key，匿名模式只有 2 次/分钟，
+      // 不适合做生产通道，换过去时用 QWEN_GUARD_BASE_URL 覆盖即可。
+      const base = trimSlash(env?.QWEN_GUARD_BASE_URL) || 'https://dashscope.aliyuncs.com/compatible-mode/v1';
       const content = await chatCompletion({
         url: `${base}/chat/completions`,
         key: env.QWEN_GUARD_KEY,
         body: {
-          model: String(env?.QWEN_GUARD_MODEL || 'Qwen3Guard-Gen-8B').trim(),
+          model: String(env?.QWEN_GUARD_MODEL || 'qwen3guard-gen-8b').trim(),
           // Qwen3Guard 的 chat template 依据最后一条消息的角色决定审核模式，
           // 必须是 user；传 system 会导致模板渲染异常并返回 safe。
           messages: [{ role: 'user', content: text }],

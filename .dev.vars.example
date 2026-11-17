@@ -53,10 +53,11 @@ FORUM_WORKER_SECRET=
 AI_REVIEW_PROVIDERS=qwenguard,glm,nvidia
 AI_REVIEW_TIMEOUT_MS=8000
 
-# Qwen3Guard (primary). Free ticket: OVHcloud AI Endpoints or Alibaba Cloud Bailian.
+# Qwen3Guard (cross-check). Free ticket: Alibaba Cloud Bailian (90 days, 1M tokens/model).
+# Mainland-friendly. OVHcloud also hosts it but needs payment verification for a key.
 QWEN_GUARD_KEY=
-QWEN_GUARD_BASE_URL=https://endpoints.ai.cloud.ovh.net/v1
-QWEN_GUARD_MODEL=Qwen3Guard-Gen-8B
+QWEN_GUARD_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+QWEN_GUARD_MODEL=qwen3guard-gen-8b
 
 # GLM-4-Flash (backup, permanently free at 30 concurrency).
 GLM_KEY=
