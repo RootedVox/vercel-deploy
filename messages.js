@@ -118,6 +118,7 @@
         function notificationStyle(n) {
             const title = String(n?.title || '');
             if (title.includes('回复了你')) return { icon: '↩', pill: '新回复', negative: false };
+            if (title.includes('精华投稿已发表')) return { icon: '★', pill: '精华', featured: true, negative: false };
             if (title.includes('待审核')) return { icon: '✎', pill: '审核中', negative: false };
             if (title.includes('审核通过') || title.includes('已恢复')) return { icon: '✓', pill: '已公开', negative: false };
             if (title.includes('未通过审核') || title.includes('已被删除')) return { icon: '×', pill: title.includes('删除') ? '已删除' : '未通过', negative: true };
@@ -167,6 +168,7 @@
                     const itemDiv = document.createElement("div");
                     itemDiv.className = 'notification-item' +
                         (style.negative ? ' is-negative' : '') +
+                        (style.featured ? ' is-featured' : '') +
                         (n.read === false ? ' unread' : '');
                     itemDiv.innerHTML = `
                       <div class="item-top">

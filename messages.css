@@ -350,6 +350,14 @@
         }
         .notification-item.is-negative::before { background: var(--error-ink); }
         .notification-item.is-negative:hover { border-color: var(--error-ink); }
+        /* Featured posts get a stronger green accent so they stand out from approvals. */
+        .notification-item.is-featured::before { width: 5px; }
+        .notification-item.is-featured:hover { border-color: var(--theme-color); }
+        .notification-item.is-featured .item-icon,
+        .notification-item.is-featured .item-pill {
+            background: var(--theme-color);
+            color: var(--surface);
+        }
         .notification-item.unread {
             background: color-mix(in srgb, var(--theme-color) 5%, var(--surface));
         }
