@@ -3,6 +3,9 @@
   --action-hover: #83ff9f;
   --error-ink: #ffa1a1;
   --error-surface: #2c161a;
+  /* Amber, for "still waiting on a human" states that are neither success nor failure. */
+  --pending-ink: #f0c987;
+  --pending-surface: #2e2415;
 }
 
 .site-preferences {
@@ -79,6 +82,9 @@
   --action-hover: #0e582c;
   --error-ink: #a42b3b;
   --error-surface: #fff0f3;
+  /* Amber, for "still waiting on a human" states that are neither success nor failure. */
+  --pending-ink: #8a5a0b;
+  --pending-surface: #fdf4e3;
 }
 
 :root[data-theme="light"] body { background: var(--surface-alt); }

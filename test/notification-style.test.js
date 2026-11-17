@@ -28,6 +28,16 @@ test('rejection is still flagged negative', () => {
   assert.equal(style.negative, true);
 });
 
+test('a post handed over to a human gets the amber pending style, not a rejection', () => {
+  const style = notificationStyle({ title: '留言转为人工审核' });
+  assert.equal(style.icon, '✎');
+  assert.equal(style.pill, '人工复核');
+  assert.equal(style.pending, true);
+  // Must not be painted as an error: the post is still queued, not refused.
+  assert.notEqual(style.negative, true);
+  assert.notEqual(style.featured, true);
+});
+
 test('unknown title falls back to generic notice', () => {
   const style = notificationStyle({ title: '某条新通知' });
   assert.equal(style.icon, '•');

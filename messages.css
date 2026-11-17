@@ -355,6 +355,18 @@
         }
         .notification-item.is-negative::before { background: var(--error-ink); }
         .notification-item.is-negative:hover { border-color: var(--error-ink); }
+        /* A post the AI passed on to a human is neither a success nor a failure, so it
+           gets amber instead of the green approval accent or the red rejection one. */
+        .notification-item.is-pending::before { background: var(--pending-ink); }
+        .notification-item.is-pending:hover { border-color: var(--pending-ink); }
+        .notification-item.is-pending .item-icon {
+            background: var(--pending-surface);
+            color: var(--pending-ink);
+        }
+        .notification-item.is-pending .item-pill {
+            background: var(--pending-surface);
+            color: var(--pending-ink);
+        }
         /* Featured posts get a stronger green accent so they stand out from approvals. */
         .notification-item.is-featured::before { width: 5px; }
         .notification-item.is-featured:hover { border-color: var(--theme-color); }

@@ -119,6 +119,8 @@
             const title = String(n?.title || '');
             if (title.includes('回复了你')) return { icon: '↩', pill: '新回复', negative: false };
             if (title.includes('精华投稿已发表')) return { icon: '★', pill: '精华', featured: true, negative: false };
+            // The AI passed the post to a human: not published yet, but not rejected either.
+            if (title.includes('转为人工')) return { icon: '✎', pill: '人工复核', pending: true, negative: false };
             if (title.includes('待审核')) return { icon: '✎', pill: '审核中', negative: false };
             if (title.includes('审核通过') || title.includes('已恢复')) return { icon: '✓', pill: '已公开', negative: false };
             if (title.includes('未通过审核') || title.includes('已被删除')) return { icon: '×', pill: title.includes('删除') ? '已删除' : '未通过', negative: true };
@@ -168,6 +170,7 @@
                     const itemDiv = document.createElement("div");
                     itemDiv.className = 'notification-item' +
                         (style.negative ? ' is-negative' : '') +
+                        (style.pending ? ' is-pending' : '') +
                         (style.featured ? ' is-featured' : '') +
                         (n.read === false ? ' unread' : '');
                     itemDiv.innerHTML = `
@@ -673,6 +676,7 @@
                 showFormStatus(featured ? '已投稿，等待精华专审。' : '发布成功，审核结果会通过站内通知告知你。', 'success');
                 if (featured) refreshFeaturedQuota();
                 if (result.published === true) loadMainMessages(false);
+                else if (!featured && !picUrls.length && result.id) watchForPublication(result.id);
                 if (!submitted || ForumDrafts.get('post') !== submitted) return;
                 ForumDrafts.clear('post');
                 if (featuredInput) featuredInput.checked = false;
@@ -695,6 +699,69 @@
             if (!node) return;
             node.textContent = message;
             node.className = `form-status${type ? ` ${type}` : ''}`;
+        }
+
+        function messageCardHtml(msg) {
+            const parsedContent = parseMessageContent(msg.content, msg.zone);
+            const time = ForumUI.postTimeHtml?.(msg.created_at)
+                ?? `<span class="message-time">${new Date(msg.created_at).toLocaleString('zh-CN', { dateStyle: 'short', timeStyle: 'short' })}</span>`;
+            let imageHtml = '';
+            if (msg.pic_url && msg.pic_url.length > 0) {
+                imageHtml = '<div class="message-images">';
+                for (let url of msg.pic_url) {
+                    imageHtml += `<img src="${escapeHtml(url)}" class="message-image" alt="${escapeHtml(msg.username)} 发布的图片" loading="lazy" decoding="async" tabindex="0">`;
+                }
+                imageHtml += '</div>';
+            }
+            return `
+                    <div class="message-item${msg.is_featured === true ? ' is-featured' : ''}" id="message-${msg.id}" data-avatar-url="${escapeHtml(msg.avatar_url || '')}" data-official="${msg.is_official === true}" data-developer="${msg.is_developer === true}">
+                        <div class="message-avatar-box"></div>
+                        <div style="flex:1">
+                            <div class="message-header">
+                                <span class="message-author">${escapeHtml(msg.username)}</span>
+                                <span class="message-zone">${escapeHtml(parsedContent.zone)}</span>
+                                ${time}
+                            </div>
+                            <div class="message-content">${escapeHtml(parsedContent.text).replace(/\n/g, '<br>')}</div>
+                            ${imageHtml}
+                            <div class="post-card-footer"><a class="detail-btn comment-link" href="details.html?id=${encodeURIComponent(msg.id)}"><span aria-hidden="true">💬</span> ${commentLabel(msg.reply_count)}</a>${msg.is_featured === true ? ' <span class="featured-stamp"><img src="/images/rootedvox.svg" alt="">精华</span>' : ''}</div>
+                        </div>
+                    </div>`;
+        }
+
+        // A text post is saved as pending and the AI review publishes it a few seconds
+        // later, right after the save. The page looks for the post's own public thread a
+        // few times (not the feed, whose first page a server may keep for a few seconds)
+        // and, once it is public, puts it at the top of the list without a reload.
+        // Posts with images and featured submissions wait for a human, so they are not
+        // watched. At most four small reads per post.
+        const PUBLISH_CHECKS = [3000, 6000, 12000, 24000];
+        function watchForPublication(id) {
+            let attempt = 0;
+            const check = async () => {
+                try {
+                    const page = await RootedVoxPublicData.threadPage(id);
+                    const post = page?.messages?.find(message => String(message.id) === String(id));
+                    if (post) return showPublishedPost(post);
+                } catch { /* A failed read is simply tried again at the next step. */ }
+                if (++attempt < PUBLISH_CHECKS.length) setTimeout(check, PUBLISH_CHECKS[attempt]);
+            };
+            setTimeout(check, PUBLISH_CHECKS[0]);
+        }
+
+        function showPublishedPost(post) {
+            notify('你的留言已通过审核并公开。', 'success');
+            if (document.getElementById(`message-${post.id}`)) return;
+            // Only where the newest-first list would show it: not in another zone, a search,
+            // the oldest-first order or with featured posts pinned above it.
+            const zone = parseMessageContent(post.content, post.zone).zone;
+            if (activeSort !== 'newest' || activeSearch || activeFeaturedFirst || (activeZone !== 'all' && activeZone !== zone)) return;
+            const container = document.getElementById('messageContainer');
+            if (!container) return;
+            container.querySelector('.empty-message')?.remove();
+            container.insertAdjacentHTML('afterbegin', messageCardHtml({ reply_count: 0, ...post }));
+            const card = document.getElementById(`message-${post.id}`);
+            if (card) renderMessageAvatars([card]);
         }
 
         async function loadMainMessages(isLoadMore = false) {
@@ -751,35 +818,7 @@
 
                 feedCursor = result.nextCursor || null;
 
-                let html = '';
-                for (let msg of data) {
-                    const parsedContent = parseMessageContent(msg.content, msg.zone);
-                    const time = ForumUI.postTimeHtml?.(msg.created_at)
-                        ?? `<span class="message-time">${new Date(msg.created_at).toLocaleString('zh-CN', { dateStyle: 'short', timeStyle: 'short' })}</span>`;
-                    let imageHtml = '';
-                    if (msg.pic_url && msg.pic_url.length > 0) {
-                        imageHtml = '<div class="message-images">';
-                        for (let url of msg.pic_url) {
-                            imageHtml += `<img src="${escapeHtml(url)}" class="message-image" alt="${escapeHtml(msg.username)} 发布的图片" loading="lazy" decoding="async" tabindex="0">`;
-                        }
-                        imageHtml += '</div>';
-                    }
-
-                    html += `
-                    <div class="message-item${msg.is_featured === true ? ' is-featured' : ''}" id="message-${msg.id}" data-avatar-url="${escapeHtml(msg.avatar_url || '')}" data-official="${msg.is_official === true}" data-developer="${msg.is_developer === true}">
-                        <div class="message-avatar-box"></div>
-                        <div style="flex:1">
-                            <div class="message-header">
-                                <span class="message-author">${escapeHtml(msg.username)}</span>
-                                <span class="message-zone">${escapeHtml(parsedContent.zone)}</span>
-                                ${time}
-                            </div>
-                            <div class="message-content">${escapeHtml(parsedContent.text).replace(/\n/g, '<br>')}</div>
-                            ${imageHtml}
-                            <div class="post-card-footer"><a class="detail-btn comment-link" href="details.html?id=${encodeURIComponent(msg.id)}"><span aria-hidden="true">💬</span> ${commentLabel(msg.reply_count)}</a>${msg.is_featured === true ? ' <span class="featured-stamp"><img src="/images/rootedvox.svg" alt="">精华</span>' : ''}</div>
-                        </div>
-                    </div>`;
-                }
+                const html = data.map(messageCardHtml).join('');
 
                 if (!html && !isLoadMore) {
                     container.innerHTML = '<div class="empty-message">这个分区暂时没有留言，来发布第一条吧！</div>';

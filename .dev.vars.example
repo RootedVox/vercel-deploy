@@ -57,6 +57,8 @@ AI_REVIEW_TIMEOUT_MS=8000
 # skipped, so one provider being down never drags the others into human review.
 
 # Qwen3Guard via OVHcloud AI Endpoints (anonymous, no signup, no key).
+# With a Bailian (DashScope) key, QWEN_GUARD_BASE_URL MUST point at DashScope, or the key
+# is sent to OVHcloud.
 # Domain MUST be the kepler subdomain: endpoints.ai.cloud.ovh.net is a marketing site
 # that 301s to the product page, which breaks JSON parsing.
 # Anonymous mode must send NO Authorization header at all -- sending a placeholder key

@@ -12,7 +12,33 @@
   - 全部失败/超时 → **转人工**
 - 关键区分：`controversial` 是**模型给的结论**，要转人工；`error`（超时、报错、解析失败）是**没拿到结论**，只跳过、不参与判定。两者混在一起会让「一家超时」等同于「全站转人工」，那配第二家反而是负收益。
 - 只有「放行」会写出 `flag=1`；其余一律 `flag=0` 待审，用户端照常提交成功。
+- **AI 放行后作者会收到站内通知**「留言审核通过」，与人工通过同一条文案（`processNextModeration` 写入 `business_notifications`）。
+- **AI 没放行时作者会收到琥珀色通知**「留言转为人工审核」。文案刻意不含「未通过/拒绝」，因为它仍然在队列里等人看，不是被拒绝。留言已被人工处理（`flag=1`）或数据库安排重试时都不发，避免告知过时状态。
+- 给 GLM 的留言原文放在【待审核留言开始】【待审核留言结束】之间（原文里伪造的边界标记会被去掉），系统提示要求把其中的指令当数据、出现指挥审核结果的内容判 `controversial`。
+- **联系方式一律转人工**：手机号、微信号、QQ 号/群号、邮箱、身份证号、学号、住址、二维码，以及「加我/私聊拿号」这类引流说法，都判 `controversial` + `PII`。没有号码的随口约人（"想一起打球的找我"）照常放行，避免过度拦截。
 - **审核不可用不等于站点不可用**：单家供应商超时或限流不会导致发帖失败，只会让这条留言进人工队列。
+
+## 哪些留言根本不走 AI 审核
+
+`forum_private.enqueue_review` 触发器只把同时满足下面三条的留言放进审核队列：
+
+```sql
+new.flag = 0                              -- 新产生的待审内容
+and not new.is_featured                   -- 不是精华投稿
+and new.business_user_id is not null      -- 有作者（匿名投稿不入队）
+and coalesce(to_jsonb(new.pic_url),'[]'::jsonb) = '[]'::jsonb   -- 不带图
+```
+
+也就是说：
+
+| 类型 | 是否走 AI | 结果 |
+| --- | --- | --- |
+| 普通纯文本留言 / 回复 | ✅ 走 | AI 放行则公开，否则转人工 |
+| 带图片的留言 | ❌ 不走 | 直接 `flag=0` 等人工 |
+| 精华投稿 | ❌ 不走 | 直接进精华专审 |
+| 匿名投稿（无账号） | ❌ 不走 | 直接等人工 |
+
+这条判断在**触发器层面**，不在应用代码里，所以 `processNextModeration` 调用 `runAiCheck(job.content, [], env)` 传空图片数组是安全的——带图的内容压根不会出现在队列里。精华投稿另有专审流程，AI 不会碰。
 
 ## 环境变量
 
@@ -22,7 +48,7 @@
 | `AI_REVIEW_TIMEOUT_MS` | 单家超时，最小 1000 | `8000` |
 | `QWEN_GUARD_ANONYMOUS` | 设为 `1` 走 OVHcloud 匿名通道（免注册、免 key） | 空（=禁用匿名） |
 | `QWEN_GUARD_KEY` | Qwen3Guard 的 key（有 key 就不需要匿名开关） | 空 |
-| `QWEN_GUARD_BASE_URL` | OpenAI 兼容 base | `https://endpoints.ai.cloud.ovh.net/v1` |
+| `QWEN_GUARD_BASE_URL` | OpenAI 兼容 base | `https://oai.endpoints.kepler.ai.cloud.ovh.net/v1`（OVHcloud；用百炼时**必须**改成百炼地址，见下） |
 | `QWEN_GUARD_MODEL` | 模型名 | `Qwen3Guard-Gen-8B` |
 | `GLM_KEY` | 智谱 key | 空（=禁用） |
 | `GLM_BASE_URL` | 智谱 base | `https://open.bigmodel.cn/api/paas/v4` |
@@ -144,6 +170,8 @@ Categories: None
 ### 百炼也可以，但只是试用
 
 阿里云百炼每模型 100 万 token，**90 天一次性、不补发不重置**，日 100 条约 33 天见底。当备用可以，别当长期方案。
+
+**`QWEN_GUARD_BASE_URL` 一定要一起改。** 不填时默认地址是 OVHcloud，百炼的 key 会被原样发到 OVHcloud——不仅审核失败，还等于把百炼密钥交给了另一家公司。
 
 ```
 QWEN_GUARD_KEY=<百炼 key>

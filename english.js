@@ -1,5 +1,7 @@
 window.rvEnglish = new Map(Object.entries({
   "收起": "Show less",
+  "RootedVox 4.7.0 · 审核通知与联系方式拦截": "RootedVox 4.7.0 · Review notices and contact-info blocking",
+  "AI 审核通过的留言会在几秒内自动出现在页面上，不用手动刷新；未通过自动审核时会收到「留言转为人工审核」的提示，不再是无声等待。留言里出现微信号、QQ 号、手机号等联系方式会自动转人工复核。": "Posts the AI approves now appear on the page within seconds, with no manual reload. When a post is not approved automatically you receive a notice that it has been passed to a human reviewer instead of waiting in silence. Messages containing a WeChat ID, QQ number, phone number or similar contact details are sent to a human for review.",
   "RootedVox 4.6.0 · 审核多供应商": "RootedVox 4.6.0 · Multi-provider moderation",
   "内容审核改为多家模型并发判定：任一模型判为不安全即转人工，全部通过才自动发布。单家供应商故障不再影响其余判定，发帖与浏览也不会因此中断。": "Content moderation now asks several models at once: one unsafe verdict sends a post to human review, and a post only auto-publishes when every model passes. A single provider going down no longer affects the other verdicts, and posting and browsing keep working.",
   "RootedVox 4.5.9 · 草稿与额度修复": "RootedVox 4.5.9 · Draft and quota fixes",
