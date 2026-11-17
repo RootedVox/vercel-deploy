@@ -126,6 +126,9 @@ async function loadMainMessage() {
     return true;
 }
 async function retryThread() {
+    const more = document.getElementById('moreComments');
+    if (more) more.hidden = true;
+    commentObserver?.disconnect();
     document.getElementById('mainMessageCard').innerHTML = '<div class="loading">加载主楼内容中...</div>';
     document.getElementById('commentContainer').innerHTML = '<div class="loading">加载评论中...</div>';
     if (await loadMainMessage()) {
@@ -187,6 +190,7 @@ function loadAllComments() {
         return;
     }
     container.replaceChildren();
+    more.textContent = '加载更多评论';
     more.onclick = loadMoreComments;
     appendCommentBatch();
 }

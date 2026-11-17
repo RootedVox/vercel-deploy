@@ -29,11 +29,14 @@
   }
   function save(target, fields) {
     if (!owner) return;
-    const next = { ...get(target), ...fields };
+    const next = { ...generations.get(target)?.receipt, ...get(target), ...fields };
     if (!next.text && !next.attachments?.length) {
       delete entries[target];
       persist();
       return;
+    }
+    if (next.signature) {
+      generation(target).receipt = { signature: next.signature, submissionId: next.submissionId };
     }
     entries[target] = next;
     persist();
@@ -60,8 +63,9 @@
       const replay = original?.signature === signature;
       payload.submissionId = replay ? original.submissionId : crypto.randomUUID();
       payload.retry = replay;
-      if (sameEditor && get(target)) {
-        save(target, { signature, submissionId: payload.submissionId });
+      if (sameEditor) {
+        started.receipt = { signature, submissionId: payload.submissionId };
+        if (get(target)) save(target, started.receipt);
       }
       return null;
     }

@@ -96,7 +96,8 @@ test('login probes session once, then navigates without fetching a redirect', as
 test('logout uses the backup with cookies after a failed probe and navigates only on success', async () => {
   const calls = [];
   const location = { origin: 'https://rv.celestivast.com', href: '/messages' };
-  const window = { location };
+  let cleared = 0;
+  const window = { location, ForumDrafts: { logout() { cleared++; } } };
   vm.runInNewContext(authSource, { window, location, URL, AbortController, setTimeout, clearTimeout,
     alert: () => assert.fail('logout should succeed'),
     fetch: async (url, init) => {
@@ -112,12 +113,14 @@ test('logout uses the backup with cookies after a failed probe and navigates onl
   assert.equal(calls[1].init.credentials, 'include');
   assert.equal(JSON.parse(calls[1].init.body).returnTo, '/main');
   assert.equal(location.href, '/main');
+  assert.equal(cleared, 1);
 });
 
 test('logout failure stays on the page and never replays the write', async () => {
   const calls = [];
   const location = { origin: 'https://rv.celestivast.com', href: '/messages' };
-  const window = { location };
+  let cleared = 0;
+  const window = { location, ForumDrafts: { logout() { cleared++; } } };
   let alerts = 0;
   vm.runInNewContext(authSource, { window, location, URL, AbortController, setTimeout, clearTimeout,
     alert: () => { alerts++; },
@@ -130,6 +133,7 @@ test('logout failure stays on the page and never replays the write', async () =>
   assert.deepEqual(calls, ['/auth/session', '/auth/logout']);
   assert.equal(location.href, '/messages');
   assert.equal(alerts, 1);
+  assert.equal(cleared, 0);
 });
 
 test('logout failure uses the forum notice instead of a dialog when the page has one', async () => {

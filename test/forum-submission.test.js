@@ -167,9 +167,10 @@ test('editing during upload preserves the retry ID, while discarding creates a n
   d.save('post', { text: 'first' });
   const original = d.get('post'), started = d.generation('post');
   d.save('post', { text: '' });
-  d.save('post', { text: 'first' });
   const first = body(), retry = body();
   d.prepare('post', original, first, started);
+  assert.ok(!d.get('post'));
+  d.save('post', { text: 'first' });
   d.prepare('post', d.get('post'), retry, started);
   assert.equal(first.submissionId, retry.submissionId);
   assert.equal(retry.retry, true);
