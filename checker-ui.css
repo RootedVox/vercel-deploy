@@ -10,6 +10,12 @@ body{padding-top:60px;background:var(--surface-alt);color:var(--ink)}
 .item-header time,.meta{color:var(--muted);font-size:13px}
 .zone{display:inline-block;margin:10px 0;padding:3px 9px;border-radius:999px;background:var(--theme-soft);color:var(--theme-color);font-size:12px}
 .item-content{line-height:1.8}
+/* A pasted link, a long sign-in name or e-mail address has no break opportunity; let it
+   wrap anywhere so one post cannot widen the whole moderation page. */
+.item{min-width:0}
+.item-header strong{min-width:0;overflow-wrap:anywhere}
+.item-header time{flex:none}
+.item-content,.meta,.reason{overflow-wrap:anywhere}
 .message-images{display:flex;flex-wrap:wrap;gap:10px;margin:15px 0}
 .message-image{width:140px;height:140px;border-radius:9px;object-fit:cover;cursor:pointer}
 .item-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}

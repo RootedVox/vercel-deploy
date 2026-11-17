@@ -412,3 +412,18 @@ test('nickname and zone pair up in a wide form column without losing any field o
   assert.match(css, /@container \(min-width: 360px\) \{\s*\.form-row \{ grid-template-columns:repeat\(2, minmax\(0, 1fr\)\); \}/);
   assert.match(css, /\.featured-submit \{ display:flex;/);
 });
+
+// A pasted link or a long sign-in name has no break opportunity. Each place that shows
+// one must let it wrap, or a single post widens the whole page on a phone.
+test('long unbroken names, links and addresses wrap instead of widening the page', () => {
+  const checker = read('checker-ui.css');
+  assert.match(checker, /\.item-header strong\{min-width:0;overflow-wrap:anywhere\}/);
+  assert.match(checker, /\.item-content,\.meta,\.reason\{overflow-wrap:anywhere\}/);
+  for (const page of ['index.html', 'main.html']) {
+    assert.match(read(page), /\.zone-post span\{grid-column:1\/-1;min-width:0;overflow-wrap:anywhere;/, page);
+  }
+  assert.match(read('details.css'), /\.reply-info \{[^}]*overflow-wrap: anywhere;/);
+  const forum = read('messages.css');
+  assert.match(forum, /\.notification-item h4 \{[^}]*overflow-wrap: anywhere;/);
+  assert.match(forum, /\.notification-item p \{\s*overflow-wrap: anywhere;/);
+});

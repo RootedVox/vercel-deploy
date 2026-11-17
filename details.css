@@ -140,6 +140,9 @@
             cursor: pointer;
             transition: background 0.2s;
             text-align: left;
+            /* A long name with no spaces wraps instead of widening the phone page. */
+            max-width: 100%;
+            overflow-wrap: anywhere;
         }
         .reply-info:hover {
             background: var(--surface-alt);
