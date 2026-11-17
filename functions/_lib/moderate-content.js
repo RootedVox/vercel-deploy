@@ -6,21 +6,21 @@ const PROVIDER_DETAIL_MAX = 120;
 /**
  * 合并多家供应商的判定。
  *
- * 冗余的意义是「多一条腿能顶」，不是「多设一道门槛」。所以判定不是求交集：
+ * 判定顺序固定，谁先命中就听谁的：
  *
- *   1. 任一家 unsafe  -> blocked        （一票否决）
- *   2. 任一家 safe    -> safe           （一票放行，配几家都不会更容易进人工）
- *   3. 没人敢说 safe，但有人判 controversial -> uncertain（转人工）
- *   4. 全部失败/超时   -> uncertain（转人工）
+ *   1. 任一家 blocked        -> 拦截        （一票否决）
+ *   2. 任一家 controversial  -> 转人工      （模型明确说擦边，不是故障）
+ *   3. 任一家 safe           -> 放行        （一票放行，配几家都不会更容易进人工）
+ *   4. 全部 error            -> 转人工      （upstream_unavailable）
  *
- * 超时、报错、解析失败都视为「这家没给结论」，直接跳过，不参与判定也不拖累
- * 其余供应商。审核不可用 != 站点不可用：转人工的留言仍然写入成功（flag=0）。
+ * 关键区分：controversial 是**模型给的结论**，error 是**没拿到结论**。
+ * 前者要转人工，后者只跳过。把两者混成一个 'uncertain' 会让「一家超时」
+ * 等同于「全站转人工」，那配第二家反而是负收益。
  *
- * 第 3 条是唯一为「擦边」保留的兜底：只有当所有家都没人明确说 safe、又有人
- * 说擦边时才转人工。只要有一家敢放行就放行——把判定权交给最宽松的那家，是
- * 为了可用性接受的代价。想要旧的严格口径（任一擦边即转人工）设 AI_REVIEW_STRICT=1。
+ * 审核不可用 != 站点不可用：即便全部供应商失败，留言仍然写入成功（flag=0），
+ * 只是进人工队列，而不是发帖失败。
  */
-export function mergeVerdicts(results, { strict = false } = {}) {
+export function mergeVerdicts(results) {
   const summary = results.map(r => ({
     id: r.id,
     verdict: r.verdict,
@@ -34,19 +34,13 @@ export function mergeVerdicts(results, { strict = false } = {}) {
     return { verdict: 'blocked', reason: blocked.reason || 'model_unsafe', providers: summary };
   }
 
-  const soft = results.find(r => r.verdict === 'uncertain');
-
-  // 严格模式：任何擦边/解析失败都压过 safe，退化成「全部一致才放行」。
-  if (strict && soft) {
-    return { verdict: 'uncertain', reason: soft.reason || 'model_controversial', providers: summary };
+  const controversial = results.find(r => r.verdict === 'controversial');
+  if (controversial) {
+    return { verdict: 'uncertain', reason: controversial.reason || 'model_controversial', providers: summary };
   }
 
   if (results.some(r => r.verdict === 'safe')) {
     return { verdict: 'safe', reason: 'model_safe', providers: summary };
-  }
-
-  if (soft) {
-    return { verdict: 'uncertain', reason: soft.reason || 'model_controversial', providers: summary };
   }
 
   return { verdict: 'uncertain', reason: 'upstream_unavailable', providers: summary };
@@ -108,7 +102,7 @@ export async function runAiCheck(contentText, imageUrls, env) {
     }
   }));
 
-  const merged = mergeVerdicts(results, { strict: String(env?.AI_REVIEW_STRICT ?? '') === '1' });
+  const merged = mergeVerdicts(results);
   console.log(`[AI Check] 合并判定 ${merged.verdict}/${merged.reason}`);
   return merged;
 }

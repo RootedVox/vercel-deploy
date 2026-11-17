@@ -58,6 +58,17 @@ async function chatCompletion({ url, key, body, timeout }) {
 }
 
 /**
+ * 供应商返回的 verdict 有四种，必须严格区分：
+ *   'safe'          模型明确说可以放行
+ *   'blocked'       模型明确说不安全
+ *   'controversial' 模型明确说擦边（要转人工，不是故障）
+ *   'error'         没拿到结论：超时、报错、解析失败
+ *
+ * 合并时 controversial 会拦下整条留言，error 只会被跳过。把两者混成一个
+ * 'uncertain' 会让一家超时就等于全站转人工，所以这里必须分开。
+ */
+
+/**
  * Qwen3Guard-Gen 输出固定两行：
  *   Safety: Safe | Unsafe | Controversial
  *   Categories: Violent / None / ...
@@ -65,12 +76,12 @@ async function chatCompletion({ url, key, body, timeout }) {
  */
 export function parseQwenGuard(content) {
   const matches = [...String(content || '').matchAll(/Safety:\s*(Safe|Unsafe|Controversial)/gi)];
-  if (!matches.length) return { verdict: 'uncertain', reason: 'unparsed_output' };
+  if (!matches.length) return { verdict: 'error', reason: 'unparsed_output' };
   const label = matches[matches.length - 1][1].toLowerCase();
   const categories = (/Categories:\s*([^\n]*)/i.exec(String(content || ''))?.[1] || '').trim();
   if (label === 'safe') return { verdict: 'safe', reason: 'model_safe', detail: categories };
   if (label === 'unsafe') return { verdict: 'blocked', reason: 'model_unsafe', detail: categories };
-  return { verdict: 'uncertain', reason: 'model_controversial', detail: categories };
+  return { verdict: 'controversial', reason: 'model_controversial', detail: categories };
 }
 
 /**
@@ -81,19 +92,19 @@ export function parseGlmVerdict(content) {
   const raw = String(content || '');
   const start = raw.indexOf('{');
   const end = raw.lastIndexOf('}');
-  if (start < 0 || end <= start) return { verdict: 'uncertain', reason: 'unparsed_output' };
+  if (start < 0 || end <= start) return { verdict: 'error', reason: 'unparsed_output' };
   let parsed;
   try {
     parsed = JSON.parse(raw.slice(start, end + 1));
   } catch {
-    return { verdict: 'uncertain', reason: 'unparsed_output' };
+    return { verdict: 'error', reason: 'unparsed_output' };
   }
   const label = String(parsed?.verdict || '').trim().toLowerCase();
   const categories = Array.isArray(parsed?.categories) ? parsed.categories.join(',') : '';
   if (label === 'safe') return { verdict: 'safe', reason: 'model_safe', detail: categories };
   if (label === 'unsafe') return { verdict: 'blocked', reason: 'model_unsafe', detail: categories };
-  if (label === 'controversial') return { verdict: 'uncertain', reason: 'model_controversial', detail: categories };
-  return { verdict: 'uncertain', reason: 'unparsed_verdict' };
+  if (label === 'controversial') return { verdict: 'controversial', reason: 'model_controversial', detail: categories };
+  return { verdict: 'error', reason: 'unparsed_verdict' };
 }
 
 /**
@@ -101,7 +112,7 @@ export function parseGlmVerdict(content) {
  */
 export function parseNemotronVerdict(content) {
   const matches = [...String(content || '').matchAll(/user safety:\s*(safe|unsafe)/gi)];
-  if (!matches.length) return { verdict: 'uncertain', reason: 'unparsed_output' };
+  if (!matches.length) return { verdict: 'error', reason: 'unparsed_output' };
   const label = matches[matches.length - 1][1].toLowerCase();
   if (label === 'safe') return { verdict: 'safe', reason: 'model_safe' };
   return { verdict: 'blocked', reason: 'model_unsafe' };

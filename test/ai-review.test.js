@@ -35,9 +35,10 @@ function chat(content) {
 test('Qwen3Guard 的三档判定与容错解析', () => {
   assert.equal(parseQwenGuard('Safety: Safe\nCategories: None').verdict, 'safe');
   assert.equal(parseQwenGuard('Safety: Unsafe\nCategories: Violent').verdict, 'blocked');
-  assert.equal(parseQwenGuard('Safety: Controversial\nCategories: Bullying').verdict, 'uncertain');
+  assert.equal(parseQwenGuard('Safety: Controversial\nCategories: Bullying').verdict, 'controversial');
+  assert.equal(parseQwenGuard('完全不像判定的输出').verdict, 'error');
   assert.equal(parseQwenGuard('完全不像判定的输出').reason, 'unparsed_output');
-  assert.equal(parseQwenGuard('').verdict, 'uncertain');
+  assert.equal(parseQwenGuard('').verdict, 'error');
 });
 
 test('Qwen3Guard 取最后一次判定，避免回显干扰', () => {
@@ -48,52 +49,45 @@ test('Qwen3Guard 取最后一次判定，避免回显干扰', () => {
 test('GLM 的 JSON 判定允许前后夹带说明文字', () => {
   assert.equal(parseGlmVerdict('{"verdict":"safe","categories":[]}').verdict, 'safe');
   assert.equal(parseGlmVerdict('判定如下：{"verdict":"unsafe","categories":["Bullying"]} 以上').verdict, 'blocked');
-  assert.equal(parseGlmVerdict('{"verdict":"controversial"}').verdict, 'uncertain');
-  assert.equal(parseGlmVerdict('not json').reason, 'unparsed_output');
+  assert.equal(parseGlmVerdict('{"verdict":"controversial"}').verdict, 'controversial');
+  assert.equal(parseGlmVerdict('not json').verdict, 'error');
   assert.equal(parseGlmVerdict('{"verdict":"weird"}').reason, 'unparsed_verdict');
 });
 
 test('NVIDIA 兼容旧输出的解析逻辑保持不变', () => {
   assert.equal(parseNemotronVerdict('User Safety: safe').verdict, 'safe');
   assert.equal(parseNemotronVerdict('User Safety: unsafe').verdict, 'blocked');
-  assert.equal(parseNemotronVerdict('noise').verdict, 'uncertain');
+  assert.equal(parseNemotronVerdict('noise').verdict, 'error');
 });
 
-test('判定合并是一票否决加一票放行，不是求交集', () => {
+test('判定合并：先否决、再擦边、再放行，全失败才转人工', () => {
   const r = (...items) => items.map(([id, verdict, reason]) => ({ id, verdict, reason }));
 
   // 一票否决：任一家说不安全就拦，不管另一家怎么说。
   assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'blocked'])).verdict, 'blocked');
   assert.equal(mergeVerdicts(r(['a', 'blocked'], ['b', 'error'])).verdict, 'blocked');
+  assert.equal(mergeVerdicts(r(['a', 'blocked'], ['b', 'controversial'])).verdict, 'blocked');
 
-  // 一票放行：只要有一家明确 safe 就过，配几家都不会更容易进人工。
+  // 擦边压过放行：模型明确说擦边就转人工，不能被另一家的 safe 盖掉。
+  assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'controversial'])).verdict, 'uncertain');
+  assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'controversial'])).reason, 'model_controversial');
+  assert.equal(mergeVerdicts(r(['a', 'controversial'], ['b', 'error'])).verdict, 'uncertain');
+
+  // 一票放行：没有否决也没有擦边时，一家 safe 就过。
   assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'safe'])).verdict, 'safe');
-  assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'uncertain'])).verdict, 'safe');
   assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'error'])).verdict, 'safe');
 
-  // 没人敢说 safe 才转人工。
-  assert.equal(mergeVerdicts(r(['a', 'uncertain'], ['b', 'error'])).verdict, 'uncertain');
-  assert.equal(mergeVerdicts(r(['a', 'uncertain'], ['b', 'uncertain'])).verdict, 'uncertain');
+  // 全失败才转人工。
   assert.equal(mergeVerdicts(r(['a', 'error'], ['b', 'error'])).reason, 'upstream_unavailable');
 });
 
-test('严格模式退化为全部一致才放行，任一擦边即转人工', () => {
-  const results = [
+test('解析失败算 error 而不是擦边，不会被误判成需要人工的结论', () => {
+  const parsed = mergeVerdicts([
     { id: 'a', verdict: 'safe', reason: 'model_safe' },
-    { id: 'b', verdict: 'uncertain', reason: 'model_controversial' }
-  ];
-  assert.equal(mergeVerdicts(results).verdict, 'safe');
-  assert.equal(mergeVerdicts(results, { strict: true }).verdict, 'uncertain');
-  assert.equal(mergeVerdicts(results, { strict: true }).reason, 'model_controversial');
-});
-
-test('解析失败不参与判定，不会拖累另一家的放行结论', () => {
-  const merged = mergeVerdicts([
-    { id: 'a', verdict: 'safe', reason: 'model_safe' },
-    { id: 'b', verdict: 'uncertain', reason: 'unparsed_output' }
+    { id: 'b', verdict: 'error', reason: 'unparsed_output' }
   ]);
-  assert.equal(merged.verdict, 'safe');
-  assert.equal(merged.providers.find(p => p.id === 'b').reason, 'unparsed_output');
+  assert.equal(parsed.verdict, 'safe');
+  assert.equal(parsed.providers.find(p => p.id === 'b').verdict, 'error');
 });
 
 test('判定合并：单家故障不拖垮其余判定，可用性优先', () => {
