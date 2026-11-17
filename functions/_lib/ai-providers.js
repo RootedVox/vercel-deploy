@@ -34,12 +34,12 @@ function trimSlash(url) {
  */
 async function chatCompletion({ url, key, body, timeout }) {
   return withDeadline(async signal => {
+    const headers = { 'Content-Type': 'application/json' };
+    // 匿名通道（OVHcloud 免费层）不带 Authorization。
+    if (key) headers.Authorization = `Bearer ${key}`;
     const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${key}`,
-        'Content-Type': 'application/json'
-      },
+      headers,
       body: JSON.stringify(body),
       signal
     });
@@ -126,17 +126,19 @@ export const PROVIDERS = {
   qwenguard: {
     id: 'qwenguard',
     label: 'Qwen3Guard',
-    isConfigured: env => Boolean(env?.QWEN_GUARD_KEY),
+    // 两条启用方式：填了 key（百炼 / 已注册的 OVH 账号），或显式开启匿名通道
+    // （QWEN_GUARD_ANONYMOUS=1，OVHcloud 免费层，限 2 次/分钟/IP，不用注册）。
+    // 匿名不需要 key，所以这里不能用 "有 key" 做唯一判据。
+    isConfigured: env => Boolean(env?.QWEN_GUARD_KEY) || String(env?.QWEN_GUARD_ANONYMOUS ?? '') === '1',
     async review(text, env) {
-      // 默认走阿里云百炼：大陆网络直连、支付宝注册、每个模型 100 万 token 免费额度。
-      // OVHcloud 也能用，但它需要支付方式验证才能拿到 key，匿名模式只有 2 次/分钟，
-      // 不适合做生产通道，换过去时用 QWEN_GUARD_BASE_URL 覆盖即可。
-      const base = trimSlash(env?.QWEN_GUARD_BASE_URL) || 'https://dashscope.aliyuncs.com/compatible-mode/v1';
+      // 默认 OVHcloud：匿名即可用，是唯一零注册、无有效期的通道。
+      // 有 key 的其他渠道（百炼等）用 QWEN_GUARD_BASE_URL 覆盖。
+      const base = trimSlash(env?.QWEN_GUARD_BASE_URL) || 'https://endpoints.ai.cloud.ovh.net/v1';
       const content = await chatCompletion({
         url: `${base}/chat/completions`,
-        key: env.QWEN_GUARD_KEY,
+        key: env.QWEN_GUARD_KEY || null,
         body: {
-          model: String(env?.QWEN_GUARD_MODEL || 'qwen3guard-gen-8b').trim(),
+          model: String(env?.QWEN_GUARD_MODEL || 'Qwen3Guard-Gen-8B').trim(),
           // Qwen3Guard 的 chat template 依据最后一条消息的角色决定审核模式，
           // 必须是 user；传 system 会导致模板渲染异常并返回 safe。
           messages: [{ role: 'user', content: text }],

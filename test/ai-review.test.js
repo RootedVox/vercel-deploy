@@ -15,7 +15,7 @@ function stubFetch(handler) {
   const original = globalThis.fetch;
   const calls = [];
   globalThis.fetch = async (url, init) => {
-    calls.push({ url: String(url), body: JSON.parse(init.body) });
+    calls.push({ url: String(url), body: JSON.parse(init.body), headers: init.headers });
     const payload = await handler(String(url), JSON.parse(init.body));
     return new Response(JSON.stringify(payload), {
       status: 200,
@@ -82,6 +82,34 @@ test('审核批次随供应商并发数收缩，避免撞上 Workers 的 6 连�
   assert.equal(moderationBatchSize({ GLM_KEY: 'k', NVAPI_KEY: 'k', AI_REVIEW_PROVIDERS: 'glm,nvidia' }, 4), 3);
   assert.equal(moderationBatchSize({ GLM_KEY: 'k', QWEN_GUARD_KEY: 'k', NVAPI_KEY: 'k' }, 4), 2);
   assert.equal(moderationBatchSize({}, 4), 4);
+});
+
+test('匿名通道不需要 key，也不发送 Authorization 头', async () => {
+  const stub = stubFetch(() => chat('Safety: Safe\nCategories: None'));
+  try {
+    const result = await runAiCheck('今天天气不错', [], {
+      LEXICON_KV: LEXICON,
+      AI_REVIEW_PROVIDERS: 'qwenguard',
+      QWEN_GUARD_ANONYMOUS: '1'
+    });
+    assert.equal(result.verdict, 'safe');
+    assert.equal(stub.calls.length, 1);
+    assert.equal(stub.calls[0].headers.Authorization, undefined);
+    assert.match(stub.calls[0].url, /endpoints\.ai\.cloud\.ovh\.net/);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('匿名开关是显式的，未开启时没有 key 就不启用该供应商', () => {
+  assert.deepEqual(
+    resolveProviderChain({ AI_REVIEW_PROVIDERS: 'qwenguard', QWEN_GUARD_ANONYMOUS: '1' }).map(p => p.id),
+    ['qwenguard']
+  );
+  assert.deepEqual(
+    resolveProviderChain({ AI_REVIEW_PROVIDERS: 'qwenguard' }).map(p => p.id),
+    []
+  );
 });
 
 test('放行结论固定带 model_safe，因为数据库只认这一对才置 flag=1', () => {

@@ -4,16 +4,14 @@
 
 ## L2 是怎么跑的
 
-- 所有**已配置 key** 的供应商会被**并发**调用，互不等待。某家挂了不影响其余判定。
+- 所有**已启用**的供应商会被**并发**调用，互不等待。某家挂了不影响其余判定。
 - 判定合并规则（`mergeVerdicts`）：
   - 任一家返回 `unsafe` → **拦截**（转人工）
-  - 任一一家返回 `controversial` 或解析失败 → **转人工**
+  - 任一家返回 `controversial` 或解析失败 → **转人工**
   - 成功响应的供应商**全部** `safe` → **放行**
   - 全部不可用 → **转人工**
 - 只有「放行」会写出 `flag=1`；其余一律 `flag=0` 待审，用户端照常提交成功。
-- **审核不可用不等于站点不可用**：单家供应商超时不会导致发帖失败，只会让这条留言进人工队列。
-
-顺序只影响日志可读性，不影响调用（都是并发）。
+- **审核不可用不等于站点不可用**：单家供应商超时或限流不会导致发帖失败，只会让这条留言进人工队列，或退回单家判定。
 
 ## 环境变量
 
@@ -21,96 +19,84 @@
 | --- | --- | --- |
 | `AI_REVIEW_PROVIDERS` | 启用哪些供应商，逗号分隔 | `qwenguard,glm,nvidia` |
 | `AI_REVIEW_TIMEOUT_MS` | 单家超时，最小 1000 | `8000` |
-| `QWEN_GUARD_KEY` | Qwen3Guard 的 key | 空（=禁用） |
-| `QWEN_GUARD_BASE_URL` | OpenAI 兼容 base | `https://dashscope.aliyuncs.com/compatible-mode/v1` |
-| `QWEN_GUARD_MODEL` | 模型名 | `qwen3guard-gen-8b` |
+| `QWEN_GUARD_ANONYMOUS` | 设为 `1` 走 OVHcloud 匿名通道（免注册、免 key） | 空（=禁用匿名） |
+| `QWEN_GUARD_KEY` | Qwen3Guard 的 key（有 key 就不需要匿名开关） | 空 |
+| `QWEN_GUARD_BASE_URL` | OpenAI 兼容 base | `https://endpoints.ai.cloud.ovh.net/v1` |
+| `QWEN_GUARD_MODEL` | 模型名 | `Qwen3Guard-Gen-8B` |
 | `GLM_KEY` | 智谱 key | 空（=禁用） |
 | `GLM_BASE_URL` | 智谱 base | `https://open.bigmodel.cn/api/paas/v4` |
 | `GLM_MODEL` | 模型名 | `glm-4-flash` |
 | `NVAPI_KEY` | NVIDIA NIM key | 空（=禁用） |
 
-留空即禁用该家，不需要改代码。只填一家也能正常跑。
+留空即禁用该家，不需要改代码。
 
-## 一、Qwen3Guard（主力，专训安全模型）
+## 先说结论：哪条腿能长期跑
 
-为什么质量上它是主力：它是**专门训练的内容安全分类模型**，输出固定就两行，不需要 prompt 工程，也不允许自由发挥。三档 `Safe / Unsafe / Controversial` 正好对应「放行 / 拦截 / 转人工」。开源 Apache 2.0，119 种语言，中文基准 SOTA。但它的免费额度有时限，所以成本上的长期主力是 GLM（见下）。
+| 通道 | 成本 | 有效期 | 能不能长期跑 |
+| --- | --- | --- | --- |
+| **GLM-4-Flash** | 免费，**不限 Token** | 永久 | ✅ 主力 |
+| **OVHcloud 匿名 Qwen3Guard** | 免费，免注册 | 无期限，限 2 次/分钟/IP | ✅ 交叉验证 |
+| 百炼 Qwen3Guard | 每模型 100 万 token | **90 天一次性，不补发不重置** | ❌ 只能算试用 |
+| 开源权重自部署 | 要 GPU | — | 有机器才行 |
 
-输出长这样：
+**百炼的额度是一次性的**：官方原文「额度到期自动失效，不支持补发、延期或重置」，90 天内用不完的部分直接作废，不会按月刷新。所以它不值得当主通道。而且百炼主要托管通义商业模型，Qwen3Guard 是开源权重模型，能不能在模型广场搜到要看当期政策，不建议把方案压在这上面。
 
-```
-Safety: Safe
-Categories: None
-```
+## 一、GLM-4-Flash（主力，永久免费）
 
-### 渠道 A：阿里云百炼（大陆首选）
+规格：9B 参数（开源对应 GLM-4-9B），128K 上下文，单次输出上限 4K，**永久免费不限 Token**，并发 30。新号另送 2000 万 Token。
 
-1. `https://bailian.console.aliyun.com` 用支付宝/淘宝账号登录，不用境外卡。
-2. 开通「模型服务」，在**模型广场**搜 `Qwen3Guard`，确认服务地域（北京或新加坡）。
-3. 到「免费额度」中心领额度：每个模型 100 万 token，90 天有效。
-4. 「API-KEY 管理」→ 创建 API Key。
-5. 配置（默认值就是这套，填 key 即可）：
-   ```
-   QWEN_GUARD_KEY=<百炼 key>
-   QWEN_GUARD_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-   QWEN_GUARD_MODEL=qwen3guard-gen-8b
-   ```
-   百炼的模型 id 是小写连字符，和 HuggingFace 的 `Qwen/Qwen3Guard-Gen-8B` 不一样，报 404 时优先怀疑这个。
+质量上它是通用对话模型，审核靠 prompt，判定边界会随措辞漂移，不如专训模型确定。所以策略是「GLM 保底 + Qwen3Guard 在能连上时交叉验证 + 词库第一道 + 人工最后一道」。
 
-### 渠道 B：OVHcloud AI Endpoints（大陆可注册，但别当生产通道）
+### 注册步骤（手机号，不用绑卡）
 
-网页注册页的「Country of tax residence」里 **China 是有的**，就在下拉第一项，港澳台只是被单独列成三行，选 China 就能继续。
+1. 打开 `https://open.bigmodel.cn`，点右上角「登录/注册」。
+2. 输入手机号 → 获取验证码 → 勾选用户协议 → 注册完成。不需要信用卡，也不需要实名认证。
+3. 登录后进入控制台，左侧菜单找「API Keys」（有的版本叫「密钥管理」或「API 密钥」）。
+4. 点「新建 API Key」，给个名字（比如 `rootedvox`），确认后页面上会出现一串以 `sk-` 开头的 key。
+5. **立刻复制**——这串 key 通常只完整显示一次，关掉就看不到了。存到密码管理器或本地文本里。
+6. 额度确认：控制台的「费用中心」或「资源包」页面里能看到 `glm-4-flash` 标注为免费模型。不需要领券。
 
-但它有两个实际问题：
-
-1. **要拿到正式 key 需要过支付方式验证。** 免费额度靠限速（400 次/分钟）而不是靠 token，但不绑支付方式通常拿不到那个配额。
-2. **匿名调用只有 2 次/分钟**，而且当前实现要求填了 `QWEN_GUARD_KEY` 才会启用这家，匿名模式等于用不上。
-
-所以它适合「已经注册成功的人顺手用」，不适合作为唯一方案。真要用就覆盖这两个变量：
+### 配置
 
 ```
+GLM_KEY=sk-你复制到的那串
+GLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+GLM_MODEL=glm-4-flash
+```
+
+代码里已经用 `response_format: {"type":"json_object"}` 锁死输出格式，不用你自己调 prompt。
+
+## 二、OVHcloud 匿名 Qwen3Guard（交叉验证，免注册）
+
+这是唯一「不注册、不填 key、不过期」的 Qwen3Guard 通道：OVHcloud 的 AI Endpoints 对匿名请求开放，按客户端 IP 限 **2 次/分钟**。
+
+**2 次/分钟够不够？** 换算成一天是 2880 次。校园墙一天几十到几百条留言，完全在额度内。真正的限制是「瞬时」——如果一分钟内有 5 个人同时发帖，第 3 条起会收到 429；这时那几条自动退回 GLM 单家判定，帖子照常发，不会失败。
+
+### 启用
+
+```
+QWEN_GUARD_ANONYMOUS=1
 QWEN_GUARD_BASE_URL=https://endpoints.ai.cloud.ovh.net/v1
 QWEN_GUARD_MODEL=Qwen3Guard-Gen-8B
 ```
 
-### 渠道 C：模力方舟 / ModelScope
+只要这三行，不用注册。想换成 `Qwen3Guard-Gen-0.6B` 就改 `QWEN_GUARD_MODEL`，判中文留言够用。
 
-0.6B 版本在该平台完全免费，适合只想零成本试水的场景。地址和模型 id 以平台文档为准，填进 `QWEN_GUARD_BASE_URL` / `QWEN_GUARD_MODEL` 即可。
+### 如果以后想提到 400 次/分钟
 
-### 成本现实：谁才是长期主力
+OVHcloud 注册页的「Country of tax residence」里 **China 是第一项**（港澳台被单独列成三行，不影响选 China）。但注册后要拿到正式 key 通常需要过支付方式验证，大陆卡可能过不了。过得了就填 `QWEN_GUARD_KEY`，去掉 `QWEN_GUARD_ANONYMOUS` 即可。
 
-一条留言审核大约 200–300 token 输入 + 30 token 输出。按 300 token/条算：
+### 关于百炼
 
-| 日留言量 | 90 天总消耗 | 百炼 100 万 token 能撑多久 |
-| --- | --- | --- |
-| 50 条 | 135 万 | 约 66 天 |
-| 100 条 | 270 万 | 约 33 天 |
-| 300 条 | 810 万 | 约 11 天 |
+如果你已经有阿里云账号且想试，注意三点：额度 **90 天一次性不重置**、需要实名、模型广场不一定有 Qwen3Guard。真想接就填：
 
-**结论：百炼的免费额度是「验证 + 头一个月」，不是长期答案。GLM-4-Flash 不限 Token、永久免费，才是长期主力。**
+```
+QWEN_GUARD_KEY=<百炼 key>
+QWEN_GUARD_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+QWEN_GUARD_MODEL=qwen3guard-gen-8b
+```
 
-好消息是不用为额度耗尽改任何代码：Qwen3Guard 额度用完会返回 429，被当作 `provider_error` 跳过，GLM 继续判定，站点完全不受影响——只是判定从「两家交叉验证」退回「单家」。
-
-代价是你看不见它悄悄退化了，所以要定期看一次 Functions 日志里有没有 `[AI Check] qwenguard 调用失败：http_429`。有就说明该续费或换渠道了，而不是以为还在双家。
-
-## 二、GLM-4-Flash（长期主力，永久免费）
-
-为什么成本上它是主力：**永久免费、不限 Token、30 并发**，是目前唯一不需要算额度就能长期跑的中文审核通道。
-
-质量上它是通用对话模型，审核靠 prompt，判定边界会随措辞漂移，不如专训模型确定。所以策略是：**有 Qwen3Guard 额度时两家一起判（谁更严听谁的），额度用完后由 GLM 单独兜底**，词库做第一道，人工做最后一道。
-
-规格：9B 参数（开源对应 GLM-4-9B），128K 上下文，单次输出上限 4K。新号另送 2000 万 Token。
-
-### 注册
-
-1. 打开 `https://open.bigmodel.cn`，手机号注册（不用绑卡）。
-2. 控制台 → 「API Keys」→ 新建，复制 key（只显示一次）。
-3. 配置：
-   ```
-   GLM_KEY=<拿到的 key>
-   GLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
-   GLM_MODEL=glm-4-flash
-   ```
-4. 代码里已经用 `response_format: {"type":"json_object"}` 锁死输出格式，不用你自己调 prompt。
+注意百炼的模型 id 是小写连字符，和 HuggingFace 的 `Qwen/Qwen3Guard-Gen-8B` 不一样，报 404 优先怀疑这个。
 
 ## 三、NVIDIA NIM（第三备）
 
@@ -118,19 +104,18 @@ QWEN_GUARD_MODEL=Qwen3Guard-Gen-8B
 
 ## 四、上线前先用 curl 自测
 
-**先验证模型通，再接进站点。** 不要跳过这步，否则线上只会看到 `unparsed_output` 却不知道是 key 错还是模型名错。
+**先验证通道通，再接进站点。** 不要跳过这步，否则线上只会看到 `unparsed_output`，分不清是 key 错还是模型名错。
 
-### 测 Qwen3Guard（百炼）
+### 测 OVHcloud 匿名（无需 key）
 
 ```bash
-curl -sS https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions \
-  -H "Authorization: Bearer $QWEN_GUARD_KEY" \
+curl -sS https://endpoints.ai.cloud.ovh.net/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d '{"model":"qwen3guard-gen-8b","messages":[{"role":"user","content":"今天食堂的饭真难吃"}],"max_tokens":64,"temperature":0}' \
+  -d '{"model":"Qwen3Guard-Gen-8B","messages":[{"role":"user","content":"今天食堂的饭真难吃"}],"max_tokens":64,"temperature":0}' \
   | python3 -c 'import sys,json;print(json.load(sys.stdin)["choices"][0]["message"]["content"])'
 ```
 
-期望输出包含 `Safety: Safe`。再换一条明显违规的文本，应该返回 `Safety: Unsafe`。返回 404 就先核对 `QWEN_GUARD_MODEL`，各平台的模型 id 并不统一。
+期望输出包含 `Safety: Safe`。再换一条明显违规的文本，应该返回 `Safety: Unsafe`。返回 429 说明这一分钟已经用掉 2 次了，等一分钟再试。
 
 ### 测 GLM
 
@@ -162,30 +147,31 @@ curl -sS https://open.bigmodel.cn/api/paas/v4/chat/completions \
 
 再发一条含词库敏感词的，应该看到 `词库命中 N 条，转人工`，且**没有**发起 API 请求。
 
-## 七、额度够不够
+## 七、额度与限速
 
-单条留言约 300 token 输入 + 30 token 输出。
+单条留言约 200–300 token 输入 + 30 token 输出。
 
-| 日留言量 | 日均 token | Qwen3Guard（百炼 100 万） | GLM-4-Flash |
-| --- | --- | --- | --- |
-| 100 条 | 3 万 | 约 33 天用完 | 不限量 |
-| 500 条 | 15 万 | 约 7 天用完 | 不限量 |
-| 2000 条 | 60 万 | 约 2 天用完 | 不限量 |
+| 日留言量 | GLM-4-Flash | OVHcloud 匿名 |
+| --- | --- | --- |
+| 50 条 | 不限量 | 约占 1.7% 的日配额 |
+| 100 条 | 不限量 | 约占 3.5% |
+| 500 条 | 不限量 | 约占 17% |
 
-并发才是真正的瓶颈：GLM 30 并发，百炼按账号默认 QPS 限流。开学那几天几十人同时发帖，30 并发够，但如果撞到 429，那一条会退回单家判定，不会发帖失败。
+瓶颈只有「瞬时 2 次/分钟」。只要不是几十人同一分钟集中发帖就够用；撞到了也只是退回 GLM 单家。
 
 ## 八、排错
 
 | 日志 | 原因 | 处理 |
 | --- | --- | --- |
-| `missing_key`（日志写「没有任何可用的审核供应商」） | key 全空，或 `AI_REVIEW_PROVIDERS` 名字拼错 | 检查 key 是否加在**正确环境**（Production/Preview） |
+| `missing_key`（日志写「没有任何可用的审核供应商」） | 全空，或 `AI_REVIEW_PROVIDERS` 名字拼错，或匿名没开 `QWEN_GUARD_ANONYMOUS=1` | 检查 key / 开关是否加在**正确环境**（Production/Preview） |
 | `http_401` | key 错或已失效 | 重新生成 |
 | `http_404` | 模型 id 不对 | 各平台 id 不同，按渠道换 `*_MODEL` |
-| `http_429` | 限流或额度耗尽 | 百炼免费额度用完就是 429；此时已自动退回单家判定，续费或换渠道 |
+| `http_429`（OVHcloud） | 匿名 2 次/分钟用满 | 正常，等一分钟；这条会退回 GLM 单家判定 |
+| `http_429`（百炼） | 免费额度耗尽 | 一次性额度不会恢复，需换渠道或付费 |
 | `unparsed_output` | 模型返回了别的东西 | 用 curl 打一次看原始输出，再调 `*_MODEL` |
 | `model_controversial` | 模型判为擦边 | 正常行为，进人工队列 |
-| `provider_error` + 另一家 `safe` | 一家挂了 | 不影响放行；需要关注是不是 key 到期或额度用尽 |
+| `provider_error` + 另一家 `safe` | 一家挂了 | 不影响放行；关注是不是 key 到期或限流 |
 
-**定期体检**：额度耗尽不会有任何用户可见的症状，只是判定悄悄从双家退回单家。每周看一次 Functions 日志里有没有 `[AI Check] qwenguard 调用失败：http_429`，有就说明该续了。
+**定期体检**：某家长期 429 不会有任何用户可见的症状，只是判定悄悄从双家退回单家。每周扫一眼 Functions 日志里有没有 `调用失败`，有就说明那条腿已经断了。
 
 判定相关代码在 `functions/_lib/ai-providers.js`（每家一个 `review()`），合并逻辑在 `functions/_lib/moderate-content.js` 的 `mergeVerdicts()`。新增一家只需在 `PROVIDERS` 里加一个对象。
