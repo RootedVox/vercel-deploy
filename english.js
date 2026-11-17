@@ -1,5 +1,7 @@
 window.rvEnglish = new Map(Object.entries({
   "收起": "Show less",
+  "RootedVox 4.5.6 · 发帖表单与滚动优化": "RootedVox 4.5.6 · Composer and scrolling",
+  "发帖表单更紧凑，昵称与分区并排、说明合并成一行；桌面端滚轮会先把整个列表带入视野再滚动内容，不再滚到框底就停住。": "The compose form is more compact: name and zone sit side by side and their notes share one line. On desktop the wheel first brings the whole list into view before scrolling the posts, so it no longer stops at the box's edge.",
   "RootedVox 4.5.5 · 论坛浏览与性能优化": "RootedVox 4.5.5 · Browsing and performance",
   "帖子卡片更紧凑，长列表滚动更顺滑、提前加载。减少数据库请求，清理停用功能，并放行统计脚本消除报错。": "Post cards are more compact, long lists scroll smoother and load earlier. Fewer database requests, retired features removed, and the analytics script is now allowed so the console errors are gone.",
   "RootedVox 4.5.4 · 通知中心绿版与性能清理": "RootedVox 4.5.4 · Green notification center and cleanup",

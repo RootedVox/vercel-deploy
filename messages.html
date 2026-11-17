@@ -21,8 +21,8 @@
     <script defer src="./request.js?v=20487cc538"></script>
     <script defer src="./auth-client.js?v=a6ff1e68ba"></script>
     <script defer src="./public-data.js?v=8b4a38125e"></script>
-    <script src="/preferences.js?v=63ab637b91"></script><link rel="stylesheet" href="./common.css?v=9880025fd9"><link rel="stylesheet" href="/preferences.css?v=8d9b457797">
-    <link rel="stylesheet" href="./messages.css?v=67fae5e3dc">
+    <script src="/preferences.js?v=730790a891"></script><link rel="stylesheet" href="./common.css?v=9880025fd9"><link rel="stylesheet" href="/preferences.css?v=8d9b457797">
+    <link rel="stylesheet" href="./messages.css?v=85aa726500">
     <link rel="icon" type="image/png" href="./images/favicon-96x96.png" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="./images/favicon.svg" />
     <link rel="shortcut icon" href="./images/favicon.ico" />
@@ -89,21 +89,24 @@
                 <div class="compose-fields" id="composeFields">
                 <p class="section-copy">写下此刻想和社区分享的内容。</p>
                 <div class="form-group">
-                    <label for="nicknameSelect">显示昵称</label>
-                    <select id="nicknameSelect" class="form-control">
-                        <option value="real">加载中...</option>
-                    </select>
-                    <p class="form-note" style="margin-top: 5px;">选择“匿名用户”将不显示您的真实昵称。</p>
-                </div>
-                <div class="form-group">
-                    <label for="zoneSelect">发布到分区</label>
-                    <select id="zoneSelect" class="form-control">
-                        <option value="日常分享">日常分享</option>
-                        <option value="学习互助">学习互助</option>
-                        <option value="活动社团">活动社团</option>
-                        <option value="失物招领">失物招领</option>
-                    </select>
-                    <p class="form-note" style="margin-top: 5px;">选对分区，大家能更快找到这条留言。</p>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="nicknameSelect">显示昵称</label>
+                            <select id="nicknameSelect" class="form-control">
+                                <option value="real">加载中...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="zoneSelect">发布到分区</label>
+                            <select id="zoneSelect" class="form-control">
+                                <option value="日常分享">日常分享</option>
+                                <option value="学习互助">学习互助</option>
+                                <option value="活动社团">活动社团</option>
+                                <option value="失物招领">失物招领</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p class="form-note" style="margin-top: 5px;">选择“匿名用户”将不显示您的真实昵称。<br>选对分区，大家能更快找到这条留言。</p>
                 </div>
                 <div class="form-group featured-submit">
                     <label><input type="checkbox" id="postFeatured"> 投稿到精华</label>
@@ -217,6 +220,6 @@
   <div class="footer-bottom"><p>© 2026 RootedVox · 沧海四象开发 · Apache-2.0</p></div>
 </footer><!--/footerBox--></div>
     <script src="./common.js?v=2180850601"></script>
-    <script src="./messages.js?v=f7c395d57b"></script>
+    <script src="./messages.js?v=844d4bf8e6"></script>
 </body>
 </html>

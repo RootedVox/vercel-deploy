@@ -910,6 +910,22 @@
             messageFeed.addEventListener('click', openCard);
             messageFeed.addEventListener('click', rememberFeed);
             messageFeed.addEventListener('auxclick', rememberFeed);
+            // Desktop: the list box starts below the page heading, partly under the
+            // window's edge. Turning the wheel over it first scrolls the page, then the
+            // posts inside: until the whole box is on screen, or until the search and sort
+            // bar reaches the header, whichever comes first, so that bar stays in view.
+            messageFeed.addEventListener('wheel', event => {
+                if (event.deltaY <= 0 || event.ctrlKey || feedScrollsWithPage(messageFeed)) return;
+                const below = messageFeed.getBoundingClientRect().bottom - window.innerHeight;
+                const bar = document.querySelector('.feed-toolbar')?.getBoundingClientRect();
+                const header = document.getElementById('siteHeader')?.getBoundingClientRect();
+                const above = bar && header ? bar.top - header.bottom - 12 : Infinity;
+                const hidden = Math.min(below, above);
+                if (hidden <= 0) return;
+                event.preventDefault();
+                const step = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? window.innerHeight : 1);
+                window.scrollBy({ top: Math.min(step, hidden), behavior: 'instant' });
+            }, { passive: false });
             // Checked at most every 100 ms while scrolling, not only once scrolling stops:
             // a debounce never fired during a long swipe, so readers hit the end and waited.
             // The next page is asked for about one screen before the end comes into view.

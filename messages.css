@@ -499,16 +499,31 @@
         .message-form-section,.message-list-section { margin:0; border:1px solid var(--line); border-radius:22px; background:var(--surface); box-shadow:var(--shadow-sm); }
         .message-form-section { padding:26px; }
         /* The form determines the grid row height; the feed never stretches the page. */
+        /* The form sets the row height, so both cards always end level. */
         .message-list-section { position:relative; min-height:0; padding:0; }
         .message-list-inner { position:absolute; inset:26px; display:flex; flex-direction:column; min-height:0; }
         .feed-controls { flex:none; }
+        /* The list keeps growing as pages load, so the wheel stops at its current end
+           instead of running on into the page; the page scrolls with the pointer outside. */
         .message-feed { flex:1; min-height:0; overflow-y:auto; overscroll-behavior-y:contain; scrollbar-gutter:stable; padding:4px 4px 0; }
         .message-feed:focus-visible { outline:2px solid var(--theme-color); outline-offset:4px; border-radius:12px; }
         .form-title { margin:0; color:var(--ink); text-align:left; font-size:20px; }
-        .section-copy { margin:4px 0 22px; color:var(--muted); font-size:14px; }
+        .section-copy { margin:4px 0 16px; color:var(--muted); font-size:14px; }
         .form-control { min-height:46px; padding:11px 13px; border-color:var(--line); border-radius:12px; background:var(--surface); font-size:15px; }
         .form-control:focus { border-color:var(--theme-color); box-shadow:0 0 0 4px rgba(18,101,42,.1); }
-        .form-group { margin-bottom:16px; }
+        .form-group { margin-bottom:12px; }
+        /* Nickname and zone sit side by side when the form column is wide enough, with
+           their two notes as one line below; the featured box keeps its note on the same
+           line. Every field and note stays, and the form is short enough for the feed box
+           beside it to fit the window. Narrow columns and phones stack the two selects. */
+        .message-form-section { container-type:inline-size; }
+        .form-row { display:grid; gap:12px; }
+        .form-row > .form-group { margin:0; }
+        @container (min-width: 360px) {
+            .form-row { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+        }
+        .featured-submit { display:flex; flex-wrap:wrap; align-items:center; gap:2px 12px; }
+        .featured-submit .form-note { margin:0; }
         .form-group label { color:var(--muted); font-weight:700; }
         .form-note { color:var(--muted); text-align:left; font-size:12px; }
         .textarea-meta { display:flex; justify-content:flex-end; margin-top:5px; color:var(--muted); font-size:12px; }
