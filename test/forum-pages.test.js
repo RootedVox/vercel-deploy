@@ -399,15 +399,16 @@ test('on desktop a wheel over the list first brings the whole box on screen', as
   assert.equal(turn(100), false, 'phones scroll the page anyway');
 });
 
-test('short form fields pair up in a wide form column without losing any field or note', () => {
+test('nickname and zone pair up in a wide form column without losing any field or note', () => {
   const html = read('messages.html');
   const at = text => { const index = html.indexOf(text); assert.ok(index >= 0, text); return index; };
-  const first = at('<div class="form-row">'), second = html.indexOf('<div class="form-row">', first + 1);
-  assert.ok(second > first);
-  assert.ok(first < at('id="nicknameSelect"') && at('id="zoneSelect"') < second);
-  assert.ok(second < at('id="postFeatured"') && at('id="contactEmail"') < at('id="messageContent"'));
+  const row = at('<div class="form-row">');
+  assert.equal(html.indexOf('<div class="form-row">', row + 1), -1);
+  assert.ok(row < at('id="nicknameSelect"') && at('id="zoneSelect"') < at('id="postFeatured"'));
+  assert.ok(at('id="postFeatured"') < at('id="contactEmail"') && at('id="contactEmail"') < at('id="messageContent"'));
   for (const note of ['选择“匿名用户”将不显示您的真实昵称。', '选对分区，大家能更快找到这条留言。', '仅限主楼，每天最多投稿 3 次。', '站内通知将直接发送到您的账号']) at(note);
   const css = read('messages.css');
   assert.match(css, /\.message-form-section \{ container-type:inline-size; \}/);
-  assert.match(css, /@container \(min-width: 360px\) \{\s*\.form-row \{ display:grid; grid-template-columns:repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.match(css, /@container \(min-width: 360px\) \{\s*\.form-row \{ grid-template-columns:repeat\(2, minmax\(0, 1fr\)\); \}/);
+  assert.match(css, /\.featured-submit \{ display:flex;/);
 });

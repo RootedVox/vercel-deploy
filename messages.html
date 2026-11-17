@@ -22,7 +22,7 @@
     <script defer src="./auth-client.js?v=a6ff1e68ba"></script>
     <script defer src="./public-data.js?v=8b4a38125e"></script>
     <script src="/preferences.js?v=63ab637b91"></script><link rel="stylesheet" href="./common.css?v=9880025fd9"><link rel="stylesheet" href="/preferences.css?v=8d9b457797">
-    <link rel="stylesheet" href="./messages.css?v=ac545fa6ae">
+    <link rel="stylesheet" href="./messages.css?v=85aa726500">
     <link rel="icon" type="image/png" href="./images/favicon-96x96.png" sizes="96x96" />
     <link rel="icon" type="image/svg+xml" href="./images/favicon.svg" />
     <link rel="shortcut icon" href="./images/favicon.ico" />
@@ -88,26 +88,26 @@
                 <button type="button" class="compose-toggle" id="composeToggle" aria-expanded="false" aria-controls="composeFields">写留言</button>
                 <div class="compose-fields" id="composeFields">
                 <p class="section-copy">写下此刻想和社区分享的内容。</p>
-                <div class="form-row">
                 <div class="form-group">
-                    <label for="nicknameSelect">显示昵称</label>
-                    <select id="nicknameSelect" class="form-control">
-                        <option value="real">加载中...</option>
-                    </select>
-                    <p class="form-note" style="margin-top: 5px;">选择“匿名用户”将不显示您的真实昵称。</p>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="nicknameSelect">显示昵称</label>
+                            <select id="nicknameSelect" class="form-control">
+                                <option value="real">加载中...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="zoneSelect">发布到分区</label>
+                            <select id="zoneSelect" class="form-control">
+                                <option value="日常分享">日常分享</option>
+                                <option value="学习互助">学习互助</option>
+                                <option value="活动社团">活动社团</option>
+                                <option value="失物招领">失物招领</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p class="form-note" style="margin-top: 5px;">选择“匿名用户”将不显示您的真实昵称。<br>选对分区，大家能更快找到这条留言。</p>
                 </div>
-                <div class="form-group">
-                    <label for="zoneSelect">发布到分区</label>
-                    <select id="zoneSelect" class="form-control">
-                        <option value="日常分享">日常分享</option>
-                        <option value="学习互助">学习互助</option>
-                        <option value="活动社团">活动社团</option>
-                        <option value="失物招领">失物招领</option>
-                    </select>
-                    <p class="form-note" style="margin-top: 5px;">选对分区，大家能更快找到这条留言。</p>
-                </div>
-                </div>
-                <div class="form-row">
                 <div class="form-group featured-submit">
                     <label><input type="checkbox" id="postFeatured"> 投稿到精华</label>
                     <p class="form-note" id="featuredQuota" aria-live="polite">仅限主楼，每天最多投稿 3 次。</p>
@@ -116,7 +116,6 @@
                     <label for="contactEmail">联系邮箱</label>
                     <input type="email" id="contactEmail" class="form-control" readonly disabled style="background-color: var(--surface-alt); cursor: not-allowed;">
                     <p class="form-note" style="margin-top: 5px;">站内通知将直接发送到您的账号</p>
-                </div>
                 </div>
                 <div class="form-group">
                     <label for="messageContent">留言内容 <span style="color: var(--error-ink);">*</span></label>
