@@ -111,7 +111,9 @@ test('判定合并：单家故障不拖垮其余判定，可用性优先', () =>
 test('审核批次随供应商并发数收缩，避免撞上 Workers 的 6 连接上限', () => {
   assert.equal(moderationBatchSize({ NVAPI_KEY: 'k', AI_REVIEW_PROVIDERS: 'nvidia' }, 4), 4);
   assert.equal(moderationBatchSize({ GLM_KEY: 'k', NVAPI_KEY: 'k', AI_REVIEW_PROVIDERS: 'glm,nvidia' }, 4), 3);
-  assert.equal(moderationBatchSize({ GLM_KEY: 'k', QWEN_GUARD_KEY: 'k', NVAPI_KEY: 'k' }, 4), 2);
+  assert.equal(moderationBatchSize({
+    GLM_KEY: 'k', QWEN_GUARD_KEY: 'k', NVAPI_KEY: 'k', QWEN_GUARD_BASE_URL: 'https://qg.test/v1'
+  }, 4), 2);
   assert.equal(moderationBatchSize({}, 4), 4);
 });
 
@@ -121,26 +123,42 @@ test('匿名通道不需要 key，也不发送 Authorization 头', async () => {
     const result = await runAiCheck('今天天气不错', [], {
       LEXICON_KV: LEXICON,
       AI_REVIEW_PROVIDERS: 'qwenguard',
-      QWEN_GUARD_ANONYMOUS: '1'
+      QWEN_GUARD_ANONYMOUS: '1',
+      QWEN_GUARD_BASE_URL: 'https://qg.test/v1'
     });
     assert.equal(result.verdict, 'safe');
     assert.equal(stub.calls.length, 1);
     assert.equal(stub.calls[0].headers.Authorization, undefined);
-    assert.match(stub.calls[0].url, /endpoints\.ai\.cloud\.ovh\.net/);
+    assert.match(stub.calls[0].url, /^https:\/\/qg\.test\/v1\/chat\/completions$/);
   } finally {
     stub.restore();
   }
 });
 
 test('匿名开关是显式的，未开启时没有 key 就不启用该供应商', () => {
-  assert.deepEqual(
-    resolveProviderChain({ AI_REVIEW_PROVIDERS: 'qwenguard', QWEN_GUARD_ANONYMOUS: '1' }).map(p => p.id),
-    ['qwenguard']
-  );
-  assert.deepEqual(
-    resolveProviderChain({ AI_REVIEW_PROVIDERS: 'qwenguard' }).map(p => p.id),
-    []
-  );
+  const base = { QWEN_GUARD_BASE_URL: 'https://qg.test/v1', AI_REVIEW_PROVIDERS: 'qwenguard' };
+  assert.deepEqual(resolveProviderChain({ ...base, QWEN_GUARD_ANONYMOUS: '1' }).map(p => p.id), ['qwenguard']);
+  assert.deepEqual(resolveProviderChain({ ...base }).map(p => p.id), []);
+});
+
+test('匿名模式默认指向 kepler 域名，而不是会 301 的营销域名', () => {
+  const chain = resolveProviderChain({ AI_REVIEW_PROVIDERS: 'qwenguard', QWEN_GUARD_ANONYMOUS: '1' });
+  assert.deepEqual(chain.map(p => p.id), ['qwenguard']);
+});
+
+test('匿名模式必须不发 Authorization，占位 key 会导致 403', async () => {
+  const stub = stubFetch(() => chat('Safety: Safe\nCategories: None'));
+  try {
+    await runAiCheck('今天天气不错', [], {
+      LEXICON_KV: LEXICON,
+      AI_REVIEW_PROVIDERS: 'qwenguard',
+      QWEN_GUARD_ANONYMOUS: '1'
+    });
+    assert.match(stub.calls[0].url, /^https:\/\/oai\.endpoints\.kepler\.ai\.cloud\.ovh\.net\/v1\/chat\/completions$/);
+    assert.equal(stub.calls[0].headers.Authorization, undefined);
+  } finally {
+    stub.restore();
+  }
 });
 
 test('免费模型排队与 key 错误要分开判断', () => {
@@ -207,7 +225,8 @@ test('供应商链按配置顺序生效，跳过没有 key 的和未知的', () 
   const chain = resolveProviderChain({
     AI_REVIEW_PROVIDERS: 'glm, qwenguard, nvidia, nonsense',
     GLM_KEY: 'k',
-    QWEN_GUARD_KEY: 'k'
+    QWEN_GUARD_KEY: 'k',
+    QWEN_GUARD_BASE_URL: 'https://qg.test/v1'
   });
   assert.deepEqual(chain.map(p => p.id), ['glm', 'qwenguard']);
 });
@@ -245,6 +264,7 @@ test('多家并发审核：每家只请求一次，且都判 safe 时放行', as
       LEXICON_KV: LEXICON,
       GLM_KEY: 'k1',
       QWEN_GUARD_KEY: 'k2',
+      QWEN_GUARD_BASE_URL: 'https://qg.test/v1',
       AI_REVIEW_PROVIDERS: 'qwenguard,glm'
     });
     assert.equal(result.verdict, 'safe');
@@ -271,6 +291,7 @@ test('一家说 safe 另一家说 unsafe 时以拦截为准', async () => {
       LEXICON_KV: LEXICON,
       GLM_KEY: 'k1',
       QWEN_GUARD_KEY: 'k2',
+      QWEN_GUARD_BASE_URL: 'https://qg.test/v1',
       AI_REVIEW_PROVIDERS: 'qwenguard,glm'
     });
     assert.equal(result.verdict, 'blocked');
@@ -293,6 +314,7 @@ test('一家挂掉时另一家仍可放行，审核链路不会整体瘫痪', as
       LEXICON_KV: LEXICON,
       GLM_KEY: 'k1',
       QWEN_GUARD_KEY: 'k2',
+      QWEN_GUARD_BASE_URL: 'https://qg.test/v1',
       AI_REVIEW_PROVIDERS: 'qwenguard,glm'
     });
     assert.equal(call, 2);

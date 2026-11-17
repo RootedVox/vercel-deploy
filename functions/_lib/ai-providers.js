@@ -19,6 +19,10 @@ import { withDeadline } from './fetch-timeout.js';
 const DEFAULT_TIMEOUT_MS = 8000;
 const ERR_DETAIL_MAX = 200;
 
+// OVHcloud AI Endpoints 的匿名入口。注意是 kepler 子域：
+// endpoints.ai.cloud.ovh.net 是营销页，任何路径都 301。
+const DEFAULT_QWEN_GUARD_BASE = 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1';
+
 function timeoutMs(env) {
   const value = Number(env?.AI_REVIEW_TIMEOUT_MS);
   return Number.isFinite(value) && value >= 1000 ? value : DEFAULT_TIMEOUT_MS;
@@ -51,7 +55,9 @@ async function chatCompletion({ url, key, body, timeout }) {
     try {
       data = JSON.parse(raw);
     } catch {
-      throw new Error('invalid_json_response');
+      // 带上响应开头，否则只有一句 invalid_json_response，分不清是对端返回了
+      // 错误页、HTML、还是被重定向到了别处。
+      throw new Error(`invalid_json_response:${raw.replace(/\s+/g, ' ').slice(0, ERR_DETAIL_MAX)}`);
     }
     // 智谱在配额排队时可能返回 200 + {"error":{"code":"1305",...}}，
     // 不检查就会当成「空回复」，白白丢掉一次可重试的机会。
@@ -166,14 +172,16 @@ export const PROVIDERS = {
   qwenguard: {
     id: 'qwenguard',
     label: 'Qwen3Guard',
-    // 两条启用方式：填了 key（百炼 / 已注册的 OVH 账号），或显式开启匿名通道
-    // （QWEN_GUARD_ANONYMOUS=1，OVHcloud 免费层，限 2 次/分钟/IP，不用注册）。
-    // 匿名不需要 key，所以这里不能用 "有 key" 做唯一判据。
+    // 两条启用方式：填了 key（百炼 / 自建端点），或显式开启匿名通道（免 key）。
     isConfigured: env => Boolean(env?.QWEN_GUARD_KEY) || String(env?.QWEN_GUARD_ANONYMOUS ?? '') === '1',
     async review(text, env) {
-      // 默认 OVHcloud：匿名即可用，是唯一零注册、无有效期的通道。
-      // 有 key 的其他渠道（百炼等）用 QWEN_GUARD_BASE_URL 覆盖。
-      const base = trimSlash(env?.QWEN_GUARD_BASE_URL) || 'https://endpoints.ai.cloud.ovh.net/v1';
+      // ⚠️ 域名必须是 oai.endpoints.kepler.ai.cloud.ovh.net。
+      // endpoints.ai.cloud.ovh.net 是营销域名，任何路径都 301 到产品介绍页，
+      // 返回 HTML 会让 JSON.parse 失败（线上表现为 invalid_json_response）。
+      //
+      // ⚠️ 匿名模式必须【不发】Authorization。带任意占位 key 反而返回
+      // "Forbidden: authentication failed"，这一点和很多教程说的相反。
+      const base = trimSlash(env?.QWEN_GUARD_BASE_URL) || DEFAULT_QWEN_GUARD_BASE;
       const content = await chatCompletion({
         url: `${base}/chat/completions`,
         key: env.QWEN_GUARD_KEY || null,

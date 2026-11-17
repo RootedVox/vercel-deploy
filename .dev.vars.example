@@ -56,14 +56,14 @@ AI_REVIEW_TIMEOUT_MS=8000
 # all-error goes to humans. Timeouts and parse failures count as "no verdict" and are
 # skipped, so one provider being down never drags the others into human review.
 
-# Qwen3Guard. Two ways to enable it:
-#   1) anonymous: set QWEN_GUARD_ANONYMOUS=1. OVHcloud free tier, no signup, no key,
-#      2 requests/minute per IP (about 2880/day), which is enough for a school board.
-#   2) keyed: set QWEN_GUARD_KEY and override base/model for whichever host issued it.
-#      Alibaba Cloud Bailian works too, but its free quota expires after 90 days.
+# Qwen3Guard via OVHcloud AI Endpoints (anonymous, no signup, no key).
+# Domain MUST be the kepler subdomain: endpoints.ai.cloud.ovh.net is a marketing site
+# that 301s to the product page, which breaks JSON parsing.
+# Anonymous mode must send NO Authorization header at all -- sending a placeholder key
+# returns 403 "authentication failed", the opposite of most tutorials.
 QWEN_GUARD_ANONYMOUS=
 QWEN_GUARD_KEY=
-QWEN_GUARD_BASE_URL=https://endpoints.ai.cloud.ovh.net/v1
+QWEN_GUARD_BASE_URL=https://oai.endpoints.kepler.ai.cloud.ovh.net/v1
 QWEN_GUARD_MODEL=Qwen3Guard-Gen-8B
 
 # GLM-4.7-Flash (main fallback, 200K context, input/output free at 30B size).

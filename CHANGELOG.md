@@ -6,7 +6,7 @@
 - 严格区分「模型说擦边」和「没拿到结论」：前者转人工，后者（超时、报错、解析失败）只跳过该家、不影响其余判定。多配一家不会让留言更容易进人工。
 - 全部供应商不可用时才转人工，发帖本身不受影响。
 - 审核供应商改为配置驱动（`AI_REVIEW_PROVIDERS`），未填 key 的自动跳过，只配一家也能正常运行。
-- Qwen3Guard 支持免注册的匿名通道（`QWEN_GUARD_ANONYMOUS=1`，OVHcloud 免费层，限 2 次/分钟/IP），不填任何 key 也能启用交叉验证。
+- Qwen3Guard 支持免注册的匿名通道（`QWEN_GUARD_ANONYMOUS=1`，OVHcloud AI Endpoints，不填任何 key 也能启用交叉验证）。默认域名已修正为 `oai.endpoints.kepler.ai.cloud.ovh.net`，匿名请求不发送 `Authorization` 头。
 - GLM 免费模型排队（1305）时自动换用同一家的其他免费模型重试（`GLM_FALLBACK_MODELS`），三个配额池都占满才交给下一家供应商；key 或模型名错误不会触发无谓重试。
 - 兼容推理模型输出：`glm-z1-flash` 这类模型会在 JSON 前先输出 `<think>` 思考块，解析前自动剥离，`max_tokens` 相应放宽到 200。
 - 新增 `docs/AI_REVIEW_PROVIDERS.zh-CN.md`：各通道的免费额度与有效期、注册步骤、上线前自测 curl 与排错对照表。

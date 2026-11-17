@@ -88,29 +88,62 @@ GLM_MODEL=glm-4.7-flash
 
 代码里已经用 `response_format: {"type":"json_object"}` 锁死输出格式，不用你自己调 prompt。
 
-## 二、OVHcloud 匿名 Qwen3Guard（交叉验证，免注册）
+## 二、Qwen3Guard（交叉验证，OVHcloud 匿名）
 
-这是唯一「不注册、不填 key、不过期」的 Qwen3Guard 通道：OVHcloud 的 AI Endpoints 对匿名请求开放，按客户端 IP 限 **2 次/分钟**。
+OVHcloud 的 AI Endpoints 提供一个**不用注册、不用 key、不过期**的匿名入口，托管了 30 个开源模型，其中包含 `Qwen3Guard-Gen-0.6B` 和 `Qwen3Guard-Gen-8B`。
 
-**2 次/分钟够不够？** 换算成一天是 2880 次。校园墙一天几十到几百条留言，完全在额度内。真正的限制是「瞬时」——如果一分钟内有 5 个人同时发帖，第 3 条起会收到 429；这时那几条自动退回 GLM 单家判定，帖子照常发，不会失败。
+### 两个必须记住的坑
+
+**域名是 `oai.endpoints.kepler.ai.cloud.ovh.net`**，不是 `endpoints.ai.cloud.ovh.net`。后者是营销域名，任何路径都 301 到产品介绍页，返回 HTML，`JSON.parse` 必然失败（线上表现为 `qwenguard 调用失败：invalid_json_response`）。
+
+**匿名模式必须完全不发 `Authorization` 头。** 网上很多教程（包括部分 AI 的回答）说「随便填一串字符即可」，这是错的——带了反而返回：
+
+```json
+{"message":"Forbidden: authentication failed. ..."}
+```
+
+不带才是最放松的匿名通道。这也是为什么代码在没配 key 时不发这个头。
+
+### 匿名够不够用
+
+按客户端 IP 限速，不适合高并发，但校园墙一天几十到几百条完全在范围内。撞到限速会返回 429，那一条自动退回 GLM 单家判定，帖子照常发，不会失败。
 
 ### 启用
 
+三行，全部是默认值，实际只需要第一条：
+
 ```
 QWEN_GUARD_ANONYMOUS=1
-QWEN_GUARD_BASE_URL=https://endpoints.ai.cloud.ovh.net/v1
+QWEN_GUARD_BASE_URL=https://oai.endpoints.kepler.ai.cloud.ovh.net/v1
 QWEN_GUARD_MODEL=Qwen3Guard-Gen-8B
 ```
 
-只要这三行，不用注册。想换成 `Qwen3Guard-Gen-0.6B` 就改 `QWEN_GUARD_MODEL`，判中文留言够用。
+想更轻量可以换 `Qwen3Guard-Gen-0.6B`，判中文留言够用。
 
-### 如果以后想提到 400 次/分钟
+### 自测
 
-OVHcloud 注册页的「Country of tax residence」里 **China 是第一项**（港澳台被单独列成三行，不影响选 China）。但注册后要拿到正式 key 通常需要过支付方式验证，大陆卡可能过不了。过得了就填 `QWEN_GUARD_KEY`，去掉 `QWEN_GUARD_ANONYMOUS` 即可。
+```bash
+curl -sS https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"Qwen3Guard-Gen-8B","messages":[{"role":"user","content":"今天食堂的饭真难吃"}],"max_tokens":32,"temperature":0}'
+```
 
-### 关于百炼
+期望：
 
-如果你已经有阿里云账号且想试，注意三点：额度 **90 天一次性不重置**、需要实名、模型广场不一定有 Qwen3Guard。真想接就填：
+```
+Safety: Safe
+Categories: None
+```
+
+换一条明显违规的，应该返回 `Safety: Unsafe` + 具体类别。
+
+### 如果要更高配额
+
+注册 OVHcloud 账号、创建 Public Cloud 项目、在 AI Endpoints 里建 key，就能拿到认证配额。注册页的「Country of tax residence」里 **China 是第一项**（港澳台单独列成三行，不影响选 China），但拿正式 key 通常要过支付方式验证。拿到后填 `QWEN_GUARD_KEY` 并去掉 `QWEN_GUARD_ANONYMOUS`。
+
+### 百炼也可以，但只是试用
+
+阿里云百炼每模型 100 万 token，**90 天一次性、不补发不重置**，日 100 条约 33 天见底。当备用可以，别当长期方案。
 
 ```
 QWEN_GUARD_KEY=<百炼 key>
@@ -118,11 +151,11 @@ QWEN_GUARD_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 QWEN_GUARD_MODEL=qwen3guard-gen-8b
 ```
 
-注意百炼的模型 id 是小写连字符，和 HuggingFace 的 `Qwen/Qwen3Guard-Gen-8B` 不一样，报 404 优先怀疑这个。
+## 三、NVIDIA NIM（已不可用）
 
-## 三、NVIDIA NIM（第三备）
+2026-11-17 线上日志：`http_404 ... Function id '3e84ff75-...' version 'null': Specified function ... is not found`。
 
-原来的 `nvidia/nemotron-3.5-content-safety`，代码原样保留。`NVAPI_KEY` 还能用就继续留着当第三层，用不了也不影响前两家。
+这不是临时故障，是那个 NIM 函数在 NVIDIA 账户里已经被删掉了，**重试永远不会成功**。留着 `NVAPI_KEY` 只会让每次审核都白打一次请求、多几百毫秒。**建议直接删掉这个环境变量**，代码会自动跳过。
 
 ## 四、上线前先用 curl 自测
 
