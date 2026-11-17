@@ -12,6 +12,9 @@ body.menu-open{overflow:hidden} button,input,textarea,select{font:inherit} butto
 :focus-visible{outline:3px solid var(--theme-color);outline-offset:3px}
 .header{position:fixed;inset:0 0 auto;z-index:9999;border-bottom:1px solid transparent;background:rgba(11,11,11,.90);backdrop-filter:blur(18px) saturate(150%);transition:box-shadow .25s,border-color .25s,background .25s}
 .header.scrolled{border-color:var(--line);box-shadow:0 8px 24px rgba(16,20,37,.07);background:rgba(11,11,11,.96)}
+/* Phones redraw a live blur of the page under the header on every scrolled frame; an
+   almost opaque bar looks the same and keeps scrolling smooth. */
+@media(max-width:860px){.header,.header.scrolled{backdrop-filter:none;background:rgb(11,11,11)}}
 .nav-container{width:min(1180px,calc(100% - 40px));height:72px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
 .logo{display:inline-flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink)} .logo img{width:42px;height:42px;margin:0;object-fit:contain}
 .brand-copy{display:grid;line-height:1.05}.brand-copy strong{font-size:16px;letter-spacing:-.02em}.brand-copy small{margin-top:5px;color:var(--muted);font-size:11px;letter-spacing:.13em;text-transform:uppercase}
