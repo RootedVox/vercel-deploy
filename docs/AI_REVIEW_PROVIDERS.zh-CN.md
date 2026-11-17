@@ -140,6 +140,14 @@ curl -sS https://endpoints.ai.cloud.ovh.net/v1/chat/completions \
 
 ### 测 GLM
 
+先把 key 存进变量，命令里只用 `$GLM_KEY`。直接在命令里粘 key 很容易带进多余空格，
+或者手滑把打码后的显示值复制进去。
+
+```bash
+export GLM_KEY='完整key粘在这里'
+echo ${#GLM_KEY}     # 应该是 60 出头；低于 40 说明复制到的是打码值
+```
+
 ```bash
 curl -sS https://open.bigmodel.cn/api/paas/v4/chat/completions \
   -H "Authorization: Bearer $GLM_KEY" \
@@ -148,6 +156,15 @@ curl -sS https://open.bigmodel.cn/api/paas/v4/chat/completions \
 ```
 
 期望 `content` 是 `{"verdict":"safe","categories":[]}` 这样的 JSON。
+
+**两个高频错误：**
+
+| 现象 | 原因 | 处理 |
+| --- | --- | --- |
+| `{"error":{"code":"1000","message":"身份验证失败。"}}` | key 无效：复制到了打码值（带 `...`）、粘进了多余文字、或 key 已删 | `echo ${#GLM_KEY}` 看长度，回控制台**点复制按钮**重拿 |
+| `"code":"1211"` / `UNKNOWN_MODEL` | 模型 id 错 | 必须是 `glm-4.7-flash`，注意不是 `glm-5.3-flash`（付费）也不是 `glm-4-flash`（已不在免费名单） |
+
+`Authorization` 头只允许 `Bearer` + 一个空格 + 完整 key，中间不能再有任何东西。
 
 ## 五、填进部署环境
 
