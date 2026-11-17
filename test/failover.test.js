@@ -25,6 +25,21 @@ test('quota exhaustion switches subsequent requests and includes cookies', async
   assert.equal(calls[2].url, 'https://rv-vc.celestivast.com/api/profile');
   assert.equal(calls[2].init.credentials, 'include');
 });
+test('account quotas preserve the error and leave subsequent reads on the primary', async () => {
+  for (const error of ['avatar_storage_limit', 'featured_daily_limit']) {
+    const calls = [];
+    const request = client(async url => {
+      calls.push(new URL(url).hostname);
+      return calls.length === 1 ? Response.json({ error }, { status: 429 }) : new Response('ok');
+    });
+    const response = await request('/api/uploads', { method: 'POST' });
+    assert.equal(response.status, 429);
+    assert.deepEqual(await response.json(), { error });
+    assert.equal(await (await request('/api/messages')).text(), 'ok');
+    assert.deepEqual(calls, ['rv.celestivast.com', 'rv.celestivast.com']);
+  }
+});
+
 test('ambiguous writes are never replayed on the backup', async () => {
   let calls = 0;
   const request = client(async () => { calls++; throw new TypeError('lost response after commit'); });

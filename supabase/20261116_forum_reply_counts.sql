@@ -9,16 +9,15 @@ begin;
 create or replace function public.public_forum_reply_counts(p_ids uuid[])
 returns table(id uuid, replies integer)
 language sql stable security definer set search_path = '' as $$
-  with recursive tree(root, id, depth) as (
-    select m.id, m.id, 0
+  with recursive tree(root, id) as (
+    select m.id, m.id
     from public.messages m
     where m.id = any(p_ids[1:50]) and m.flag = 1 and m.reply_to is null
     union all
     -- messages_approved_replies_idx (reply_to) where flag = 1 serves this join.
-    select t.root, r.id, t.depth + 1
+    select t.root, r.id
     from tree t
     join public.messages r on r.reply_to = t.id and r.flag = 1
-    where t.depth < 100
   )
   select t.root, (count(*) - 1)::integer from tree t group by t.root;
 $$;

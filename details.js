@@ -70,6 +70,7 @@ function previewImages(id) {
     input.value = '';
     if (!selected.length) return;
     const images = replyImages.get(id) || [];
+    const originalLength = images.length;
     const errors = [];
     for (const file of selected) {
         if (!file.type.startsWith('image/')) errors.push('仅支持图片文件');
@@ -77,9 +78,11 @@ function previewImages(id) {
         else if (images.length >= 5) errors.push('最多选择 5 张图片');
         else images.push({ file, preview: URL.createObjectURL(file) });
     }
-    replyImages.set(id, images);
-    renderPreviews(id);
-    saveReplyImageDraft(id);
+    if (images.length !== originalLength) {
+        replyImages.set(id, images);
+        renderPreviews(id);
+        saveReplyImageDraft(id);
+    }
     if (errors.length) notify(errors[0], 'error');
 }
 // ==================== 加载内容 ====================
@@ -260,7 +263,6 @@ function observeMoreComments() {
 }
 // ==================== 评论框 ====================
 function closeAllCommentBoxes() {
-    for (const id of replyImages.keys()) releasePreviews(id);
     document.querySelectorAll('.comment-input-container').forEach(e => e.style.display = 'none');
 }
 function bindReplyDraft(tid, box) {
@@ -271,12 +273,11 @@ function bindReplyDraft(tid, box) {
     if (draft) {
         text.value = draft.text;
         anon.checked = draft.anonymous === true;
-        // Restored images are already uploaded; keep them alongside any new picks
-        // so selecting another image no longer drops them from the draft.
-        releasePreviews(tid);
-        replyImages.set(tid, (draft.attachments || []).map(url => ({ url })));
-        renderPreviews(tid);
+        if (!replyImages.has(tid) && draft.attachments?.length) {
+            replyImages.set(tid, draft.attachments.map(url => ({ url })));
+        }
     }
+    renderPreviews(tid);
     const save = () => saveReplyImageDraft(tid);
     const counter = box.querySelector('.reply-count');
     const updateCount = () => { counter.textContent = text.value.length + ' / 1000'; };
@@ -285,6 +286,7 @@ function bindReplyDraft(tid, box) {
     anon.onchange = save;
     box.querySelector('.cancel-comment-btn').onclick = () => {
         ForumDrafts.clear(key);
+        releasePreviews(tid);
         closeAllCommentBoxes();
     };
 }
@@ -346,16 +348,15 @@ async function submitComment(rid, type) {
     try {
         await authReady;
         if (!currentUser || !currentUser.id) return RootedVoxAuth.handleLogin('/details' + location.search);
-        const el = type === 'main'
-            ? document.getElementById('mainCommentInput')
-            : document.getElementById(`replyInput-${rid}`);
+        const editorId = type === 'main' ? 'mainCommentInput' : `replyInput-${rid}`;
+        const el = document.getElementById(editorId);
         const content = el?.value.trim();
         if (!content) { notify('内容不能为空', 'error'); el?.focus(); return; }
         if (content.length > 1000) { notify('回复最多 1000 字，请缩短后再发布。', 'error'); el.focus(); return; }
         const ano = document.getElementById(`anonymous-${rid}`)?.checked || false;
         const key = 'reply-' + rid;
         const original = ForumDrafts.get(key);
-        const images = replyImages.get(rid) || [];
+        const images = (replyImages.get(rid) || []).slice();
         const pending = images.filter(image => !image.url);
         const uploaded = pending.length ? await uploadImages(pending.map(image => image.file)) : [];
         pending.forEach((image, index) => { image.url = uploaded[index]; });
@@ -372,12 +373,13 @@ async function submitComment(rid, type) {
         notify('发布成功，审核通过后会公开。', 'success');
         if (!submitted || ForumDrafts.get(key) !== submitted) return;
         ForumDrafts.clear(key);
-        if (!el.isConnected) return;
-        el.value = '';
+        releasePreviews(rid);
+        const editor = document.getElementById(editorId);
+        if (!editor) return;
+        editor.value = '';
         const input = document.getElementById(`imageUpload-${rid}`);
         if (input) input.value = '';
         document.getElementById(`preview-${rid}`)?.replaceChildren();
-        releasePreviews(rid);
         document.getElementById('reply-box-' + rid).style.display = 'none';
     } catch (error) {
         if (error.message === 'login_required') {

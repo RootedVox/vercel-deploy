@@ -6,6 +6,8 @@
 4. 用待审纯文本、带图帖及模型超时各验收一次。人工审核与自动审核同时处理同帖时，已提交的人工结果优先。词库命中、图片及无法判定的内容均保留人工审核。审核结果计数保存在 `forum_private.review_counts`。自动审核队列只接收迁移后的新文本帖。
 5. 两端部署相同业务版本后，验证匿名浏览、跨域通知已读、预览域登录，以及连续翻页和回复深链接。更新 `notice.html` 后运行 `node scripts/sync-home-notices.mjs` 同步首页快照；CI 检查快照和两个部署的共享文件。
 
+已有部署请在共享业务库重新执行一次 `supabase/20261116_forum_reply_counts.sql`，让列表计入超过 100 层的可见回复。
+
 ### 定时任务示例
 
 若业务库已启用 Supabase Cron、Vault 和 pg_net，在 Vault 创建 `forum_worker_url`（完整 HTTPS 地址）和 `forum_worker_secret` 后，可在 SQL Editor 执行以下语句。定时器只需要在共享库配置一次。它也会回收超过七天仍未被帖子引用的新上传图片。

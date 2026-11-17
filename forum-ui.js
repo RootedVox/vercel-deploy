@@ -60,58 +60,46 @@
       });
   }
 
-  function compressImage(file, options = {}) {
-      return new Promise((resolve, reject) => {
-          if (!file.type.startsWith('image/')) {
-              return resolve(file);
-          }
-          const defaultOpts = {
-              maxWidth: 1920,
-              maxHeight: 1080,
-              quality: 0.6,
-              mimeType: "image/webp"
-          };
-          const opts = { ...defaultOpts, ...options };
-          const source = URL.createObjectURL(file);
-          const img = new Image();
-          img.onload = () => {
-              URL.revokeObjectURL(source);
-              let width = img.width;
-              let height = img.height;
-              const scaleRatio = Math.min(opts.maxWidth / width, opts.maxHeight / height);
-              if (scaleRatio < 1) {
-                  width = width * scaleRatio;
-                  height = height * scaleRatio;
-              }
-              const canvas = document.createElement("canvas");
-              canvas.width = width;
-              canvas.height = height;
-              const ctx = canvas.getContext("2d");
-              ctx.drawImage(img, 0, 0, width, height);
-              const encode = (type, quality) => new Promise(done => canvas.toBlob(done, type, quality));
-              (async () => {
-                  let blob = await encode(opts.mimeType, opts.quality);
-                  // Safari cannot export WebP and hands back a PNG, which for a photo is
-                  // several times larger than the original. Photos are re-encoded as JPEG;
-                  // PNG and GIF sources keep the PNG, as they may be transparent.
-                  if (blob && blob.type !== opts.mimeType && !['image/png', 'image/gif'].includes(file.type)) {
-                      blob = await encode("image/jpeg", 0.7) || blob;
-                  }
-                  if (!blob) return reject(new Error("图片压缩失败"));
-                  const suffixes = { "image/webp": ".webp", "image/png": ".png", "image/jpeg": ".jpg" };
-                  const suffix = suffixes[blob.type];
-                  if (!suffix) return reject(new Error("图片格式不受支持"));
-                  // Never upload a "compressed" copy that is bigger than an accepted original.
-                  if (blob.size >= file.size && ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-                      return resolve(file);
-                  }
-                  const newFileName = file.name.replace(/(\.\w+)$/, suffix);
-                  resolve(new File([blob], newFileName, { type: blob.type }));
-              })().catch(() => reject(new Error("图片压缩失败")));
-          };
-          img.onerror = () => { URL.revokeObjectURL(source); reject(new Error("图片加载失败")); };
-          img.src = source;
-      });
+  async function compressImage(file, options = {}) {
+      if (!file.type.startsWith('image/')) return file;
+      const { maxWidth = 1920, maxHeight = 1080, quality = 0.6, mimeType = 'image/webp' } = options;
+      const source = URL.createObjectURL(file);
+      const img = new Image();
+      try {
+          await new Promise((resolve, reject) => {
+              img.onload = resolve;
+              img.onerror = () => reject(new Error('图片加载失败'));
+              img.src = source;
+          });
+      } finally {
+          URL.revokeObjectURL(source);
+      }
+
+      const scale = Math.min(1, maxWidth / img.width, maxHeight / img.height);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(img.width * scale));
+      canvas.height = Math.max(1, Math.round(img.height * scale));
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('图片压缩失败');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const encode = (type, quality) => new Promise(done => canvas.toBlob(done, type, quality));
+      let blob = await encode(mimeType, quality);
+      // Safari cannot export WebP and hands back a PNG, which for a photo is
+      // several times larger than the original. Photos are re-encoded as JPEG;
+      // PNG and GIF sources keep the PNG, as they may be transparent.
+      if (blob && blob.type !== mimeType && !['image/png', 'image/gif'].includes(file.type)) {
+          blob = await encode("image/jpeg", 0.7) || blob;
+      }
+      if (!blob) throw new Error("图片压缩失败");
+      const suffixes = { "image/webp": ".webp", "image/png": ".png", "image/jpeg": ".jpg" };
+      const suffix = suffixes[blob.type];
+      if (!suffix) throw new Error("图片格式不受支持");
+      // Never upload a "compressed" copy that is bigger than an accepted original.
+      if (blob.size >= file.size && ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+          return file;
+      }
+      const newFileName = file.name.replace(/(\.\w+)$/, suffix);
+      return new File([blob], newFileName, { type: blob.type });
   }
 
   const uploads = new WeakMap();

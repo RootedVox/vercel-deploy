@@ -37,8 +37,13 @@ async function request(path, options = {}) {
     if (options.signal?.aborted || !read || PRIMARY_API === BACKUP_API) throw error;
     return backup();
   }
-  if (PRIMARY_API !== BACKUP_API && response.status === 429) fallbackUntil = Date.now() + 60000;
-  if (PRIMARY_API !== BACKUP_API && (response.status === 429 || (read && response.status >= 500))) return backup();
+  if (PRIMARY_API !== BACKUP_API && response.status === 429) {
+    const quota = await response.clone().json().catch(() => null);
+    if (quota?.error === 'avatar_storage_limit' || quota?.error === 'featured_daily_limit') return response;
+    fallbackUntil = Date.now() + 60000;
+    return backup();
+  }
+  if (PRIMARY_API !== BACKUP_API && read && response.status >= 500) return backup();
   return response;
 }
 window.request = request;

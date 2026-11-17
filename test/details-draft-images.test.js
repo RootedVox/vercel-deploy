@@ -27,7 +27,7 @@ test('picking a new image keeps images restored from the draft', async () => {
         if (sel === 'textarea') return textarea;
         if (sel === 'input[type=checkbox]') return checkbox;
         if (sel === '.comment-submit-btn') return { textContent: '' };
-        return null;
+        return {};
       },
       querySelectorAll: () => []
     },
@@ -36,8 +36,8 @@ test('picking a new image keeps images restored from the draft', async () => {
   };
   document.getElementById = id => elements[id] || null;
   document.querySelector = sel => {
-    const m = /^#reply-box-([^ ]+) \.comment-submit-btn$/.exec(sel);
-    return m ? elements['reply-box-' + m[1]]?.querySelector('.comment-submit-btn') : null;
+    const match = /^#reply-box-([^ ]+) (.+)$/.exec(sel);
+    return match ? elements['reply-box-' + match[1]]?.querySelector(match[2]) : null;
   };
   document.querySelectorAll = () => [];
   document.createElement = tag => ({ tag, className: '', style: {}, set src(v) { this._src = v; }, get src() { return this._src; } });
@@ -58,20 +58,30 @@ test('picking a new image keeps images restored from the draft', async () => {
       currentUser: { id: 'u1' },
       mainMsgId: 'root'
     },
-    expose: ['previewImages', 'submitComment', 'renderPreviews', 'replyImages']
+    expose: ['previewImages', 'submitComment', 'renderPreviews', 'replyImages', 'closeAllCommentBoxes', 'bindReplyDraft']
   });
 
-  // Restore the draft exactly as bindReplyDraft does.
-  api.releasePreviews?.('root');
-  api.replyImages.set('root', saved.map(url => ({ url })));
-  api.renderPreviews('root');
-  assert.equal(preview.children.length, 2, 'restored images are shown');
+  // Reopen a saved reply, reject an oversized file, then add a valid one.
+  const box = elements['reply-box-root'];
+  api.bindReplyDraft('root', box);
+  input.files = [{ type: 'image/png', size: 6 * 1024 * 1024 }];
+  api.previewImages('root');
+  assert.equal(preview.children.length, 2);
+  assert.deepEqual(drafts.get('reply-root').attachments, saved);
 
   // User picks one more file.
   input.files = [{ file: true, type: 'image/webp', name: 'new.webp' }];
   api.previewImages('root');
   assert.equal(preview.children.length, 3, 'the new image is appended, not replacing the old ones');
   assert.deepEqual(drafts.get('reply-root').attachments, saved, 'draft keeps the uploaded URLs');
+
+  // Changing target rebuilds the editor. The pending file is still available.
+  api.closeAllCommentBoxes();
+  const otherCancel = {};
+  api.bindReplyDraft('other', { querySelector: selector => selector === '.cancel-comment-btn' ? otherCancel : { value: '' } });
+  otherCancel.onclick();
+  api.bindReplyDraft('root', box);
+  assert.equal(preview.children.length, 3);
 
   // Submit: only the new file is uploaded; both old images stay in the payload.
   await api.submitComment('root', 'main');
