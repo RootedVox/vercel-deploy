@@ -71,6 +71,9 @@ QWEN_GUARD_MODEL=Qwen3Guard-Gen-8B
 GLM_KEY=
 GLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
 GLM_MODEL=glm-4.7-flash
+# Tried in order only when the previous model answers 1305 (free-pool queueing).
+# Set to an empty string to disable rotation.
+GLM_FALLBACK_MODELS=glm-4-flash-250414,glm-z1-flash
 
 # NVIDIA NIM (third fallback, the original provider).
 NVAPI_KEY=

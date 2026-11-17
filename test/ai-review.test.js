@@ -4,7 +4,9 @@ import {
   parseQwenGuard,
   parseGlmVerdict,
   parseNemotronVerdict,
-  resolveProviderChain
+  resolveProviderChain,
+  glmModels,
+  isBusyError
 } from '../functions/_lib/ai-providers.js';
 import { mergeVerdicts, runAiCheck } from '../functions/_lib/moderate-content.js';
 import { moderationBatchSize } from '../functions/_lib/moderation-worker.js';
@@ -131,6 +133,57 @@ test('匿名开关是显式的，未开启时没有 key 就不启用该供应商
   assert.deepEqual(
     resolveProviderChain({ AI_REVIEW_PROVIDERS: 'qwenguard' }).map(p => p.id),
     []
+  );
+});
+
+test('免费模型排队与 key 错误要分开判断', () => {
+  assert.equal(isBusyError(new Error('api_1305:该模型当前访问量过大')), true);
+  assert.equal(isBusyError(new Error('http_429:too many requests')), true);
+  assert.equal(isBusyError(new Error('api_1000:身份验证失败。')), false);
+  assert.equal(isBusyError(new Error('api_1211:模型不存在')), false);
+  assert.equal(isBusyError(new Error('network_error')), false);
+});
+
+test('GLM 排队时换下一个免费模型，配额池互相独立', async () => {
+  const stub = stubFetch((url, body) => (
+    body.model === 'glm-4.7-flash'
+      ? { error: { code: '1305', message: '该模型当前访问量过大，请您稍后再试' } }
+      : chat('{"verdict":"safe","categories":[]}')
+  ));
+  try {
+    const result = await runAiCheck('今天食堂的饭真难吃', [], {
+      LEXICON_KV: LEXICON,
+      GLM_KEY: 'k',
+      AI_REVIEW_PROVIDERS: 'glm'
+    });
+    assert.equal(result.verdict, 'safe');
+    assert.deepEqual(stub.calls.map(c => c.body.model), ['glm-4.7-flash', 'glm-4-flash-250414']);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('key 错误不触发换模型，避免把无效 key 重试三遍', async () => {
+  const stub = stubFetch(() => ({ error: { code: '1000', message: '身份验证失败。' } }));
+  try {
+    const result = await runAiCheck('今天食堂的饭真难吃', [], {
+      LEXICON_KV: LEXICON,
+      GLM_KEY: 'bad',
+      AI_REVIEW_PROVIDERS: 'glm'
+    });
+    assert.equal(result.verdict, 'uncertain');
+    assert.equal(result.providers[0].verdict, 'error');
+    assert.equal(stub.calls.length, 1);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('备用模型列表可配置且去重，主模型排在首位', () => {
+  assert.deepEqual(glmModels({}), ['glm-4.7-flash', 'glm-4-flash-250414', 'glm-z1-flash']);
+  assert.deepEqual(
+    glmModels({ GLM_MODEL: 'glm-z1-flash', GLM_FALLBACK_MODELS: 'glm-4.7-flash,glm-z1-flash' }),
+    ['glm-z1-flash', 'glm-4.7-flash']
   );
 });
 

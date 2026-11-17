@@ -27,6 +27,7 @@
 | `GLM_KEY` | 智谱 key | 空（=禁用） |
 | `GLM_BASE_URL` | 智谱 base | `https://open.bigmodel.cn/api/paas/v4` |
 | `GLM_MODEL` | 模型名，**必须是 `glm-4.7-flash`** | `glm-4.7-flash` |
+| `GLM_FALLBACK_MODELS` | 排队（1305）时依次尝试的备用免费模型 | `glm-4-flash-250414,glm-z1-flash` |
 | `NVAPI_KEY` | NVIDIA NIM key | 空（=禁用） |
 
 留空即禁用该家，不需要改代码。
@@ -162,9 +163,18 @@ curl -sS https://open.bigmodel.cn/api/paas/v4/chat/completions \
 | 现象 | 原因 | 处理 |
 | --- | --- | --- |
 | `{"error":{"code":"1000","message":"身份验证失败。"}}` | key 无效：复制到了打码值（带 `...`）、粘进了多余文字、或 key 已删 | `echo ${#GLM_KEY}` 看长度，回控制台**点复制按钮**重拿 |
+| `{"error":{"code":"1305","message":"该模型当前访问量过大"}}` | **免费配额池排队**，不是你配错了 | 正常现象，尤其晚高峰。代码会自动换备用模型重试；全都在排队时才转人工 |
 | `"code":"1211"` / `UNKNOWN_MODEL` | 模型 id 错 | 必须是 `glm-4.7-flash`，注意不是 `glm-5.3-flash`（付费）也不是 `glm-4-flash`（已不在免费名单） |
 
 `Authorization` 头只允许 `Bearer` + 一个空格 + 完整 key，中间不能再有任何东西。
+
+#### 关于 1305
+
+免费模型共用配额池，晚上八点这类高峰会排队。这个错误**恰恰说明你的 key 和模型名都是对的**——key 错报 `1000`，模型名错报 `1211`。
+
+代码里的处理：`glm-4.7-flash` 报 1305 时，自动依次改用 `glm-4-flash-250414`、`glm-z1-flash` 再试。这三个 id 的配额池互相独立，通常换一个立刻就过。三个都在排队才会把这条留言交给下一家供应商（或转人工）。
+
+队列响应是秒回的，不是超时，所以串行试三个不会拖慢多少。
 
 ## 五、填进部署环境
 

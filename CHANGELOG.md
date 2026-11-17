@@ -7,6 +7,7 @@
 - 全部供应商不可用时才转人工，发帖本身不受影响。
 - 审核供应商改为配置驱动（`AI_REVIEW_PROVIDERS`），未填 key 的自动跳过，只配一家也能正常运行。
 - Qwen3Guard 支持免注册的匿名通道（`QWEN_GUARD_ANONYMOUS=1`，OVHcloud 免费层，限 2 次/分钟/IP），不填任何 key 也能启用交叉验证。
+- GLM 免费模型排队（1305）时自动换用同一家的其他免费模型重试（`GLM_FALLBACK_MODELS`），三个配额池都占满才交给下一家供应商；key 或模型名错误不会触发无谓重试。
 - 新增 `docs/AI_REVIEW_PROVIDERS.zh-CN.md`：各通道的免费额度与有效期、注册步骤、上线前自测 curl 与排错对照表。
 
 ## v4.5.9

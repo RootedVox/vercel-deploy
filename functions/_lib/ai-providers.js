@@ -53,8 +53,20 @@ async function chatCompletion({ url, key, body, timeout }) {
     } catch {
       throw new Error('invalid_json_response');
     }
+    // 智谱在配额排队时可能返回 200 + {"error":{"code":"1305",...}}，
+    // 不检查就会当成「空回复」，白白丢掉一次可重试的机会。
+    if (data?.error) {
+      const code = data.error.code ?? 'unknown';
+      const message = String(data.error.message ?? '').slice(0, ERR_DETAIL_MAX);
+      throw new Error(`api_${code}:${message}`);
+    }
     return String(data?.choices?.[0]?.message?.content ?? '');
   }, timeout);
+}
+
+/** 免费配额排队/限流。这类错误换一个模型或换一家就能过，值得重试。 */
+export function isBusyError(error) {
+  return /(?:http_429|api_1305|api_1302|api_1303)/.test(String(error?.message ?? ''));
 }
 
 /**
@@ -133,6 +145,22 @@ Violent, Bullying, Sexual, Illegal, PII, SelfHarm, Hate, Political, Spam
 
 判断从严：拿不准就填 controversial，不要填 safe。`;
 
+/**
+ * 主模型 + 排队时的备用模型。这几个都是智谱当前免费名单内的 id，各有独立的
+ * 配额池，所以一个报 1305 时换另一个通常立刻能过。
+ *
+ * 别把 glm-4-flash（无日期后缀）加回来——它已不在免费名单；
+ * 也别加 glm-5.3-flash / glm-4.7，那两个是付费的。
+ */
+export function glmModels(env) {
+  const primary = String(env?.GLM_MODEL || 'glm-4.7-flash').trim() || 'glm-4.7-flash';
+  const fallbacks = String(env?.GLM_FALLBACK_MODELS ?? 'glm-4-flash-250414,glm-z1-flash')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+  return [primary, ...fallbacks].filter((model, index, all) => all.indexOf(model) === index);
+}
+
 export const PROVIDERS = {
   qwenguard: {
     id: 'qwenguard',
@@ -168,25 +196,36 @@ export const PROVIDERS = {
     isConfigured: env => Boolean(env?.GLM_KEY),
     async review(text, env) {
       const base = trimSlash(env?.GLM_BASE_URL) || 'https://open.bigmodel.cn/api/paas/v4';
-      const content = await chatCompletion({
-        url: `${base}/chat/completions`,
-        key: env.GLM_KEY,
-        body: {
-          // glm-4.7-flash：200K 上下文，输入/输出/缓存全免费（智谱 2026 官方口径）。
-          // 注意三个坑：glm-4-flash 已不在免费名单；glm-5.3-flash 是付费的
-          // （0.8 元/M 输入）；glm-4.7 旗舰也是付费的。名字像不代表免费。
-          model: String(env?.GLM_MODEL || 'glm-4.7-flash').trim(),
-          messages: [
-            { role: 'system', content: GLM_SYSTEM_PROMPT },
-            { role: 'user', content: text }
-          ],
-          temperature: 0.01,
-          max_tokens: 120,
-          response_format: { type: 'json_object' }
-        },
-        timeout: timeoutMs(env)
-      });
-      return parseGlmVerdict(content);
+      // 智谱的免费模型各自有独立配额池，一个排队时换另一个通常立刻能过。
+      // 排队响应是秒回的（不是超时），所以串行试几个不会吃掉时间预算。
+      const models = glmModels(env);
+      let lastError;
+      for (const model of models) {
+        try {
+          const content = await chatCompletion({
+            url: `${base}/chat/completions`,
+            key: env.GLM_KEY,
+            body: {
+              model,
+              messages: [
+                { role: 'system', content: GLM_SYSTEM_PROMPT },
+                { role: 'user', content: text }
+              ],
+              temperature: 0.01,
+              max_tokens: 120,
+              response_format: { type: 'json_object' }
+            },
+            timeout: timeoutMs(env)
+          });
+          return parseGlmVerdict(content);
+        } catch (error) {
+          lastError = error;
+          // 只有排队/限流才换模型；key 错了换几个模型也一样错。
+          if (!isBusyError(error)) throw error;
+          console.warn(`[AI Check] glm ${model} 排队，换下一个免费模型`);
+        }
+      }
+      throw lastError;
     }
   },
 
