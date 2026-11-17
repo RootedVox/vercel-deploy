@@ -1,5 +1,7 @@
 window.rvEnglish = new Map(Object.entries({
   "收起": "Show less",
+  "RootedVox 4.5.9 · 草稿与额度修复": "RootedVox 4.5.9 · Draft and quota fixes",
+  "提交失败后清空再重填不会重复发布；退出失败不再丢草稿；精华投稿额度过了零点会自动刷新；详情页重新加载不再重复追加评论。": "Clearing and retyping after a failed submission no longer posts twice, a failed sign-out keeps your draft, the featured quota refreshes after midnight, and reloading a thread no longer appends duplicate comments.",
   "RootedVox 4.5.8 · 备用站切换与回复修复": "RootedVox 4.5.8 · Failover and reply fixes",
   "账号额度用尽不再被误判为站点限流；切换回复对象、选择超限图片都不会再丢草稿里的图片；图片压缩失败会正常提示并可重试；回复数统计不再漏计超过 100 层的回复。": "Running out of an account quota is no longer mistaken for a site-wide rate limit. Switching reply targets or picking an oversized image no longer drops images already in the draft, a failed image compression now reports an error so you can retry, and reply counts no longer miss replies nested deeper than 100 levels.",
   "RootedVox 4.5.7 · 手机端布局修复": "RootedVox 4.5.7 · Phone layout fix",
