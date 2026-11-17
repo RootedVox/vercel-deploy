@@ -1,5 +1,7 @@
 window.rvEnglish = new Map(Object.entries({
   "收起": "Show less",
+  "RootedVox 4.5.7 · 手机端布局修复": "RootedVox 4.5.7 · Phone layout fix",
+  "修复手机端发帖卡片溢出屏幕的问题：超长昵称不再撑宽整张卡片，改为省略号裁切显示；帖子里的长链接与长英文也会自动换行。": "Fixes the compose card overflowing the screen on phones: a very long nickname no longer widens the card and is shortened with an ellipsis, and long links or unbroken text in posts now wrap.",
   "RootedVox 4.5.6 · 发帖表单与滚动优化": "RootedVox 4.5.6 · Composer and scrolling",
   "发帖表单更紧凑，昵称与分区并排、说明合并成一行；桌面端滚轮会先把整个列表带入视野再滚动内容，不再滚到框底就停住。": "The compose form is more compact: name and zone sit side by side and their notes share one line. On desktop the wheel first brings the whole list into view before scrolling the posts, so it no longer stops at the box's edge.",
   "RootedVox 4.5.5 · 论坛浏览与性能优化": "RootedVox 4.5.5 · Browsing and performance",

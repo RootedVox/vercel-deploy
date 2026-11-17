@@ -97,6 +97,9 @@
             line-height: 1.8;
             margin-bottom: 15px;
             white-space: pre-line;
+            /* Same guard as the feed: a pasted link has no break opportunity and would
+               otherwise run past the card on a narrow screen. */
+            overflow-wrap: anywhere;
             text-align: left;
         }
         .message-zone {

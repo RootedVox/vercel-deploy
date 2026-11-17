@@ -443,13 +443,22 @@
             showFormStatus('已审核留言可直接浏览；发布、回复和通知需要登录。');
         }
 
+        // A 40-character nickname runs past the field on a phone and widens the native
+        // dropdown past the screen edge. The option value keeps the full name (the server
+        // is what writes the real nickname); only the label is shortened so the field and
+        // its popup stay inside the card.
+        function nicknameLabel(name) {
+            const text = String(name || '');
+            return text.length > 20 ? text.slice(0, 19) + '…' : text;
+        }
+
         function initNicknameSelect() {
             const select = document.getElementById('nicknameSelect');
             const wasAnonymous = select.value === '匿名用户';
             select.innerHTML = '';
             const optionReal = document.createElement('option');
             optionReal.value = currentUserRealName;
-            optionReal.textContent = currentUserRealName;
+            optionReal.textContent = nicknameLabel(currentUserRealName);
             const optionAnon = document.createElement('option');
             optionAnon.value = '匿名用户';
             optionAnon.textContent = '匿名用户';

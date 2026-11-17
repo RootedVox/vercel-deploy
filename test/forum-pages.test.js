@@ -408,7 +408,7 @@ test('nickname and zone pair up in a wide form column without losing any field o
   assert.ok(at('id="postFeatured"') < at('id="contactEmail"') && at('id="contactEmail"') < at('id="messageContent"'));
   for (const note of ['选择“匿名用户”将不显示您的真实昵称。', '选对分区，大家能更快找到这条留言。', '仅限主楼，每天最多投稿 3 次。', '站内通知将直接发送到您的账号']) at(note);
   const css = read('messages.css');
-  assert.match(css, /\.message-form-section \{ container-type:inline-size; \}/);
+  assert.match(css, /\.message-form-section \{ container-type:inline-size; min-width:0; \}/);
   assert.match(css, /@container \(min-width: 360px\) \{\s*\.form-row \{ grid-template-columns:repeat\(2, minmax\(0, 1fr\)\); \}/);
   assert.match(css, /\.featured-submit \{ display:flex;/);
 });

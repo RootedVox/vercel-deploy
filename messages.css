@@ -41,6 +41,8 @@
         }
         .form-control {
             width: 100%;
+            max-width: 100%;
+            min-width: 0;
             padding: 12px 15px;
             border: 1px solid #ddd;
             border-radius: 8px;
@@ -170,6 +172,9 @@
             line-height: 1.8;
             margin-bottom: 15px;
             white-space: pre-line;
+            /* A pasted link or a run of Latin text has no break opportunity; wrap it so the
+               card cannot widen the page on a narrow screen. */
+            overflow-wrap: anywhere;
             text-align: left !important;
         }
         .message-zone {
@@ -516,8 +521,11 @@
            their two notes as one line below; the featured box keeps its note on the same
            line. Every field and note stays, and the form is short enough for the feed box
            beside it to fit the window. Narrow columns and phones stack the two selects. */
-        .message-form-section { container-type:inline-size; }
-        .form-row { display:grid; gap:12px; }
+        .message-form-section { container-type:inline-size; min-width:0; }
+        /* minmax(0, 1fr) instead of an implicit auto column: a select carrying a very long
+           nickname has a large min-content width, and an auto track would grow to it and
+           push the whole card past the screen edge on a phone. */
+        .form-row { display:grid; grid-template-columns:minmax(0, 1fr); gap:12px; }
         .form-row > .form-group { margin:0; }
         @container (min-width: 360px) {
             .form-row { grid-template-columns:repeat(2, minmax(0, 1fr)); }
@@ -576,7 +584,7 @@
             .community-heading p { grid-column:1 / -1; margin-top:6px; font-size:14px; }
             .logout-bar { grid-row:1; grid-column:2; margin-top:0; justify-content:flex-end; }
             .avatar-dropdown { left:auto; right:0; }
-            .community-layout { grid-template-columns:1fr; gap:16px; }
+            .community-layout { grid-template-columns:minmax(0, 1fr); gap:16px; }
             .message-form-section { position:static; max-height:none; overflow:visible; }
             /* Signed out, the compose card held only a second 登录 button. */
             .is-guest .message-form-section { display:none; }
@@ -630,6 +638,8 @@
    against the edge. Mid grey reads on both the light and the dark theme. */
 .feed-toolbar select, select.form-control {
     -webkit-appearance: none; appearance: none; padding-right: 40px; cursor: pointer;
+    /* A long nickname is clipped with an ellipsis instead of running under the chevron. */
+    text-overflow: ellipsis; white-space: nowrap; overflow: hidden;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23858c87' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     background-repeat: no-repeat; background-position: right 15px center; background-size: 12px 8px;
 }
