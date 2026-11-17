@@ -911,12 +911,16 @@
             messageFeed.addEventListener('click', rememberFeed);
             messageFeed.addEventListener('auxclick', rememberFeed);
             // Desktop: the list box starts below the page heading, partly under the
-            // window's edge. Turning the wheel over it first scrolls the page until the
-            // whole box is on screen, then the posts inside; before, the posts scrolled in
-            // a box whose lower part could not be seen.
+            // window's edge. Turning the wheel over it first scrolls the page, then the
+            // posts inside: until the whole box is on screen, or until the search and sort
+            // bar reaches the header, whichever comes first, so that bar stays in view.
             messageFeed.addEventListener('wheel', event => {
                 if (event.deltaY <= 0 || event.ctrlKey || feedScrollsWithPage(messageFeed)) return;
-                const hidden = messageFeed.getBoundingClientRect().bottom - window.innerHeight;
+                const below = messageFeed.getBoundingClientRect().bottom - window.innerHeight;
+                const bar = document.querySelector('.feed-toolbar')?.getBoundingClientRect();
+                const header = document.getElementById('siteHeader')?.getBoundingClientRect();
+                const above = bar && header ? bar.top - header.bottom - 12 : Infinity;
+                const hidden = Math.min(below, above);
                 if (hidden <= 0) return;
                 event.preventDefault();
                 const step = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? window.innerHeight : 1);

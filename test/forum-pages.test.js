@@ -345,16 +345,15 @@ test('phones drop the guest compose card and the live header blur', () => {
   assert.match(read('common.css'), /@media\(max-width:860px\)\{\.header,\.header\.scrolled\{backdrop-filter:none;/);
 });
 
-test('the desktop list box fits the window and the wheel never stops at its ends', () => {
+test('desktop cards end level and the wheel never stops at the list ends', () => {
   const css = read('messages.css');
-  const cut = css.lastIndexOf('@media (max-width: 768px)');
   assert.doesNotMatch(css, /overscroll-behavior/);
-  assert.match(css.slice(0, cut), /\.message-list-section \{ position:relative; min-height:0; max-height:calc\(100vh - 112px\);/);
-  assert.match(css.slice(cut), /\.message-list-section \{ max-height:none;/);
+  assert.doesNotMatch(css, /\.message-list-section \{[^}]*max-height/);
+  assert.match(css, /\.community-layout \{[^}]*align-items:stretch;/);
 });
 
 test('on desktop a wheel over the list first brings the whole box on screen', async () => {
-  let initialize, wheel, feedBottom = 1276, overflowY = 'auto';
+  let initialize, wheel, feedBottom = 1276, cardTop = 2000, overflowY = 'auto';
   const nodes = new Map(), scrolled = [];
   const get = id => {
     if (!nodes.has(id)) nodes.set(id, {
@@ -365,7 +364,11 @@ test('on desktop a wheel over the list first brings the whole box on screen', as
     return nodes.get(id);
   };
   runPageScript('messages.js', {
-    document: { getElementById: get, querySelector: () => null, addEventListener(type, callback) { if (type === 'DOMContentLoaded') initialize = callback; } },
+    document: {
+      getElementById: id => id === 'siteHeader' ? { getBoundingClientRect: () => ({ bottom: 73 }) } : get(id),
+      querySelector: selector => selector === '.feed-toolbar' ? { getBoundingClientRect: () => ({ top: cardTop }) } : null,
+      addEventListener(type, callback) { if (type === 'DOMContentLoaded') initialize = callback; }
+    },
     window: { innerHeight: 800, addEventListener() {}, scrollBy: options => scrolled.push(options) },
     getComputedStyle: () => ({ overflowY })
   }, { replace: { initAuth: async () => false, loadMainMessages: async () => {} } });
@@ -383,6 +386,27 @@ test('on desktop a wheel over the list first brings the whole box on screen', as
   assert.equal(turn(100), false, 'box fully on screen: the posts scroll');
   feedBottom = 1276;
   assert.equal(turn(-100), false, 'scrolling up is left to the browser');
+  // The search and sort bar stops 12 px below the header.
+  cardTop = 135;
+  scrolled.length = 0;
+  assert.equal(turn(100), true);
+  assert.equal(JSON.stringify(scrolled), JSON.stringify([{ top: 50, behavior: 'instant' }]));
+  cardTop = 85;
+  assert.equal(turn(100), false, 'bar at the header: the posts scroll');
+  cardTop = 2000;
   overflowY = 'visible';
   assert.equal(turn(100), false, 'phones scroll the page anyway');
+});
+
+test('short form fields pair up in a wide form column without losing any field or note', () => {
+  const html = read('messages.html');
+  const at = text => { const index = html.indexOf(text); assert.ok(index >= 0, text); return index; };
+  const first = at('<div class="form-row">'), second = html.indexOf('<div class="form-row">', first + 1);
+  assert.ok(second > first);
+  assert.ok(first < at('id="nicknameSelect"') && at('id="zoneSelect"') < second);
+  assert.ok(second < at('id="postFeatured"') && at('id="contactEmail"') < at('id="messageContent"'));
+  for (const note of ['选择“匿名用户”将不显示您的真实昵称。', '选对分区，大家能更快找到这条留言。', '仅限主楼，每天最多投稿 3 次。', '站内通知将直接发送到您的账号']) at(note);
+  const css = read('messages.css');
+  assert.match(css, /\.message-form-section \{ container-type:inline-size; \}/);
+  assert.match(css, /@container \(min-width: 360px\) \{\s*\.form-row \{ display:grid; grid-template-columns:repeat\(2, minmax\(0, 1fr\)\);/);
 });
