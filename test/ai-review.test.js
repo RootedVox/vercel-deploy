@@ -71,8 +71,7 @@ test('NVIDIA 兼容旧输出的解析逻辑保持不变', () => {
 });
 
 test('判定合并：先否决、再擦边、再放行，全失败才转人工', () => {
-  // a、b 都当作能放行的专用安全模型；GLM 不能单独放行另有测试。
-  const r = (...items) => items.map(([id, verdict, reason]) => ({ id, verdict, reason, canPublish: true }));
+  const r = (...items) => items.map(([id, verdict, reason]) => ({ id, verdict, reason }));
 
   // 一票否决：任一家说不安全就拦，不管另一家怎么说。
   assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'blocked'])).verdict, 'blocked');
@@ -88,45 +87,26 @@ test('判定合并：先否决、再擦边、再放行，全失败才转人工',
   assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'safe'])).verdict, 'safe');
   assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'error'])).verdict, 'safe');
 
-  // 全失败时稍后重试（数据库 5 分钟后再审，3 次后转人工）。
+  // 全失败才转人工。
   assert.equal(mergeVerdicts(r(['a', 'error'], ['b', 'error'])).reason, 'upstream_unavailable');
 });
 
 test('解析失败算 error 而不是擦边，不会被误判成需要人工的结论', () => {
   const parsed = mergeVerdicts([
-    { id: 'qwenguard', verdict: 'safe', reason: 'model_safe' },
-    { id: 'glm', verdict: 'error', reason: 'unparsed_output' }
+    { id: 'a', verdict: 'safe', reason: 'model_safe' },
+    { id: 'b', verdict: 'error', reason: 'unparsed_output' }
   ]);
   assert.equal(parsed.verdict, 'safe');
-  assert.equal(parsed.providers.find(p => p.id === 'glm').verdict, 'error');
+  assert.equal(parsed.providers.find(p => p.id === 'b').verdict, 'error');
 });
 
-test('判定合并：GLM 故障不拖垮专用安全模型的放行', () => {
+test('判定合并：单家故障不拖垮其余判定，可用性优先', () => {
   const merged = mergeVerdicts([
-    { id: 'qwenguard', verdict: 'safe', reason: 'model_safe' },
-    { id: 'glm', verdict: 'error', reason: 'provider_error' }
-  ]);
-  assert.equal(merged.verdict, 'safe');
-  assert.equal(merged.providers.find(p => p.id === 'glm').verdict, 'error');
-});
-
-test('GLM 不能单独放行：专用安全模型没结论时稍后重试，没配专用模型时转人工', () => {
-  // Qwen3Guard 被限流（OVHcloud 匿名 2 次/分钟/IP），只有 GLM 说 safe：不放行，稍后重试。
-  const limited = mergeVerdicts([
-    { id: 'qwenguard', verdict: 'error', reason: 'provider_error', error: 'http_429:' },
+    { id: 'qwenguard', verdict: 'error', reason: 'provider_error' },
     { id: 'glm', verdict: 'safe', reason: 'model_safe' }
   ]);
-  assert.equal(limited.verdict, 'uncertain');
-  assert.equal(limited.reason, 'upstream_unavailable');
-  // 只配了 GLM：它说 safe 也不放行，按配置缺失处理。
-  const glmOnly = mergeVerdicts([{ id: 'glm', verdict: 'safe', reason: 'model_safe' }]);
-  assert.equal(glmOnly.verdict, 'uncertain');
-  assert.equal(glmOnly.reason, 'missing_key');
-  // GLM 仍然可以拦截。
-  assert.equal(mergeVerdicts([
-    { id: 'qwenguard', verdict: 'safe', reason: 'model_safe' },
-    { id: 'glm', verdict: 'blocked', reason: 'model_unsafe' }
-  ]).verdict, 'blocked');
+  assert.equal(merged.verdict, 'safe');
+  assert.equal(merged.providers.find(p => p.id === 'qwenguard').verdict, 'error');
 });
 
 test('审核批次随供应商并发数收缩，避免撞上 Workers 的 6 连接上限', () => {
@@ -202,9 +182,7 @@ test('GLM 排队时换下一个免费模型，配额池互相独立', async () =
       GLM_KEY: 'k',
       AI_REVIEW_PROVIDERS: 'glm'
     });
-    // 换模型成功拿到了结论；但只有 GLM 时不能单独放行。
-    assert.equal(result.providers[0].verdict, 'safe');
-    assert.equal(result.verdict, 'uncertain');
+    assert.equal(result.verdict, 'safe');
     assert.deepEqual(stub.calls.map(c => c.body.model), ['glm-4.7-flash', 'glm-4-flash-250414']);
   } finally {
     stub.restore();
@@ -237,8 +215,8 @@ test('备用模型列表可配置且去重，主模型排在首位', () => {
 
 test('放行结论固定带 model_safe，因为数据库只认这一对才置 flag=1', () => {
   const merged = mergeVerdicts([
-    { id: 'qwenguard', verdict: 'safe', reason: 'whatever_model_said' },
-    { id: 'nvidia', verdict: 'safe', reason: 'model_safe' }
+    { id: 'a', verdict: 'safe', reason: 'whatever_model_said' },
+    { id: 'b', verdict: 'safe', reason: 'model_safe' }
   ]);
   assert.equal(merged.verdict, 'safe');
   assert.equal(merged.reason, 'model_safe');

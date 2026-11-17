@@ -52,11 +52,9 @@ FORUM_WORKER_SECRET=
 # Order matters only for logging; all configured providers are called concurrently.
 AI_REVIEW_PROVIDERS=qwenguard,glm,nvidia
 AI_REVIEW_TIMEOUT_MS=8000
-# Merge order: any unsafe blocks, any controversial goes to humans, a safe from a
-# dedicated safety model (Qwen3Guard, NVIDIA) publishes. GLM is a general chat model
-# that a post can try to talk into "safe", so it may block but never publish alone:
-# when only GLM says safe, the post is retried in 5 minutes (3 tries, then humans).
-# Timeouts and parse failures count as "no verdict".
+# Merge order: any unsafe blocks, any controversial goes to humans, any safe publishes,
+# all-error goes to humans. Timeouts and parse failures count as "no verdict" and are
+# skipped, so one provider being down never drags the others into human review.
 
 # Qwen3Guard via OVHcloud AI Endpoints (anonymous, no signup, no key).
 # With a Bailian (DashScope) key, QWEN_GUARD_BASE_URL MUST point at DashScope, or the key
@@ -70,7 +68,7 @@ QWEN_GUARD_KEY=
 QWEN_GUARD_BASE_URL=https://oai.endpoints.kepler.ai.cloud.ovh.net/v1
 QWEN_GUARD_MODEL=Qwen3Guard-Gen-8B
 
-# GLM-4.7-Flash (blocks or escalates; cannot publish on its own).
+# GLM-4.7-Flash (main fallback, 200K context, input/output free at 30B size).
 # Do NOT use glm-4-flash (no longer on the free list) or glm-5.3-flash (paid).
 GLM_KEY=
 GLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
