@@ -1,5 +1,7 @@
 window.rvEnglish = new Map(Object.entries({
   "收起": "Show less",
+  "RootedVox 4.5.5 · 论坛浏览与性能优化": "RootedVox 4.5.5 · Browsing and performance",
+  "帖子卡片更紧凑，长列表滚动更顺滑、提前加载。减少数据库请求，清理停用功能，并放行统计脚本消除报错。": "Post cards are more compact, long lists scroll smoother and load earlier. Fewer database requests, retired features removed, and the analytics script is now allowed so the console errors are gone.",
   "RootedVox 4.5.4 · 通知中心绿版与性能清理": "RootedVox 4.5.4 · Green notification center and cleanup",
   "通知中心统一为终端绿卡片样式，精华投稿有专属标识。修复草稿图片丢失与未读提醒漏报，并减少数据库请求、清理停用功能。": "The notification center now uses terminal-green cards with a distinct badge for featured posts. Fixed lost draft images and missed unread alerts, reduced database requests and removed retired features.",
   "RootedVox 4.5.3 · 站内选择菜单": "RootedVox 4.5.3 · Site menus",
