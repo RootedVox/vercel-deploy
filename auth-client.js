@@ -77,6 +77,7 @@
         });
         if (!response.ok) throw new Error('logout_failed');
         const result = await response.json();
+        window.ForumDrafts?.logout();
         if (typeof result.logoutPath === 'string' && /^\/auth\/logout\?ticket=[A-Za-z0-9_-]{43}$/.test(result.logoutPath)) {
           location.href = origin + result.logoutPath;
         } else {

@@ -536,28 +536,43 @@
 
         // Each quota read is a Functions request, so it is made only when the visitor ticks
         // "投稿到精华" (once per page view) and after a featured submission, never on page load.
-        let featuredQuotaShown = false;
+        const quotaDayMs = 86400000;
+        const shanghaiOffsetMs = 8 * 3600000;
+        const quotaDay = () => Math.floor((Date.now() + shanghaiOffsetMs) / quotaDayMs);
+        let featuredQuotaDay = null;
+        let quotaTimer;
         let featuredQuotaRead = 0;
         let initialQuotaPending = false;
         async function refreshFeaturedQuota() {
             const note = document.getElementById('featuredQuota');
             if (!note) return;
+            const day = quotaDay();
             const read = ++featuredQuotaRead;
             try {
                 const response = await request('/api/messages?featuredQuota=1', { credentials: 'include' });
                 if (!response.ok) return;
                 const { remaining } = await response.json();
-                if (read === featuredQuotaRead && Number.isInteger(remaining)) {
+                if (read === featuredQuotaRead && day === quotaDay() && Number.isInteger(remaining)) {
                     note.textContent = '仅限主楼 · 今日还可投稿 ' + remaining + ' 次';
-                    featuredQuotaShown = true;
+                    featuredQuotaDay = day;
+                    clearTimeout(quotaTimer);
+                    quotaTimer = setTimeout(showFeaturedQuotaOnce, (day + 1) * quotaDayMs - shanghaiOffsetMs - Date.now());
                 }
             } catch {}
         }
 
         function showFeaturedQuotaOnce() {
-            if (featuredQuotaShown || initialQuotaPending || !document.getElementById('postFeatured')?.checked) return;
+            if (featuredQuotaDay !== null && featuredQuotaDay !== quotaDay()) {
+                document.getElementById('featuredQuota').textContent = '仅限主楼，每天最多投稿 3 次。';
+                featuredQuotaDay = null;
+            }
+            if (featuredQuotaDay === quotaDay() || initialQuotaPending || !document.getElementById('postFeatured')?.checked) return;
             initialQuotaPending = true;
-            refreshFeaturedQuota().finally(() => { initialQuotaPending = false; });
+            const day = quotaDay();
+            refreshFeaturedQuota().finally(() => {
+                initialQuotaPending = false;
+                if (day !== quotaDay()) showFeaturedQuotaOnce();
+            });
         }
 
         function savePostDraft() {
@@ -591,6 +606,9 @@
                 setComposeOpen(true);
             }
             showFeaturedQuotaOnce();
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) showFeaturedQuotaOnce();
+            });
             text.addEventListener('input', savePostDraft);
             zone.addEventListener('change', savePostDraft);
             nickname.addEventListener('change', savePostDraft);
@@ -628,13 +646,14 @@
             submitBtn.textContent = '发布中...';
             try {
                 savePostDraft();
+                const started = ForumDrafts.generation('post');
                 const original = ForumDrafts.get('post');
                 const pending = selection.filter(image => !image.url);
                 const uploaded = await uploadImages(pending.map(image => image.file));
                 pending.forEach((image, index) => { image.url = uploaded[index]; });
                 const picUrls = selection.map(image => image.url);
                 const payload = { content, zone, anonymous, imageUrls: picUrls, ...(featured ? { featured: true } : {}) };
-                const submitted = ForumDrafts.prepare('post', original, payload);
+                const submitted = ForumDrafts.prepare('post', original, payload, started);
                 showFormStatus('正在上传并提交…');
                 const response = await request('/api/messages', {
                     method: 'POST', credentials: 'include',
@@ -993,7 +1012,8 @@
                     return;
                 }
                 clearTimeout(logoutArmed);
-                ForumDrafts.logout();
+                logoutArmed = null;
+                logoutButton.textContent = '退出登录';
                 await RootedVoxAuth.logout('/main');
             }
             : () => RootedVoxAuth.handleLogin();

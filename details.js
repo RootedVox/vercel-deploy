@@ -365,6 +365,7 @@ async function submitComment(rid, type) {
         if (content.length > 1000) { notify('回复最多 1000 字，请缩短后再发布。', 'error'); el.focus(); return; }
         const ano = document.getElementById(`anonymous-${rid}`)?.checked || false;
         const key = 'reply-' + rid;
+        const started = ForumDrafts.generation(key);
         const original = ForumDrafts.get(key);
         const images = (replyImages.get(rid) || []).slice();
         const pending = images.filter(image => !image.url);
@@ -372,7 +373,7 @@ async function submitComment(rid, type) {
         pending.forEach((image, index) => { image.url = uploaded[index]; });
         const urls = images.map(image => image.url).filter(Boolean);
         const payload = { content, anonymous: ano, imageUrls: urls, replyTo: rid };
-        const submitted = ForumDrafts.prepare(key, original, payload);
+        const submitted = ForumDrafts.prepare(key, original, payload, started);
         const response = await request('/api/messages', {
             method: 'POST', credentials: 'include',
             headers: { 'Content-Type': 'application/json' },

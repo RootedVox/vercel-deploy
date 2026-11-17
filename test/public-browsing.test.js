@@ -101,7 +101,7 @@ function commentHarness(upload = async () => ['https://example.invalid/picture.w
       if (id === 'preview-1') return { replaceChildren() { clears++; } };
       return null;
     } },
-    ForumDrafts: { get: () => draft, clear() {}, prepare: () => draft },
+    ForumDrafts: { get: () => draft, clear() {}, generation() {}, prepare: () => draft },
     ForumUI: { notify(message) { alerts.push(message); } },
     request: () => new Promise((resolve, reject) => writes.push({ resolve, reject }))
   }, { replace: {

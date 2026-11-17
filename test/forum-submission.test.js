@@ -156,3 +156,25 @@ test('an edit during upload or submission retains the newer draft', () => {
   drafts.save('post', { text: 'updated while posting' });
   assert.notEqual(drafts.get('post'), submitted);
 });
+
+test('editing during upload preserves the retry ID, while discarding creates a new intent', () => {
+  const window = {};
+  vm.runInNewContext(readFileSync(new URL('../forum-drafts.js', import.meta.url), 'utf8'),
+    { window, crypto, sessionStorage: { getItem() {}, setItem() {}, removeItem() {} } });
+  const d = window.ForumDrafts;
+  d.bind('u');
+  const body = () => ({ content: 'first', imageUrls: ['image'] });
+  d.save('post', { text: 'first' });
+  const original = d.get('post'), started = d.generation('post');
+  d.save('post', { text: '' });
+  d.save('post', { text: 'first' });
+  const first = body(), retry = body();
+  d.prepare('post', original, first, started);
+  d.prepare('post', d.get('post'), retry, started);
+  assert.equal(first.submissionId, retry.submissionId);
+  assert.equal(retry.retry, true);
+  d.clear('post');
+  d.save('post', { text: 'first' });
+  d.prepare('post', original, body(), started);
+  assert.equal(d.get('post').submissionId, undefined);
+});

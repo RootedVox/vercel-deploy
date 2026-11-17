@@ -10,7 +10,7 @@ test('picking a new image keeps images restored from the draft', async () => {
     bind() {}, get: k => drafts.get(k), clear: k => drafts.delete(k),
     save(k, fields) { if (!fields.text && !fields.attachments?.length) return drafts.delete(k);
       drafts.set(k, { ...drafts.get(k), ...fields }); },
-    prepare() { return drafts.get('reply-root'); }
+    generation() {}, prepare() { return drafts.get('reply-root'); }
   };
   const requests = [];
   const saved = ['https://db.example/old-1.webp', 'https://db.example/old-2.webp'];

@@ -3,6 +3,7 @@
   const key = 'rootedvox.forum.drafts.v1';
   let owner = null;
   let entries = {};
+  const generations = new Map();
   function persist() {
     try {
       if (Object.keys(entries).length) sessionStorage.setItem(key, JSON.stringify({ owner, entries }));
@@ -11,6 +12,7 @@
   }
   function bind(userId) {
     if (!userId || userId === owner) return;
+    generations.clear();
     owner = userId;
     entries = {};
     try {
@@ -21,13 +23,18 @@
   }
   function get(target) { return owner ? entries[target] : null; }
   function clear(target) {
+    generations.delete(target);
     delete entries[target];
     persist();
   }
   function save(target, fields) {
     if (!owner) return;
     const next = { ...get(target), ...fields };
-    if (!next.text && !next.attachments?.length) return clear(target);
+    if (!next.text && !next.attachments?.length) {
+      delete entries[target];
+      persist();
+      return;
+    }
     entries[target] = next;
     persist();
   }
@@ -41,11 +48,21 @@
   }
   // Draft edits replace the entry. Compare the captured object before writing a
   // receipt, and again on success before clearing the editor.
-  function prepare(target, original, payload) {
-    if (get(target) !== original) {
-      const replay = original?.signature === JSON.stringify(payload);
+  // A cleared or switched-account editor must never inherit an in-flight receipt.
+  function generation(target) {
+    if (!generations.has(target)) generations.set(target, {});
+    return generations.get(target);
+  }
+  function prepare(target, original, payload, started = generation(target)) {
+    const sameEditor = generations.get(target) === started;
+    if (!sameEditor || get(target) !== original) {
+      const signature = JSON.stringify(payload);
+      const replay = original?.signature === signature;
       payload.submissionId = replay ? original.submissionId : crypto.randomUUID();
       payload.retry = replay;
+      if (sameEditor && get(target)) {
+        save(target, { signature, submissionId: payload.submissionId });
+      }
       return null;
     }
     const previousId = original?.submissionId;
@@ -54,6 +71,6 @@
     payload.retry = payload.submissionId === previousId;
     return get(target);
   }
-  function logout() { entries = {}; owner = null; persist(); }
-  window.ForumDrafts = { bind, get, save, clear, submission, prepare, logout };
+  function logout() { generations.clear(); entries = {}; owner = null; persist(); }
+  window.ForumDrafts = { bind, get, save, clear, submission, generation, prepare, logout };
 })();

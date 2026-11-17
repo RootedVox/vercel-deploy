@@ -4,7 +4,7 @@ import { runPageScript } from './page-script.js';
 
 // Each quota read is a Functions request (daily quota), so opening the forum must not
 // ask for it: only ticking "投稿到精华", or a restored draft that has it ticked, does.
-function postForm(draft = null) {
+function postForm(draft = null, clock = Date) {
   const elements = new Map();
   const element = id => {
     if (!elements.has(id)) {
@@ -15,7 +15,7 @@ function postForm(draft = null) {
   };
   const requests = [];
   const { initPostDraft } = runPageScript('messages.js', {
-    ForumUI: {},
+    Date: clock, clearTimeout() {}, setTimeout() {}, ForumUI: {},
     ForumDrafts: { bind() {}, get: () => draft, save() {}, clear() {} },
     document: { getElementById: element, addEventListener() {} },
     request: async path => { requests.push(path); return Response.json({ remaining: 2 }); }
@@ -57,4 +57,18 @@ test('a restored draft with 投稿到精华 ticked shows the quota', async () =>
   form.initPostDraft();
   await settle();
   assert.deepEqual(form.requests, ['/api/messages?featuredQuota=1']);
+});
+
+test('reopening the quota after Shanghai midnight reads the new day', async () => {
+  let now = Date.parse('2026-11-17T15:59:59Z');
+  const form = postForm(null, { now: () => now });
+  form.initPostDraft();
+  const box = form.element('postFeatured');
+  box.checked = true;
+  box.listeners.change();
+  await settle();
+  now += 2000;
+  box.listeners.change();
+  await settle();
+  assert.equal(form.requests.length, 2);
 });
