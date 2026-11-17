@@ -108,3 +108,48 @@
   .nav-links:not(.show) { visibility: hidden; }
   :root[data-theme="light"] .nav-links { background: var(--surface); }
 }
+
+/* Site-owned select menus share the forum sort menu's controls and palette. */
+select[hidden] { display: none !important; }
+.rv-choice-button {
+  width: 100%; min-width: 0; min-height: 44px; padding: 9px 34px 9px 12px;
+  border: 1px solid var(--line); border-radius: 12px; color: var(--ink);
+  background: var(--surface); font: inherit; cursor: pointer;
+  text-align: start; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  position: relative;
+}
+.rv-choice-button::after {
+  content: ""; position: absolute; top: calc(50% - 5px); inset-inline-end: 14px;
+  width: 7px; height: 7px; border: solid var(--muted); border-width: 0 2px 2px 0;
+  transform: rotate(45deg); pointer-events: none;
+}
+.rv-choice-button:hover:not(:disabled), .rv-choice-button[aria-expanded="true"] { border-color: var(--theme-color); }
+.rv-choice-button:disabled { cursor: not-allowed; opacity: .64; }
+.preference-control:has(.rv-choice-button)::after { display: none; }
+.preference-control .rv-choice-button {
+  min-height: 40px; padding: 0 25px 0 31px; border: 0; border-radius: 9px;
+  background: transparent; font-size: 14px;
+}
+.preference-control .rv-choice-button:hover, .preference-control .rv-choice-button[aria-expanded="true"] { background: var(--theme-soft); }
+.preference-control .rv-choice-button::after { inset-inline-end: 9px; width: 5px; height: 5px; }
+.preference-control:has(.rv-choice-button) > svg { z-index: 1; }
+.rv-choice-list {
+  position: fixed; z-index: 10001; width: max-content; max-width: calc(100vw - 16px);
+  padding: 8px; margin: 0; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--surface); box-shadow: 0 8px 24px #0002; overflow: auto;
+  overscroll-behavior: contain; color: var(--ink);
+}
+.rv-choice-list button {
+  display: flex; align-items: center; gap: 9px; width: 100%; min-height: 40px;
+  padding: 5px 8px; border: 0; border-radius: 7px; color: inherit; background: transparent;
+  font: inherit; text-align: start; cursor: pointer; overflow-wrap: anywhere;
+}
+.rv-choice-list button::before { content: ""; width: 12px; height: 12px; flex: none; border: 1px solid var(--muted); border-radius: 50%; }
+.rv-choice-list button[aria-selected="true"]::before { border-color: var(--theme-color); background: radial-gradient(circle, var(--theme-color) 0 50%, transparent 54%); }
+.rv-choice-list button:hover, .rv-choice-list button:focus-visible { background: var(--theme-soft); }
+.rv-choice-list button:focus-visible { outline-offset: -2px; }
+.rv-choice-list button:disabled { opacity: .55; cursor: not-allowed; }
+@media (max-width: 960px) {
+  .preference-control:has(.rv-choice-button) { padding-inline-start: 0; }
+  .preference-control .rv-choice-button { width: auto; margin-inline-start: auto; padding-inline-start: 32px; }
+}

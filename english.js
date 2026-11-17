@@ -1,4 +1,6 @@
 window.rvEnglish = new Map(Object.entries({
+  "RootedVox 4.5.3 · 站内选择菜单": "RootedVox 4.5.3 · Site menus",
+  "语言、外观和论坛的分区与昵称选择统一使用站内菜单，手机上也能在按钮旁展开选项。": "Language, appearance, forum categories and display names use site menus that open beside their buttons, including on phones.",
   "RootedVox 4.5.2 · 界面体验优化": "RootedVox 4.5.2 · Interface improvements",
   "手机上帖子和回复更宽，筛选控件更紧凑。论坛新增相对时间和匿名头像，精华帖更容易辨认，联系页支持直接拨号和发邮件。": "Posts and replies have more room on phones, and filters are more compact. The forum shows relative times, clearer anonymous avatars and more visible featured posts. The contact page links directly to phone and email.",
   "RootedVox 4.5.1 · 精华额度查询优化": "RootedVox 4.5.1 · Featured quota lookup",

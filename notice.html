@@ -24,7 +24,7 @@ Licensed under the MIT License.
   <meta name="twitter:image" content="https://rv.celestivast.com/images/logo.png">
 
     <!-- 引入全局公共样式 -->
-    <script src="/preferences.js?v=9fc878345a"></script><link rel="stylesheet" href="./common.css?v=3eaa69826d"><link rel="stylesheet" href="/preferences.css?v=3273a70f71">
+    <script src="/preferences.js?v=b4f9c93b3d"></script><link rel="stylesheet" href="./common.css?v=3eaa69826d"><link rel="stylesheet" href="/preferences.css?v=cc684fd475">
     <style>
         /* 只保留本页面独有：公告列表CSS，导航、全局、页脚样式全部删去 */
         .notice-container {
@@ -88,15 +88,15 @@ Licensed under the MIT License.
     <nav class="site-nav" aria-label="主导航"><ul class="nav-links" id="navList">
       <li><a href="/main">首页</a></li><li><a href="/messages">社区广场</a></li><li><a href="/notice">公告</a></li><li><a href="/about">关于</a></li><li><a href="/contact">联系</a></li>
       <li class="site-preferences">
-        <label class="preference-control">
+        <div class="preference-control">
           <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="10" cy="10" r="7.5"/><ellipse cx="10" cy="10" rx="3.3" ry="7.5"/><path d="M2.5 10h15"/></svg>
           <span class="preference-label">语言</span>
           <select id="languageChoice" aria-label="语言" title="语言">
           <option value="zh-CN">简体中文</option>
           <option value="en">English</option>
         </select>
-        </label>
-        <label class="preference-control">
+        </div>
+        <div class="preference-control">
           <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="10" cy="10" r="7.5"/><path d="M10 2.5a7.5 7.5 0 0 1 0 15z" fill="currentColor" stroke="none"/></svg>
           <span class="preference-label">外观</span>
           <select id="themeChoice" aria-label="外观" title="外观">
@@ -104,7 +104,7 @@ Licensed under the MIT License.
           <option value="light">浅色</option>
           <option value="dark">深色</option>
         </select>
-        </label>
+        </div>
       </li>
     </ul></nav>
   </div>
@@ -114,6 +114,10 @@ Licensed under the MIT License.
     <div class="notice-container">
         <h1 class="notice-title">站内公告</h1><p class="notice-lead">版本变化、使用说明与社区规则，都在这里。</p><input class="notice-search" id="noticeSearch" type="search" placeholder="搜索公告" aria-label="搜索公告">
         <ul class="notice-list" id="noticeList">
+            <li class="notice-item" data-date="2026-11-17">
+                <h3>RootedVox 4.5.3 · 站内选择菜单</h3>
+                <p>语言、外观和论坛的分区与昵称选择统一使用站内菜单，手机上也能在按钮旁展开选项。</p>
+            </li>
             <li class="notice-item" data-date="2026-11-16">
                 <h3>RootedVox 4.5.2 · 界面体验优化</h3>
                 <p>手机上帖子和回复更宽，筛选控件更紧凑。论坛新增相对时间和匿名头像，精华帖更容易辨认，联系页支持直接拨号和发邮件。</p>
