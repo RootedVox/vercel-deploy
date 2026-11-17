@@ -59,13 +59,41 @@ test('NVIDIA 兼容旧输出的解析逻辑保持不变', () => {
   assert.equal(parseNemotronVerdict('noise').verdict, 'uncertain');
 });
 
-test('判定合并：任一 blocked 即拦截，其余需要所有响应的供应商都 safe', () => {
+test('判定合并是一票否决加一票放行，不是求交集', () => {
   const r = (...items) => items.map(([id, verdict, reason]) => ({ id, verdict, reason }));
 
-  assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'safe'])).verdict, 'safe');
+  // 一票否决：任一家说不安全就拦，不管另一家怎么说。
   assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'blocked'])).verdict, 'blocked');
-  assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'uncertain'])).verdict, 'uncertain');
+  assert.equal(mergeVerdicts(r(['a', 'blocked'], ['b', 'error'])).verdict, 'blocked');
+
+  // 一票放行：只要有一家明确 safe 就过，配几家都不会更容易进人工。
+  assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'safe'])).verdict, 'safe');
+  assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'uncertain'])).verdict, 'safe');
+  assert.equal(mergeVerdicts(r(['a', 'safe'], ['b', 'error'])).verdict, 'safe');
+
+  // 没人敢说 safe 才转人工。
+  assert.equal(mergeVerdicts(r(['a', 'uncertain'], ['b', 'error'])).verdict, 'uncertain');
+  assert.equal(mergeVerdicts(r(['a', 'uncertain'], ['b', 'uncertain'])).verdict, 'uncertain');
   assert.equal(mergeVerdicts(r(['a', 'error'], ['b', 'error'])).reason, 'upstream_unavailable');
+});
+
+test('严格模式退化为全部一致才放行，任一擦边即转人工', () => {
+  const results = [
+    { id: 'a', verdict: 'safe', reason: 'model_safe' },
+    { id: 'b', verdict: 'uncertain', reason: 'model_controversial' }
+  ];
+  assert.equal(mergeVerdicts(results).verdict, 'safe');
+  assert.equal(mergeVerdicts(results, { strict: true }).verdict, 'uncertain');
+  assert.equal(mergeVerdicts(results, { strict: true }).reason, 'model_controversial');
+});
+
+test('解析失败不参与判定，不会拖累另一家的放行结论', () => {
+  const merged = mergeVerdicts([
+    { id: 'a', verdict: 'safe', reason: 'model_safe' },
+    { id: 'b', verdict: 'uncertain', reason: 'unparsed_output' }
+  ]);
+  assert.equal(merged.verdict, 'safe');
+  assert.equal(merged.providers.find(p => p.id === 'b').reason, 'unparsed_output');
 });
 
 test('判定合并：单家故障不拖垮其余判定，可用性优先', () => {
@@ -153,7 +181,7 @@ test('词库命中直接拦截，不浪费 API 调用', async () => {
   }
 });
 
-test('多家并发审核：全部 safe 才放行，且每家只请求一次', async () => {
+test('多家并发审核：每家只请求一次，且都判 safe 时放行', async () => {
   const stub = stubFetch((url, body) => {
     if (url.includes('bigmodel')) return chat('{"verdict":"safe","categories":[]}');
     return chat('Safety: Safe\nCategories: None');

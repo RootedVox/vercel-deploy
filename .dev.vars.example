@@ -52,6 +52,10 @@ FORUM_WORKER_SECRET=
 # Order matters only for logging; all configured providers are called concurrently.
 AI_REVIEW_PROVIDERS=qwenguard,glm,nvidia
 AI_REVIEW_TIMEOUT_MS=8000
+# Merge is one-vote-block + one-vote-pass: any unsafe blocks, any safe publishes,
+# and a post only goes to humans when nobody said safe. Set to 1 for the old strict
+# rule where a single "controversial" verdict also sends it to humans.
+AI_REVIEW_STRICT=
 
 # Qwen3Guard. Two ways to enable it:
 #   1) anonymous: set QWEN_GUARD_ANONYMOUS=1. OVHcloud free tier, no signup, no key,
