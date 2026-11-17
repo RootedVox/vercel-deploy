@@ -328,14 +328,81 @@
             overflow-y: auto;
         }
         .notification-item {
-            padding: 12px;
-            border-left: 4px solid #2196F3;
+            position: relative;
+            padding: 14px 16px 14px 18px;
+            margin-bottom: 10px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
             background: var(--surface);
-            margin-bottom: 8px;
-            border-radius: 6px;
+            overflow: hidden;
+            transition: transform .18s, border-color .18s, background .18s;
         }
-        .notification-item.rejected {
-            border-left-color: #f44336;
+        .notification-item::before {
+            content: "";
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 4px;
+            background: var(--theme-color);
+        }
+        .notification-item:hover {
+            transform: translateY(-1px);
+            border-color: var(--theme-color);
+        }
+        .notification-item.is-negative::before { background: var(--error-ink); }
+        .notification-item.is-negative:hover { border-color: var(--error-ink); }
+        .notification-item.unread {
+            background: color-mix(in srgb, var(--theme-color) 5%, var(--surface));
+        }
+        .notification-item .item-top {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 7px;
+        }
+        .notification-item .item-icon {
+            flex: 0 0 26px;
+            width: 26px; height: 26px;
+            border-radius: 9px;
+            display: grid; place-items: center;
+            background: var(--theme-soft);
+            color: var(--theme-color);
+            font-size: 13px; font-weight: 800;
+        }
+        .notification-item.is-negative .item-icon {
+            background: var(--error-surface);
+            color: var(--error-ink);
+        }
+        .notification-item h4 { margin: 0; font-size: 14px; font-weight: 700; }
+        .notification-item .item-pill {
+            margin-left: auto;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: var(--theme-soft);
+            color: var(--theme-color);
+            font-size: 10px; font-weight: 700;
+            white-space: nowrap;
+        }
+        .notification-item.is-negative .item-pill {
+            background: var(--error-surface);
+            color: var(--error-ink);
+        }
+        .notification-item .unread-dot {
+            flex: 0 0 7px;
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: var(--theme-color);
+        }
+        .notification-item p {
+            margin: 0 0 6px;
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.7;
+        }
+        .notification-item .notification-time {
+            font-size: 11px !important;
+            color: var(--muted);
+            margin: 2px 0 0 0 !important;
+            font-variant-numeric: tabular-nums;
         }
         .profile-avatar-row {
             display: flex;

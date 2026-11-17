@@ -112,6 +112,18 @@
             else if (!event.shiftKey && (!inside || document.activeElement === last)) { event.preventDefault(); first.focus(); }
         }
 
+        // Notification titles come from the database (see supabase/*_forum*.sql).
+        // Map them to a glyph and a short status pill; `rejected` is not a real
+        // notification type, so approval outcomes are matched by title.
+        function notificationStyle(n) {
+            const title = String(n?.title || '');
+            if (title.includes('回复了你')) return { icon: '↩', pill: '新回复', negative: false };
+            if (title.includes('待审核')) return { icon: '✎', pill: '审核中', negative: false };
+            if (title.includes('审核通过') || title.includes('已恢复')) return { icon: '✓', pill: '已公开', negative: false };
+            if (title.includes('未通过审核') || title.includes('已被删除')) return { icon: '×', pill: title.includes('删除') ? '已删除' : '未通过', negative: true };
+            return { icon: '•', pill: '通知', negative: false };
+        }
+
         async function openNotifications(append = false) {
             const modal = document.getElementById("notificationModal");
             // The menu item that opened it is hidden again, so focus returns to the menu button.
@@ -151,12 +163,20 @@
 
                 const htmlFragment = document.createDocumentFragment();
                 notes.forEach(n => {
+                    const style = notificationStyle(n);
                     const itemDiv = document.createElement("div");
-                    itemDiv.className = `notification-item ${n.type === 'rejected' ? 'rejected' : ''}`;
+                    itemDiv.className = 'notification-item' +
+                        (style.negative ? ' is-negative' : '') +
+                        (n.read === false ? ' unread' : '');
                     itemDiv.innerHTML = `
-                      <h4>${escapeHtml(n.title)}</h4>
+                      <div class="item-top">
+                        <span class="item-icon" aria-hidden="true">${style.icon}</span>
+                        <h4>${escapeHtml(n.title)}</h4>
+                        ${n.read === false ? '<span class="unread-dot" title="未读"></span>' : ''}
+                        <span class="item-pill">${style.pill}</span>
+                      </div>
                       <p>${escapeHtml(n.content)}</p>
-                      <p style='font-size:12px;color:var(--muted);margin:5px 0 0 0;'>${new Date(n.created_at).toLocaleString()}</p>
+                      <p class="notification-time">${new Date(n.created_at).toLocaleString()}</p>
                     `;
                     htmlFragment.appendChild(itemDiv);
                 });
