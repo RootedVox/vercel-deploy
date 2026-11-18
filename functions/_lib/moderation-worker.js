@@ -1,7 +1,7 @@
 import { runAiCheck } from './moderate-content.js';
 import { resolveProviderChain } from './ai-providers.js';
 import { withDeadline } from './fetch-timeout.js';
-import { serviceKeyHeaders } from './supabase.js';
+import { isMissingRpc, serviceKeyHeaders } from './supabase.js';
 
 async function serviceRequest(env, path, method, args, extraHeaders = {}) {
   const headers = serviceKeyHeaders(env, { 'Content-Type': 'application/json', ...extraHeaders });
@@ -10,7 +10,12 @@ async function serviceRequest(env, path, method, args, extraHeaders = {}) {
     const response = await fetch(`${env.BUSINESS_SUPABASE_URL.replace(/\/$/, '')}/${path}`, {
       method, headers, body: args === undefined ? undefined : JSON.stringify(args), signal
     });
-    if (!response.ok) throw new Error('moderation_store_unavailable');
+    if (!response.ok) {
+      const error = new Error('moderation_store_unavailable');
+      error.status = response.status;
+      if (response.status === 404) error.code = (await response.json().catch(() => null))?.code;
+      throw error;
+    }
     const text = await response.text();
     return text ? JSON.parse(text) : null;
   });
@@ -115,6 +120,16 @@ export async function processNextModeration(env, id = null) {
   // The image argument is always empty because enqueue_review only queues posts whose
   // pic_url is empty; posts with images and featured submissions never reach this worker.
   const result = await runAiCheck(job.content, [], env);
+  if (result.reason === 'lexicon') {
+    try {
+      // Finish the lease and insert the author's notice in one database transaction.
+      await call(env, 'finish_forum_lexicon_review', { target: job.id, lease: job.lease });
+      return true;
+    } catch (error) {
+      if (!isMissingRpc(error)) throw error;
+      // During rollout an older database still uses the existing manual notice path.
+    }
+  }
   // true once the job is settled; false when the database schedules a retry instead.
   const finished = await call(env, 'finish_forum_review', {
     target: job.id, lease: job.lease, decision: result.verdict, reason: result.reason

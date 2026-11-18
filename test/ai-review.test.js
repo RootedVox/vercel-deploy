@@ -372,6 +372,20 @@ test('GLM 收到的留言放在固定边界里，伪造的边界标记会被去�
   }
 });
 
+test('a lexicon hit finishes with the notification in one RPC and skips model calls', async t => {
+  const calls = [];
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    const name = new URL(url).pathname.split('/').pop();
+    calls.push(name);
+    if (name === 'claim_forum_review') return Response.json({ id: 'm1', lease: 'l1', content: '霸凌' });
+    assert.equal(name, 'finish_forum_lexicon_review');
+    assert.deepEqual(JSON.parse(init.body), { target: 'm1', lease: 'l1' });
+    return Response.json(true);
+  });
+  assert.equal(await processNextModeration(workerEnv), true);
+  assert.deepEqual(calls, ['claim_forum_review', 'finish_forum_lexicon_review']);
+});
+
 function workerFetch(verdict, { finished = true, flag = 1, failNotice = false } = {}) {
   const calls = [];
   const original = globalThis.fetch;

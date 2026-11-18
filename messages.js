@@ -731,15 +731,15 @@
 
         // A text post is saved as pending and the AI review publishes it a few seconds
         // later, right after the save. The page looks for the post's own public thread a
-        // few times (not the feed, whose first page a server may keep for a few seconds)
-        // and, once it is public, puts it at the top of the list without a reload.
+        // few times and puts the approved post at the top of the list without a reload.
         // Posts with images and featured submissions wait for a human, so they are not
-        // watched. At most four small reads per post.
+        // watched. Each check also refreshes the notification dot for manual review.
         const PUBLISH_CHECKS = [3000, 6000, 12000, 24000];
         function watchForPublication(id) {
             let attempt = 0;
             const check = async () => {
                 try {
+                    void refreshNotificationDot().catch(() => {});
                     const page = await RootedVoxPublicData.threadPage(id);
                     const post = page?.messages?.find(message => String(message.id) === String(id));
                     if (post) return showPublishedPost(post);

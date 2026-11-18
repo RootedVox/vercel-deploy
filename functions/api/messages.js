@@ -1,7 +1,7 @@
 import { publicMessageMedia, readAnonymousImage } from '../_lib/forum-media.js';
 import { processNextModeration } from '../_lib/moderation-worker.js';
 import { authenticateApi, cleanText, integerParam } from '../_lib/api.js';
-import { json, methodNotAllowed, SECURITY_HEADERS } from '../_lib/http.js';
+import { json, methodNotAllowed } from '../_lib/http.js';
 import { applyPage, pageResult } from '../_lib/pagination.js';
 import { profileNickname } from '../_lib/official-profile.js';
 import { identityUserId, isMissingRpc, readOwnProfile, requestBusinessData, requestPublicData } from '../_lib/supabase.js';
@@ -383,55 +383,9 @@ async function createMessage(request, env, waitUntil) {
   }
 }
 
-// The homepage overview and the first page of each feed view are the same for every
-// visitor, so a warm instance answers repeats from memory for a few seconds instead of
-// asking the database again; concurrent requests share one read. Only these public
-// parameters qualify: threads, search, later pages, images and anything tied to an
-// account are always read fresh. Posts appear only after moderation, so a few seconds
-// of delay changes nothing a visitor can notice.
-const PUBLIC_PARAMS = new Set(['overview', 'zone', 'sort', 'limit', 'featuredFirst', 'page']);
-const recentReads = new Map();
-export function clearPublicReadCache() { recentReads.clear(); }
-
-function publicReadKey(url) {
-  const params = new URLSearchParams(url.searchParams);
-  for (const name of params.keys()) if (!PUBLIC_PARAMS.has(name)) return null;
-  if ((params.get('page') ?? '0') !== '0') return null;
-  params.sort();
-  return params.toString();
-}
-
-async function cachedPublicRead(request, env) {
-  const url = new URL(request.url);
-  const key = publicReadKey(url);
-  if (key === null) return listMessages(request, env);
-  const now = Date.now();
-  let entry = recentReads.get(key);
-  if (!entry || entry.until <= now) {
-    for (const [name, old] of recentReads) if (old.until <= now) recentReads.delete(name);
-    if (recentReads.size >= 100) recentReads.clear();
-    const body = listMessages(request, env).then(async response => {
-      if (response.status !== 200) throw response;
-      return response.text();
-    });
-    entry = { body, until: now + (url.searchParams.has('overview') ? 30_000 : 15_000) };
-    recentReads.set(key, entry);
-    // Failures are never kept: the next visitor asks the database again.
-    body.catch(() => { if (recentReads.get(key) === entry) recentReads.delete(key); });
-  }
-  try {
-    return new Response(await entry.body, {
-      headers: { ...SECURITY_HEADERS, 'Content-Type': 'application/json;charset=utf-8' }
-    });
-  } catch (failure) {
-    if (failure instanceof Response) return failure.clone();
-    throw failure;
-  }
-}
-
 export async function onRequestGet({ request, env }) {
   try {
-    return await cachedPublicRead(request, env);
+    return await listMessages(request, env);
   } catch {
     return json({ error: 'messages_unavailable' }, 503);
   }
