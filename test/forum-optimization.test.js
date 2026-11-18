@@ -13,7 +13,7 @@ test('rotating the same session concurrently never clears the winning cookie', a
   const barrier = new Promise(resolve => { bothReading = resolve; });
   t.mock.method(globalThis, 'fetch', async (_, init) => {
     const { operation } = JSON.parse(init.body);
-    if (operation === 'rotate_session') return Response.json(++rotations === 1);
+    if (operation === 'stage_rotation') return Response.json(++rotations === 1);
     assert.equal(operation, 'read_session');
     if (++reads === 2) bothReading();
     await barrier;

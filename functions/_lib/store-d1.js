@@ -25,7 +25,7 @@ export async function pruneAuthState(env) {
   const now = new Date().toISOString();
   await db.batch([
     db.prepare('delete from oauth_transactions where expires_at <= ?').bind(now),
-    db.prepare('delete from business_sessions where expires_at <= ? or absolute_expires_at <= ? or (revoked_at is not null and revoked_at < ?)')
+    db.prepare('delete from business_sessions where max(expires_at, coalesce(rotation_expires_at, expires_at)) <= ? or absolute_expires_at <= ? or (revoked_at is not null and revoked_at < ?)')
       .bind(now, now, new Date(Date.now() - 86400000).toISOString())
   ]);
 }
@@ -73,34 +73,31 @@ function normalizeSession(row) {
 
 export async function readSession(env, sessionHash) {
   const now = new Date().toISOString();
-  const row = await authDb(env).prepare(`
+  const read = () => authDb(env).prepare(`
     select * from business_sessions
     where (session_hash = ? or (previous_session_hash = ? and previous_valid_until > ?))
       and revoked_at is null and expires_at > ? and absolute_expires_at > ?
     limit 1
   `).bind(sessionHash, sessionHash, now, now, now).first();
-  return normalizeSession(row);
+  const row = await read();
+  if (row) return normalizeSession(row);
+  // Concurrent confirmations converge on the same primary hash.
+  await authDb(env).prepare(`
+    update business_sessions set previous_session_hash=session_hash, previous_valid_until=?,
+      session_hash=rotation_hash, expires_at=rotation_expires_at, last_seen_at=?,
+      rotation_hash=null, rotation_nonce=null, rotation_expires_at=null
+    where rotation_hash=? and revoked_at is null and rotation_expires_at>? and absolute_expires_at>?
+  `).bind(new Date(Date.parse(now) + 60000).toISOString(), now, sessionHash, now, now).run();
+  return normalizeSession(await read());
 }
 
-export async function rotateSession(env, previousHash, nextHash, expiresAt) {
-  const now = new Date();
+export async function rotateSession(env, previousHash, nextHash, expiresAt, nonce) {
+  const now = new Date().toISOString();
   const result = await authDb(env).prepare(`
-    update business_sessions
-    set previous_session_hash = session_hash,
-        previous_valid_until = ?,
-        session_hash = ?,
-        last_seen_at = ?,
-        expires_at = min(?, absolute_expires_at)
-    where session_hash = ? and revoked_at is null and expires_at > ? and absolute_expires_at > ?
-  `).bind(
-    new Date(now.getTime() + 60000).toISOString(),
-    nextHash,
-    now.toISOString(),
-    expiresAt,
-    previousHash,
-    now.toISOString(),
-    now.toISOString()
-  ).run();
+    update business_sessions set rotation_hash=?, rotation_nonce=?, rotation_expires_at=min(?,absolute_expires_at)
+    where session_hash=? and rotation_hash is null and revoked_at is null
+      and expires_at>? and absolute_expires_at>?
+  `).bind(nextHash, nonce, expiresAt, previousHash, now, now).run();
   return Number(result?.meta?.changes || 0) === 1;
 }
 
@@ -108,7 +105,8 @@ export async function revokeSession(env, sessionHash) {
   const now = new Date().toISOString();
   await authDb(env).prepare(`
     update business_sessions set revoked_at = ?
-    where (session_hash = ? or (previous_session_hash = ? and previous_valid_until > ?))
+    where (session_hash = ? or (previous_session_hash = ? and previous_valid_until > ?)
+      or (rotation_hash = ? and rotation_expires_at > ?))
       and revoked_at is null
-  `).bind(now, sessionHash, sessionHash, now).run();
+  `).bind(now, sessionHash, sessionHash, now, sessionHash, now).run();
 }

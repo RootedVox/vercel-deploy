@@ -18,6 +18,10 @@ create table if not exists isa_auth_private.sessions (
   revoked_at timestamptz,
   data jsonb not null
 );
+alter table isa_auth_private.sessions add column if not exists rotation_nonce text;
+alter table isa_auth_private.sessions add column if not exists rotation_hash text;
+alter table isa_auth_private.sessions add column if not exists rotation_expires_at timestamptz;
+create unique index if not exists isa_auth_rotation on isa_auth_private.sessions(rotation_hash);
 create index if not exists isa_auth_transactions_expiry on isa_auth_private.transactions(expires_at);
 create index if not exists isa_auth_sessions_expiry on isa_auth_private.sessions(expires_at);
 create index if not exists isa_auth_sessions_previous on isa_auth_private.sessions(previous_session_hash);
@@ -46,28 +50,45 @@ begin
       jsonb_build_object('created_at', now(), 'last_seen_at', now()) || args);
     return 'null'::jsonb;
   when 'read_session' then
+    update isa_auth_private.sessions
+    set previous_session_hash=session_hash, previous_valid_until=now()+interval '60 seconds',
+      session_hash=rotation_hash, expires_at=rotation_expires_at,
+      rotation_hash=null, rotation_nonce=null, rotation_expires_at=null,
+      data=data || jsonb_build_object('last_seen_at', now())
+    where rotation_hash=args->>'hash' and revoked_at is null
+      and rotation_expires_at>now() and absolute_expires_at>now();
     select data || jsonb_build_object('session_hash', session_hash, 'expires_at', expires_at,
-      'absolute_expires_at', absolute_expires_at) into result
+      'absolute_expires_at', absolute_expires_at, 'rotation_nonce', rotation_nonce,
+      'rotation_expires_at', rotation_expires_at) into result
     from isa_auth_private.sessions
     where (session_hash = args->>'hash' or (previous_session_hash = args->>'hash' and previous_valid_until > now()))
       and revoked_at is null and expires_at > now() and absolute_expires_at > now() limit 1;
     return coalesce(result, 'null'::jsonb);
+  when 'stage_rotation' then
+    update isa_auth_private.sessions
+    set rotation_hash=args->>'next', rotation_nonce=args->>'nonce',
+      rotation_expires_at=least((args->>'expires')::timestamptz, absolute_expires_at)
+    where session_hash=args->>'previous' and rotation_hash is null
+      and revoked_at is null and expires_at>now() and absolute_expires_at>now();
+    get diagnostics changed = row_count;
+    return to_jsonb(changed = 1);
   when 'rotate_session' then
     update isa_auth_private.sessions
     set previous_session_hash = session_hash, previous_valid_until = now() + interval '60 seconds',
       session_hash = args->>'next', expires_at = least((args->>'expires')::timestamptz, absolute_expires_at),
       data = data || jsonb_build_object('last_seen_at', now())
-    where session_hash = args->>'previous' and revoked_at is null and expires_at > now() and absolute_expires_at > now();
+    where session_hash = args->>'previous' and rotation_hash is null and revoked_at is null and expires_at > now() and absolute_expires_at > now();
     get diagnostics changed = row_count;
     return to_jsonb(changed = 1);
   when 'revoke_session' then
     update isa_auth_private.sessions set revoked_at = now()
-    where (session_hash = args->>'hash' or (previous_session_hash = args->>'hash' and previous_valid_until > now()))
+    where (session_hash = args->>'hash' or (previous_session_hash = args->>'hash' and previous_valid_until > now())
+      or (rotation_hash = args->>'hash' and rotation_expires_at > now()))
       and revoked_at is null;
     return 'null'::jsonb;
   when 'prune' then
     delete from isa_auth_private.transactions where expires_at <= now();
-    delete from isa_auth_private.sessions where expires_at <= now() or absolute_expires_at <= now()
+    delete from isa_auth_private.sessions where greatest(expires_at, rotation_expires_at) <= now() or absolute_expires_at <= now()
       or revoked_at < now() - interval '1 day';
     return 'null'::jsonb;
   else raise exception 'invalid auth operation';
