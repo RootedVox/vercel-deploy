@@ -13,7 +13,7 @@
         let notifyCursor = null;
         const NOTIFY_PAGE_SIZE = 10;
         let notifyHasMore = true;
-        let notifyLoading = false;
+        let notificationRequest = null;
         const MAX_IMAGES = 5;
         const MAX_SIZE = 5 * 1024 * 1024;
         const SCROLL_THRESHOLD = 350;
@@ -103,7 +103,7 @@
         function trapModalFocus(event) {
             const modal = [...document.querySelectorAll('.notification-modal')].find(node => node.style.display === 'flex');
             if (!modal) return;
-            const items = [...modal.querySelectorAll('button, input, select, textarea, a[href]')]
+            const items = [...modal.querySelectorAll('button, input, select, textarea, a[href], [tabindex="0"]')]
                 .filter(node => !node.disabled && node.offsetParent !== null);
             if (!items.length) return;
             const first = items[0], last = items.at(-1);
@@ -127,13 +127,24 @@
             return { icon: '•', pill: '通知', negative: false };
         }
 
+        function loadMoreNotificationsIfNeeded() {
+            if (!notifyHasMore || notificationRequest) return;
+            const modal = document.getElementById('notificationModal');
+            const list = document.getElementById('notificationList');
+            // Hidden lists have zero height. Only an open dialog can request another page.
+            if (modal.style.display !== 'flex' || !list.clientHeight || !document.getElementById('notificationRetry').hidden) return;
+            if (list.scrollTop + list.clientHeight >= list.scrollHeight - 80) return openNotifications(true);
+        }
+
         async function openNotifications(append = false) {
             const modal = document.getElementById("notificationModal");
             // The menu item that opened it is hidden again, so focus returns to the menu button.
             showModal(modal, document.getElementById('closeModal'), document.getElementById('avatarBtn'));
             const listEl = document.getElementById("notificationList");
-            if (notifyLoading) return;
-            notifyLoading = true;
+            if (append && notificationRequest) return;
+            // Reopening starts a fresh first page even if the previous visit is still loading.
+            const current = {};
+            notificationRequest = current;
             const retry = document.getElementById('notificationRetry');
             retry.hidden = true;
 
@@ -148,6 +159,7 @@
                 const response = await request(`/api/notifications?page=${notifyPage}&limit=${NOTIFY_PAGE_SIZE}&cursor=${encodeURIComponent(notifyCursor || '')}`, { credentials: 'include', cache: 'no-store' });
                 if (!response.ok) throw new Error('通知服务暂时不可用');
                 const result = await response.json();
+                if (notificationRequest !== current || modal.style?.display === 'none') return;
                 const notes = result.notifications || [];
 
                 const loadingTip = listEl.querySelector('div[style*="text-align:center;padding:20px 0"]');
@@ -160,7 +172,6 @@
                     } else {
                         listEl.insertAdjacentHTML('beforeend', `<div style="text-align:center;padding:15px 0;color:var(--muted);font-size:13px;">没有更多通知了</div>`);
                     }
-                    notifyLoading = false;
                     return;
                 }
 
@@ -207,7 +218,7 @@
                     const marked = await request(`/api/notifications?through=${encodeURIComponent(notes[0].id)}`, { method: 'PATCH', credentials: 'include' }).catch(() => null);
                     if (marked?.ok) {
                         const { hasUnread } = await marked.json().catch(() => ({}));
-                        if (typeof hasUnread !== 'boolean') return;
+                        if (notificationRequest !== current || typeof hasUnread !== 'boolean') return;
                         notificationDot.style.display = hasUnread ? 'block' : 'none';
                         dropdownDot.style.display = hasUnread ? 'inline-block' : 'none';
                         // The rows already on screen were rendered before the PATCH.
@@ -221,12 +232,19 @@
                 }
 
             } catch {
+                if (notificationRequest !== current || modal.style?.display === 'none') return;
                 if (!append) listEl.textContent = '通知暂时无法加载。';
                 retry.textContent = append ? '下一页加载失败，点击重试' : '重新加载通知';
                 retry.onclick = () => openNotifications(append);
                 retry.hidden = false;
             } finally {
-                notifyLoading = false;
+                if (notificationRequest === current) {
+                    notificationRequest = null;
+                    // A full viewport or a scroll during the read receipt may produce no further scroll event.
+                    if (notifyHasMore && retry.hidden && modal.style?.display === 'flex') {
+                        requestAnimationFrame(loadMoreNotificationsIfNeeded);
+                    }
+                }
             }
         }
 
@@ -1143,15 +1161,8 @@
             });
 
             const notifyModalBody = document.getElementById("notificationList");
-            notifyModalBody.addEventListener("scroll", async () => {
-                if (!notifyHasMore || notifyLoading) return;
-                const scrollTop = notifyModalBody.scrollTop;
-                const viewHeight = notifyModalBody.clientHeight;
-                const totalHeight = notifyModalBody.scrollHeight;
-                if (scrollTop + viewHeight >= totalHeight - 80) {
-                    await openNotifications(true);
-                }
-            });
+            notifyModalBody.addEventListener('scroll', loadMoreNotificationsIfNeeded);
+            window.addEventListener('resize', loadMoreNotificationsIfNeeded);
 
             notifyModalBody.addEventListener("click", async event => {
                 const button = event.target.closest('.notification-open');
