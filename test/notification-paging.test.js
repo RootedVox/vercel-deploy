@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { runPageScript } from './page-script.js';
 
 function setup(receipt = new Response(null, { status: 503 })) {
-  const frames = [], cursors = [], responses = [];
+  const frames = [], cursors = [], responses = [], receipts = [];
   const list = {
     scrollTop: 0, clientHeight: 500, scrollHeight: 500,
     querySelector() { return null; }, appendChild() {}
@@ -18,12 +18,15 @@ function setup(receipt = new Response(null, { status: 503 })) {
     },
     requestAnimationFrame: cb => frames.push(cb),
     request: async (url, options) => {
-      if (options.method === 'PATCH') return receipt;
+      if (options.method === 'PATCH') {
+        receipts.push(new URL(url, 'https://forum.test').searchParams.get('through'));
+        return receipt;
+      }
       cursors.push(new URL(url, 'https://forum.test').searchParams.get('cursor'));
       return responses.shift();
     }
   }, { replace: { showModal() {} }, expose: ['openNotifications', 'loadMoreNotificationsIfNeeded'] });
-  return { page, list, modal, retry, frames, cursors, responses };
+  return { page, list, modal, retry, frames, cursors, responses, receipts };
 }
 
 const batch = nextCursor => Response.json({
@@ -73,4 +76,41 @@ test('scrolling to the bottom while the read receipt is pending still loads the 
   await first;
   await h.frames.shift()();
   assert.deepEqual(h.cursors, ['', 'next']);
+});
+
+test('a list response arriving after close never marks unseen notifications read', async () => {
+  const h = setup();
+  const pending = Promise.withResolvers();
+  h.responses.push(pending.promise);
+  const first = h.page.openNotifications();
+  h.modal.style.display = 'none';
+  pending.resolve(batch('old'));
+  await first;
+  assert.deepEqual(h.receipts, []);
+  assert.equal(h.frames.length, 0);
+});
+
+test('reopening refreshes page one while a stale page is still in flight', async () => {
+  for (const stale of [batch('old'), new Response(null, { status: 503 })]) {
+    const h = setup();
+    const pending = Promise.withResolvers();
+    const current = Promise.withResolvers();
+    h.responses.push(batch('page2'), pending.promise, current.promise, batch(null));
+    await h.page.openNotifications();
+    const oldPage = h.frames.shift()();
+    h.modal.style.display = 'none';
+    h.modal.style.display = 'flex';
+    const reopened = h.page.openNotifications();
+    pending.resolve(stale);
+    await oldPage;
+    assert.deepEqual(h.cursors, ['', 'page2', '']);
+    await h.page.loadMoreNotificationsIfNeeded();
+    assert.deepEqual(h.cursors, ['', 'page2', '']);
+    assert.equal(h.retry.hidden, true);
+    assert.equal(h.frames.length, 0);
+    current.resolve(batch('current'));
+    await reopened;
+    await h.frames.shift()();
+    assert.deepEqual(h.cursors, ['', 'page2', '', 'current']);
+  }
 });

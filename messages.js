@@ -13,7 +13,7 @@
         let notifyCursor = null;
         const NOTIFY_PAGE_SIZE = 10;
         let notifyHasMore = true;
-        let notifyLoading = false;
+        let notificationRequest = null;
         const MAX_IMAGES = 5;
         const MAX_SIZE = 5 * 1024 * 1024;
         const SCROLL_THRESHOLD = 350;
@@ -128,7 +128,7 @@
         }
 
         function loadMoreNotificationsIfNeeded() {
-            if (!notifyHasMore || notifyLoading) return;
+            if (!notifyHasMore || notificationRequest) return;
             const modal = document.getElementById('notificationModal');
             const list = document.getElementById('notificationList');
             // Hidden lists have zero height. Only an open dialog can request another page.
@@ -141,8 +141,10 @@
             // The menu item that opened it is hidden again, so focus returns to the menu button.
             showModal(modal, document.getElementById('closeModal'), document.getElementById('avatarBtn'));
             const listEl = document.getElementById("notificationList");
-            if (notifyLoading) return;
-            notifyLoading = true;
+            if (append && notificationRequest) return;
+            // Reopening starts a fresh first page even if the previous visit is still loading.
+            const current = {};
+            notificationRequest = current;
             const retry = document.getElementById('notificationRetry');
             retry.hidden = true;
 
@@ -157,6 +159,7 @@
                 const response = await request(`/api/notifications?page=${notifyPage}&limit=${NOTIFY_PAGE_SIZE}&cursor=${encodeURIComponent(notifyCursor || '')}`, { credentials: 'include', cache: 'no-store' });
                 if (!response.ok) throw new Error('通知服务暂时不可用');
                 const result = await response.json();
+                if (notificationRequest !== current || modal.style?.display === 'none') return;
                 const notes = result.notifications || [];
 
                 const loadingTip = listEl.querySelector('div[style*="text-align:center;padding:20px 0"]');
@@ -206,7 +209,7 @@
                     const marked = await request(`/api/notifications?through=${encodeURIComponent(notes[0].id)}`, { method: 'PATCH', credentials: 'include' }).catch(() => null);
                     if (marked?.ok) {
                         const { hasUnread } = await marked.json().catch(() => ({}));
-                        if (typeof hasUnread !== 'boolean') return;
+                        if (notificationRequest !== current || typeof hasUnread !== 'boolean') return;
                         notificationDot.style.display = hasUnread ? 'block' : 'none';
                         dropdownDot.style.display = hasUnread ? 'inline-block' : 'none';
                         // The rows already on screen were rendered before the PATCH.
@@ -220,14 +223,19 @@
                 }
 
             } catch {
+                if (notificationRequest !== current || modal.style?.display === 'none') return;
                 if (!append) listEl.textContent = '通知暂时无法加载。';
                 retry.textContent = append ? '下一页加载失败，点击重试' : '重新加载通知';
                 retry.onclick = () => openNotifications(append);
                 retry.hidden = false;
             } finally {
-                notifyLoading = false;
-                // A full viewport or a scroll during the read receipt may produce no further scroll event.
-                if (notifyHasMore && retry.hidden) requestAnimationFrame(loadMoreNotificationsIfNeeded);
+                if (notificationRequest === current) {
+                    notificationRequest = null;
+                    // A full viewport or a scroll during the read receipt may produce no further scroll event.
+                    if (notifyHasMore && retry.hidden && modal.style?.display === 'flex') {
+                        requestAnimationFrame(loadMoreNotificationsIfNeeded);
+                    }
+                }
             }
         }
 
