@@ -19,7 +19,10 @@ test('picking a new image keeps images restored from the draft', async () => {
   const document = { addEventListener() {} };
   const textarea = { value: 'draft text' };
   const checkbox = { checked: false };
-  const preview = { children: [], replaceChildren() { this.children = []; }, appendChild(el) { this.children.push(el); } };
+  const preview = {
+    children: [], replaceChildren() { this.children = []; }, appendChild(el) { this.children.push(el); },
+    querySelectorAll() { return this.children.map(item => item.children[1]); }
+  };
   const input = { files: [], value: '' };
   const elements = {
     'reply-box-root': {
@@ -40,11 +43,14 @@ test('picking a new image keeps images restored from the draft', async () => {
     return match ? elements['reply-box-' + match[1]]?.querySelector(match[2]) : null;
   };
   document.querySelectorAll = () => [];
-  document.createElement = tag => ({ tag, className: '', style: {}, set src(v) { this._src = v; }, get src() { return this._src; } });
+  document.createElement = tag => ({
+    tag, append(...children) { this.children = children; }, focus() {}, setAttribute() {}
+  });
+  const revoked = [];
 
   const api = runPageScript('details.js', {
     document,
-    URL: { ...URL, createObjectURL: () => 'blob:new', revokeObjectURL() {} },
+    URL: { ...URL, createObjectURL: file => 'blob:' + file.name, revokeObjectURL: url => revoked.push(url) },
     ForumDrafts: draft,
     ForumUI: {
       escapeHtml: s => String(s), parseMessageContent: () => ({}), renderMessageAvatars() {},
@@ -83,11 +89,19 @@ test('picking a new image keeps images restored from the draft', async () => {
   api.bindReplyDraft('root', box);
   assert.equal(preview.children.length, 3);
 
-  // Submit: only the new file is uploaded; both old images stay in the payload.
+  // Remove a restored attachment and a newly picked file without discarding the reply.
+  input.files = [{ type: 'image/png', name: 'wrong.png' }];
+  api.previewImages('root');
+  preview.children.at(-1).children[1].onclick();
+  preview.children[0].children[1].onclick();
+  assert.deepEqual(revoked, ['blob:wrong.png']);
+  assert.deepEqual([...drafts.get('reply-root').attachments], [saved[1]]);
+  assert.equal(textarea.value, 'draft text');
+
+  // Submit: only the remaining new file is uploaded.
   await api.submitComment('root', 'main');
   assert.equal(requests.length, 1);
   assert.deepEqual(requests[0].body.imageUrls, [
-    'https://db.example/old-1.webp',
     'https://db.example/old-2.webp',
     'https://db.example/new-0.webp'
   ]);

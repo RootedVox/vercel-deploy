@@ -114,21 +114,27 @@ test('posting watches only plain text posts; images and featured submissions wai
 // ---- Replies on the thread page ----
 const REPLY = { id: 'r9', username: '回复者', content: '我也去！', reply_to: 'root', created_at: '2026-11-17T08:01:00Z', pic_url: null };
 
-function setupThread({ publishedAfter = 1, search = '?id=root', state = {} } = {}) {
+function setupThread({ publishedAfter = 1, search = '?id=root', state = {}, replyTo = 'root', nextPage } = {}) {
   const timers = [];
   const toasts = [];
   const rendered = [];
   let reads = 0;
   const appended = [];
+  const visible = (state.orderedComments || []).slice(0, state.renderedComments || 0).map(row => ({ id: 'msg-' + row.id }));
   const container = {
     empty: true,
     querySelector: selector => selector === '.empty-comment' && container.empty ? { remove() { container.empty = false; } } : null,
-    append(fragment) { appended.push(fragment.html); }
+    append(fragment) { container.insertBefore(fragment, null); },
+    insertBefore(fragment, next) {
+      appended.push(fragment.html);
+      const items = Array.from(fragment.html.matchAll(/id="(msg-[^"]+)"/g), match => ({ id: match[1] }));
+      visible.splice(next ? visible.indexOf(next) : visible.length, 0, ...items);
+    }
   };
   const document = {
     addEventListener() {},
     querySelector: () => null,
-    getElementById: id => id === 'commentContainer' ? container : null,
+    getElementById: id => id === 'commentContainer' ? container : id === 'moreComments' ? {} : visible.find(node => node.id === id),
     createElement: () => {
       const template = { set innerHTML(html) { template.content.html = html; template.content.children = [{ html }]; }, content: { html: '', children: [] } };
       return template;
@@ -142,8 +148,9 @@ function setupThread({ publishedAfter = 1, search = '?id=root', state = {} } = {
       async threadPage(root, after, reply) {
         reads++;
         assert.equal(root, 'root');
+        if (after && nextPage) return nextPage;
         assert.equal(after, null);
-        return { messages: reads >= publishedAfter ? [{ id: 'root' }, { ...REPLY, id: reply }] : [{ id: 'root' }] };
+        return { messages: reads >= publishedAfter ? [{ id: 'root' }, { ...REPLY, id: reply, reply_to: replyTo }] : [{ id: 'root' }] };
       }
     },
     ForumUI: {
@@ -154,10 +161,10 @@ function setupThread({ publishedAfter = 1, search = '?id=root', state = {} } = {
     }
   }, {
     replace: { mainMsgId: 'root', threadCursor: null, renderedComments: 0, orderedComments: [], userMap: { root: '楼主' }, ...state },
-    expose: ['watchReplyPublication', 'orderedComments', 'userMap']
+    expose: ['watchReplyPublication', 'orderedComments', 'userMap', 'appendCommentBatch', 'loadMoreComments']
   });
   const run = async () => { const timer = timers.shift(); await timer.fn(); return timer.ms; };
-  return { page, timers, toasts, rendered, appended, container, run, reads: () => reads };
+  return { page, timers, toasts, rendered, appended, visible, container, run, reads: () => reads };
 }
 
 test('a new text reply is added to the end of the thread once it is public', async () => {
@@ -176,7 +183,8 @@ test('a new text reply is added to the end of the thread once it is public', asy
 });
 
 test('a reply is announced but not added while earlier comments are not all on the page', async () => {
-  for (const state of [{ threadCursor: 'more' }, { renderedComments: 20, orderedComments: new Array(25).fill({}) }]) {
+  const rows = Array.from({ length: 25 }, (_, i) => earlier('comment-' + i, 'root'));
+  for (const state of [{ threadCursor: 'more' }, { renderedComments: 20, orderedComments: rows }]) {
     const h = setupThread({ state });
     h.page.watchReplyPublication('r9');
     await h.run();
@@ -191,6 +199,63 @@ test('a page that shows one linked reply is left as it is', async () => {
   await h.run();
   assert.equal(h.appended.length, 0);
   assert.equal(h.toasts.length, 1);
+});
+
+const earlier = (id, reply_to) => ({ ...REPLY, id, reply_to, created_at: '2026-11-17T08:00:00Z' });
+
+test('approval during pagination inserts a reply missed by the in-flight page', async () => {
+  const next = Promise.withResolvers();
+  const h = setupThread({ replyTo: 'a', nextPage: next.promise, state: {
+    orderedComments: [earlier('a', 'root')], renderedComments: 1, threadCursor: 'a'
+  } });
+  const loading = h.page.loadMoreComments();
+  h.page.watchReplyPublication('r9');
+  const watching = h.run();
+  await new Promise(resolve => setImmediate(resolve));
+  next.resolve({ messages: [earlier('b', 'root')], nextCursor: null });
+  await Promise.all([loading, watching]);
+  assert.deepEqual(h.visible.map(node => node.id), ['msg-a', 'msg-r9', 'msg-b']);
+});
+
+test('a newly approved nested reply stays inside its parent branch, even if more server pages exist', async () => {
+  for (const threadCursor of [null, 'b']) {
+    const orderedComments = [earlier('a', 'root'), earlier('child', 'a'), earlier('grandchild', 'child'), earlier('b', 'root')];
+    const h = setupThread({ replyTo: 'a', state: { orderedComments, renderedComments: 4, threadCursor } });
+    h.page.watchReplyPublication('r9');
+    await h.run();
+    h.page.watchReplyPublication('r9');
+    await h.run();
+    assert.deepEqual(orderedComments.map(row => row.id), ['a', 'child', 'grandchild', 'r9', 'b']);
+    assert.deepEqual(h.visible.map(node => node.id), orderedComments.map(row => 'msg-' + row.id));
+  }
+});
+
+test('an approved reply inside a buffered batch renders at its position when the reader loads more', async () => {
+  const orderedComments = [earlier('a', 'root'), earlier('child', 'a'), earlier('b', 'root')];
+  const h = setupThread({ replyTo: 'a', state: { orderedComments, renderedComments: 1 } });
+  h.page.watchReplyPublication('r9');
+  await h.run();
+  assert.deepEqual(orderedComments.map(row => row.id), ['a', 'child', 'r9', 'b']);
+  assert.deepEqual(h.visible.map(node => node.id), ['msg-a']);
+  h.page.appendCommentBatch();
+  assert.deepEqual(h.visible.map(node => node.id), ['msg-a', 'msg-child', 'msg-r9', 'msg-b']);
+});
+
+test('moderation finishing out of order keeps newer siblings and their descendants together', async () => {
+  const later = { ...REPLY, id: 'later', reply_to: 'a', created_at: '2026-11-17T08:01:00.000001Z' };
+  const orderedComments = [earlier('a', 'root'), later, earlier('child', 'later'), earlier('b', 'root')];
+  const h = setupThread({ replyTo: 'a', state: { orderedComments, renderedComments: 4 } });
+  h.page.watchReplyPublication('r9');
+  await h.run();
+  assert.deepEqual(h.visible.map(node => node.id), ['msg-a', 'msg-r9', 'msg-later', 'msg-child', 'msg-b']);
+});
+
+test('the legacy full-thread response keeps its chronological order', async () => {
+  const orderedComments = [earlier('a', 'root'), earlier('b', 'root'), earlier('child', 'a')];
+  const h = setupThread({ replyTo: 'a', state: { orderedComments, renderedComments: 3, depthFirstThread: false } });
+  h.page.watchReplyPublication('r9');
+  await h.run();
+  assert.deepEqual(h.visible.map(node => node.id), ['msg-a', 'msg-b', 'msg-child', 'msg-r9']);
 });
 
 test('reply watching gives up after four checks', async () => {

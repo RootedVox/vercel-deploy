@@ -44,3 +44,25 @@ test('unknown title falls back to generic notice', () => {
   assert.equal(style.pill, '通知');
   assert.notEqual(style.featured, true);
 });
+
+test('reply notifications preserve the sender and excerpt while status pills stay translatable', async () => {
+  const rows = [];
+  const reply = { type: 'reply', title: '回复 @同学 回复了你', content: '活动社团' };
+  const audit = { type: 'audit', title: '留言审核通过', content: '你的留言、评论或回复已审核通过并公开显示' };
+  const list = { querySelector: () => null, appendChild() {} };
+  const { openNotifications } = runPageScript('messages.js', {
+    ForumUI: { escapeHtml: value => value },
+    document: {
+      getElementById: id => id === 'notificationList' ? list : {},
+      createElement: () => ({}),
+      createDocumentFragment: () => ({ appendChild: row => rows.push(row) })
+    },
+    request: async () => Response.json({ notifications: [reply, audit] })
+  }, { replace: { showModal() {} }, expose: ['openNotifications'] });
+  await openNotifications(true);
+  assert.equal(rows.length, 2);
+  assert.match(rows[0].innerHTML, /<h4 class="notification-content">回复 @同学 回复了你<\/h4>/);
+  assert.match(rows[0].innerHTML, /<p class="notification-content">活动社团<\/p>/);
+  assert.match(rows[0].innerHTML, /<span class="item-pill">新回复<\/span>/);
+  assert.doesNotMatch(rows[1].innerHTML, /class="notification-content"/);
+});

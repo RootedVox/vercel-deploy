@@ -12,7 +12,9 @@ let userMap = Object.create(null);
 const COMMENT_BATCH_SIZE = 20;
 let orderedComments = [];
 let threadCursor = null;
+let depthFirstThread = true;
 let pageLoading = false;
+let pendingCommentPage;
 let renderedComments = 0;
 function getMsgIdFromUrl() {
     const params = new URLSearchParams(window.location.search);
@@ -48,24 +50,30 @@ function renderPreviews(id) {
     const box = document.getElementById(`preview-${id}`);
     if (!box) return;
     box.replaceChildren();
-    for (const image of replyImages.get(id) || []) {
+    const images = replyImages.get(id) || [];
+    images.forEach((image, index) => {
+        const item = document.createElement('span');
+        item.className = 'reply-image-preview';
         const img = document.createElement('img');
         img.className = 'preview-image-item';
+        img.id = `preview-image-${id}-${index}`;
         img.src = image.preview || image.url;
-        img.alt = '回复图片';
-        box.appendChild(img);
-        if (image.needsReplacement) {
-            const remove = document.createElement('button');
-            remove.type = 'button';
-            remove.textContent = '移除这张图片';
-            remove.onclick = () => {
-                replyImages.set(id, replyImages.get(id).filter(item => item !== image));
-                renderPreviews(id);
-                saveReplyImageDraft(id);
-            };
-            box.appendChild(remove);
-        }
-    }
+        img.alt = image.file?.name || '回复图片';
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.textContent = image.needsReplacement ? '移除失效图片' : '移除';
+        remove.setAttribute('aria-describedby', img.id);
+        remove.onclick = () => {
+            images.splice(index, 1);
+            if (image.preview) URL.revokeObjectURL(image.preview);
+            saveReplyImageDraft(id);
+            renderPreviews(id);
+            const buttons = box.querySelectorAll('button');
+            (buttons[index] || buttons[index - 1] || document.getElementById(`imageUpload-${id}`)).focus();
+        };
+        item.append(img, remove);
+        box.appendChild(item);
+    });
 }
 function saveReplyImageDraft(id) {
     const text = document.querySelector(`#reply-box-${id} textarea`)?.value || '';
@@ -110,6 +118,8 @@ async function loadMainMessage() {
         replyParentName = page.parentName;
         allMessages = page.messages;
         threadCursor = page.nextCursor;
+        // The older full-thread response uses chronological order and omits the cursor field.
+        depthFirstThread = Object.hasOwn(page, 'nextCursor');
     } catch {
         document.getElementById('mainMessageCard').innerHTML = '<div class="loading">留言暂时无法加载。<button class="comment-btn" data-action="retry">重试</button></div>';
         document.getElementById('commentContainer').innerHTML = '<div class="empty-comment">评论暂时无法加载，请重试。</div>';
@@ -238,7 +248,8 @@ async function loadMoreComments() {
     more.disabled = true;
     try {
         if (renderedComments >= orderedComments.length && threadCursor) {
-            const page = await RootedVoxPublicData.threadPage(mainMsgId, threadCursor);
+            pendingCommentPage = RootedVoxPublicData.threadPage(mainMsgId, threadCursor);
+            const page = await pendingCommentPage;
             for (const message of page.messages) {
                 if (Object.hasOwn(userMap, message.id)) continue;
                 userMap[message.id] = message.username;
@@ -258,6 +269,7 @@ async function loadMoreComments() {
         }
         return false;
     } finally {
+        pendingCommentPage = null;
         more.disabled = false;
         pageLoading = false;
     }
@@ -312,10 +324,10 @@ function showMainCommentBox(tid) {
     b.innerHTML = `
     <textarea maxlength="1000" class="comment-input" id="mainCommentInput" placeholder="写下你的评论..."></textarea>
     <small class="reply-count"></small>
-    <div class="image-upload-container" data-action="pick" data-id="${tid}">
-        <div class="image-upload-text">🖼️ 点击选择图片（可选）</div>
+    <label class="image-upload-container">
+        <span class="image-upload-text">🖼️ 点击选择图片（可选）</span>
         <input type="file" id="imageUpload-${tid}" class="image-upload-input" accept="image/*" multiple data-id="${tid}">
-    </div>
+    </label>
     <div id="preview-${tid}" class="preview-images"></div>
     <div class="anonymous-checkbox-container">
         <input type="checkbox" id="anonymous-${tid}" class="anonymous-checkbox">
@@ -336,10 +348,10 @@ function showReplyBox(tid) {
     b.innerHTML = `
     <textarea maxlength="1000" class="comment-input" id="replyInput-${tid}" placeholder="回复 @${escapeHtml(name)}"></textarea>
     <small class="reply-count"></small>
-    <div class="image-upload-container" data-action="pick" data-id="${tid}">
-        <div class="image-upload-text">🖼️ 点击选择图片（可选）</div>
+    <label class="image-upload-container">
+        <span class="image-upload-text">🖼️ 点击选择图片（可选）</span>
         <input type="file" id="imageUpload-${tid}" class="image-upload-input" accept="image/*" multiple data-id="${tid}">
-    </div>
+    </label>
     <div id="preview-${tid}" class="preview-images"></div>
     <div class="anonymous-checkbox-container">
         <input type="checkbox" id="anonymous-${tid}" class="anonymous-checkbox">
@@ -418,10 +430,7 @@ async function submitComment(rid, type) {
         if (button) { button.disabled = false; button.textContent = originalLabel; }
     }
 }
-// A text reply is saved as pending and the AI review publishes it a few seconds later.
-// The page asks for that reply in this thread a few times and, once it is public, adds it
-// to the end of the list (replies are listed oldest first) without reloading. Replies with
-// images wait for a human, so they are not watched. At most four small reads per reply.
+// Text replies are checked up to four times while waiting for automatic review.
 const PUBLISH_CHECKS = [3000, 6000, 12000, 24000];
 function watchReplyPublication(id) {
     let attempt = 0;
@@ -429,30 +438,69 @@ function watchReplyPublication(id) {
         try {
             const page = await RootedVoxPublicData.threadPage(mainMsgId, null, id);
             const reply = page?.messages?.find(message => String(message.id) === String(id));
-            if (reply) return showPublishedReply(reply);
+            if (reply) {
+                // A page requested before approval can advance the cursor past this reply.
+                if (pendingCommentPage) await pendingCommentPage.catch(() => {});
+                return showPublishedReply(reply);
+            }
         } catch { /* A failed read is simply tried again at the next step. */ }
         if (++attempt < PUBLISH_CHECKS.length) setTimeout(check, PUBLISH_CHECKS[attempt]);
     };
     setTimeout(check, PUBLISH_CHECKS[0]);
 }
 
+// PostgreSQL orders siblings by (created_at, id). Preserve fractional seconds beyond
+// JavaScript's millisecond precision when two siblings were created in the same millisecond.
+function followsReply(row, reply) {
+    const delta = Date.parse(row.created_at) - Date.parse(reply.created_at);
+    if (delta) return delta > 0;
+    const fraction = time => (time.match(/\.(\d+)/)?.[1] || '').padEnd(6, '0');
+    const left = fraction(row.created_at);
+    const right = fraction(reply.created_at);
+    return left === right ? row.id > reply.id : left > right;
+}
+
+function publishedReplyIndex(reply) {
+    if (!depthFirstThread) {
+        const next = orderedComments.findIndex(row => followsReply(row, reply));
+        return next === -1 ? orderedComments.length : next;
+    }
+    const parent = String(reply.reply_to);
+    let index = 0;
+    if (parent !== String(mainMsgId)) {
+        index = orderedComments.findIndex(row => String(row.id) === parent) + 1;
+        if (!index) return -1;
+    }
+    // Walk just this parent's visible branch, keeping existing descendants together.
+    const branch = new Set([parent]);
+    for (; index < orderedComments.length; index++) {
+        const row = orderedComments[index];
+        const owner = String(row.reply_to);
+        if (!branch.has(owner) || (owner === parent && followsReply(row, reply))) break;
+        branch.add(String(row.id));
+    }
+    return index;
+}
+
 function showPublishedReply(reply) {
     notify('你的回复已通过审核并公开。', 'success');
-    if (document.getElementById(`msg-${reply.id}`) || Object.hasOwn(userMap, reply.id)) return;
-    // Added only when the whole thread is already on the page, so the newest reply really is
-    // last; otherwise it shows up in place when the remaining comments are loaded. A page
-    // that shows a single linked reply is left as it is.
-    if (replyId || threadCursor || renderedComments < orderedComments.length) return;
+    if (replyId || Object.hasOwn(userMap, reply.id)) return;
+    const index = publishedReplyIndex(reply);
+    // The server will return a reply beyond our cursor on a subsequent page.
+    if (index < 0 || (index === orderedComments.length && threadCursor)) return;
     const container = document.getElementById('commentContainer');
     if (!container) return;
-    container.querySelector('.empty-comment')?.remove();
+    const next = orderedComments[index];
+    const buffered = index >= renderedComments && renderedComments < orderedComments.length;
+    orderedComments.splice(index, 0, reply);
     userMap[reply.id] = reply.username;
-    orderedComments.push(reply);
+    if (buffered) return;
+    container.querySelector('.empty-comment')?.remove();
     renderedComments += 1;
     const template = document.createElement('template');
     template.innerHTML = renderComment(reply);
     const items = [...template.content.children];
-    container.append(template.content);
+    container.insertBefore(template.content, next ? document.getElementById(`msg-${next.id}`) : null);
     renderMessageAvatars(items);
 }
 // ==================== 跳转 + 高亮 ====================
@@ -528,8 +576,6 @@ const actions = {
         copyReplyLink(event.target.closest('a'));
     },
     jump: id => jumpToComment(id),
-    // The hidden file input sits inside the container, so its own click bubbles back here.
-    pick: (id, kind, event) => { if (!event.target.closest('input')) document.getElementById(`imageUpload-${id}`)?.click(); },
     submit: (id, kind) => submitComment(id, kind)
 };
 document.addEventListener('click', event => {

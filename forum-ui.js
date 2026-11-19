@@ -104,6 +104,7 @@
 
   const uploads = new WeakMap();
   const uploadReuseMs = 24 * 60 * 60 * 1000;
+  const uploadTypes = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
   function recoverDraftImages(images) {
       for (const image of images) {
           if (image.file) {
@@ -127,7 +128,8 @@
           const form = new FormData();
           form.append('kind', 'message');
           for (const file of missing) {
-              const image = file.size < 100 * 1024 ? file : await compressImage(file);
+              const sendOriginal = file.size < 100 * 1024 && uploadTypes.has(file.type);
+              const image = sendOriginal ? file : await compressImage(file);
               form.append('files', image, image.name);
           }
           const response = await request('/api/uploads', { method: 'POST', credentials: 'include', body: form });
