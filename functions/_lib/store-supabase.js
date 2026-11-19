@@ -18,5 +18,5 @@ export const pruneAuthState = env => call(env, 'prune');
 export const consumeTransaction = (env, state, binding) => call(env, 'consume_transaction', { state, binding });
 export const createSession = (env, value) => call(env, 'create_session', value);
 export const readSession = (env, hash) => call(env, 'read_session', { hash });
-export const rotateSession = (env, previous, next, expires) => call(env, 'rotate_session', { previous, next, expires });
+export const rotateSession = (env, previous, next, expires, nonce) => call(env, 'stage_rotation', { previous, next, expires, nonce });
 export const revokeSession = (env, hash) => call(env, 'revoke_session', { hash });

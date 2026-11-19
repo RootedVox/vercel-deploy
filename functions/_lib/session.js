@@ -41,26 +41,31 @@ export async function getBusinessSession(request, env, config, rotate = false) {
   if (!session) {
     return {
       session: null,
-      setCookie: clearCookie(names.session, names.secure, businessSessionCookieDomain(request, env))
+      setCookie: null
     };
   }
 
+  // A staged cookie can first be presented near the end of its own lifetime.
+  const expires = Date.parse(session.expires_at);
+  const renewalDue = expires < Date.parse(session.absolute_expires_at) &&
+    expires - Date.now() < config.rotateAfter * 1000;
   const lastSeen = new Date(session.last_seen_at).getTime();
-  if (!rotate || !Number.isFinite(lastSeen) || Date.now() - lastSeen < config.rotateAfter * 1000) {
+  if (!rotate || (session.session_hash && session.session_hash !== currentHash) || !Number.isFinite(lastSeen) || (!renewalDue && Date.now() - lastSeen < config.rotateAfter * 1000)) {
     return { session, setCookie: null };
   }
 
-  const nextToken = randomBase64Url(32);
+  // Reissue the same offer if the browser missed the previous response.
+  const nonce = session.rotation_nonce || randomBase64Url(32);
+  const nextToken = await sha256Base64Url('rv-session-renewal:' + token + ':' + nonce);
   const nextHash = await sha256Base64Url(nextToken);
   const absoluteExpiry = Date.parse(session.absolute_expires_at);
-  const expiresAt = new Date(Math.min(Date.now() + config.sessionTtl * 1000, absoluteExpiry)).toISOString();
-  const rotated = await rotateSession(env, currentHash, nextHash, expiresAt);
+  const expiresAt = session.rotation_expires_at || new Date(Math.min(Date.now() + config.sessionTtl * 1000, absoluteExpiry)).toISOString();
+  const rotated = session.rotation_nonce || await rotateSession(env, currentHash, nextHash, expiresAt, nonce);
   if (!rotated) {
     // Another request may already have rotated this token within its grace period.
     return { session: await readSession(env, currentHash), setCookie: null };
   }
-  session.last_seen_at = new Date().toISOString();
-  session.expires_at = expiresAt;
+  // The store promotes the candidate when the browser first presents it.
   const cookieTtl = Math.max(1, Math.ceil((Date.parse(expiresAt) - Date.now()) / 1000));
   return {
     session,
