@@ -167,6 +167,8 @@
                 const htmlFragment = document.createDocumentFragment();
                 notes.forEach(n => {
                     const style = notificationStyle(n);
+                    // Reply titles contain the sender's name and the body quotes their message.
+                    const replyContent = n.type === 'reply' ? ' class="notification-content"' : '';
                     const itemDiv = document.createElement("div");
                     itemDiv.className = 'notification-item' +
                         (style.negative ? ' is-negative' : '') +
@@ -176,11 +178,11 @@
                     itemDiv.innerHTML = `
                       <div class="item-top">
                         <span class="item-icon" aria-hidden="true">${style.icon}</span>
-                        <h4>${escapeHtml(n.title)}</h4>
+                        <h4${replyContent}>${escapeHtml(n.title)}</h4>
                         ${n.read === false ? '<span class="unread-dot" title="未读"></span>' : ''}
                         <span class="item-pill">${style.pill}</span>
                       </div>
-                      <p>${escapeHtml(n.content)}</p>
+                      <p${replyContent}>${escapeHtml(n.content)}</p>
                       <p class="notification-time">${new Date(n.created_at).toLocaleString()}</p>
                     `;
                     htmlFragment.appendChild(itemDiv);

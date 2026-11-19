@@ -8,6 +8,8 @@
     if (heading) heading.textContent = '精华专审';
   }
   const list = document.getElementById('list');
+  const reasonInput = document.getElementById('reasonInput');
+  const cancelReason = document.getElementById('cancelReason');
   let selectedId = null;
   let selectedAction = null;
 
@@ -105,6 +107,7 @@
   }
 
   list.addEventListener('click', async event => {
+    if (selectedId) return;
     const image = event.target.closest('.message-image');
     if (image) return window.open(image.src, '_blank', 'noopener');
     const button = event.target.closest('button[data-action]');
@@ -116,34 +119,39 @@
       const deleting = nextAction === 'delete';
       document.querySelector('#reasonModal h2').textContent = deleting ? '删除原因' : '拒绝原因';
       document.querySelector('#reasonModal p').textContent = deleting ? '帖子将移入已删除列表，原因会发送给发布者。' : '原因将发送给发布者。';
-      document.getElementById('reasonInput').placeholder = deleting ? '请填写删除原因' : '请填写拒绝原因';
+      reasonInput.placeholder = deleting ? '请填写删除原因' : '请填写拒绝原因';
       document.getElementById('confirmReason').textContent = deleting ? '确认删除' : '确认拒绝';
       document.getElementById('reasonModal').style.display = 'flex';
-      document.getElementById('reasonInput').focus();
+      reasonInput.focus();
       return;
     }
     button.disabled = true;
     try { await moderate(button.dataset.id, nextAction); } catch (error) { if (!['authentication_required', 'forbidden'].includes(error.message)) alert('操作失败，请重试'); } finally { button.disabled = false; }
   });
 
-  document.getElementById('cancelReason')?.addEventListener('click', () => {
+  function closeReason() {
     selectedId = null;
     selectedAction = null;
+    reasonInput.value = '';
     document.getElementById('reasonModal').style.display = 'none';
-  });
+  }
+  cancelReason?.addEventListener('click', closeReason);
   document.getElementById('confirmReason')?.addEventListener('click', async event => {
-    const reason = document.getElementById('reasonInput').value.trim();
+    const reason = reasonInput.value.trim();
     if (!reason || !selectedId || !selectedAction) return alert('请填写原因');
     event.target.disabled = true;
+    cancelReason.disabled = true;
+    reasonInput.readOnly = true;
     try {
       await moderate(selectedId, selectedAction, reason);
-      selectedId = null;
-      selectedAction = null;
-      document.getElementById('reasonInput').value = '';
-      document.getElementById('reasonModal').style.display = 'none';
+      closeReason();
     } catch (error) {
       if (!['authentication_required', 'forbidden'].includes(error.message)) alert('操作失败，请刷新后重试');
-    } finally { event.target.disabled = false; }
+    } finally {
+      event.target.disabled = false;
+      cancelReason.disabled = false;
+      reasonInput.readOnly = false;
+    }
   });
   document.getElementById('logoutBtn').addEventListener('click', () => RootedVoxAuth.logout('/main'));
 

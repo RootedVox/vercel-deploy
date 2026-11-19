@@ -36,6 +36,27 @@ async function upload(file, encoded) {
 
 const photo = (type, size) => new File([new Uint8Array(size)], 'photo.' + type.split('/')[1], { type });
 
+test('a small BMP is converted to an accepted format even when encoding increases its size', async () => {
+  const sent = await upload(photo('image/bmp', 1000), type => ({ type, size: 1200 }));
+  assert.equal(sent.type, 'image/webp');
+  assert.equal(sent.name, 'photo.webp');
+  assert.equal(sent.size, 1200);
+});
+
+test('a small image that cannot be converted reports the encoding error', async () => {
+  await assert.rejects(upload(photo('image/avif', 1000), () => null), /图片压缩失败/);
+});
+
+test('small images in accepted formats are sent unchanged', async () => {
+  for (const type of ['image/jpeg', 'image/png', 'image/gif', 'image/webp']) {
+    const file = photo(type, 1000);
+    const sent = await upload(file, () => assert.fail('small supported image was re-encoded'));
+    assert.equal(sent.name, file.name);
+    assert.equal(sent.type, file.type);
+    assert.deepEqual(await sent.arrayBuffer(), await file.arrayBuffer());
+  }
+});
+
 test('browsers that export WebP upload the compressed WebP', async () => {
   const sent = await upload(photo('image/jpeg', 2_000_000), type => ({ type, size: 300_000 }));
   assert.equal(sent.type, 'image/webp');
