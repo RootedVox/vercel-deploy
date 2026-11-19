@@ -50,24 +50,30 @@ function renderPreviews(id) {
     const box = document.getElementById(`preview-${id}`);
     if (!box) return;
     box.replaceChildren();
-    for (const image of replyImages.get(id) || []) {
+    const images = replyImages.get(id) || [];
+    images.forEach((image, index) => {
+        const item = document.createElement('span');
+        item.className = 'reply-image-preview';
         const img = document.createElement('img');
         img.className = 'preview-image-item';
+        img.id = `preview-image-${id}-${index}`;
         img.src = image.preview || image.url;
-        img.alt = '回复图片';
-        box.appendChild(img);
-        if (image.needsReplacement) {
-            const remove = document.createElement('button');
-            remove.type = 'button';
-            remove.textContent = '移除这张图片';
-            remove.onclick = () => {
-                replyImages.set(id, replyImages.get(id).filter(item => item !== image));
-                renderPreviews(id);
-                saveReplyImageDraft(id);
-            };
-            box.appendChild(remove);
-        }
-    }
+        img.alt = image.file?.name || '回复图片';
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.textContent = image.needsReplacement ? '移除失效图片' : '移除';
+        remove.setAttribute('aria-describedby', img.id);
+        remove.onclick = () => {
+            images.splice(index, 1);
+            if (image.preview) URL.revokeObjectURL(image.preview);
+            saveReplyImageDraft(id);
+            renderPreviews(id);
+            const buttons = box.querySelectorAll('button');
+            (buttons[index] || buttons[index - 1] || document.getElementById(`imageUpload-${id}`)).focus();
+        };
+        item.append(img, remove);
+        box.appendChild(item);
+    });
 }
 function saveReplyImageDraft(id) {
     const text = document.querySelector(`#reply-box-${id} textarea`)?.value || '';
@@ -318,10 +324,10 @@ function showMainCommentBox(tid) {
     b.innerHTML = `
     <textarea maxlength="1000" class="comment-input" id="mainCommentInput" placeholder="写下你的评论..."></textarea>
     <small class="reply-count"></small>
-    <div class="image-upload-container" data-action="pick" data-id="${tid}">
-        <div class="image-upload-text">🖼️ 点击选择图片（可选）</div>
+    <label class="image-upload-container">
+        <span class="image-upload-text">🖼️ 点击选择图片（可选）</span>
         <input type="file" id="imageUpload-${tid}" class="image-upload-input" accept="image/*" multiple data-id="${tid}">
-    </div>
+    </label>
     <div id="preview-${tid}" class="preview-images"></div>
     <div class="anonymous-checkbox-container">
         <input type="checkbox" id="anonymous-${tid}" class="anonymous-checkbox">
@@ -342,10 +348,10 @@ function showReplyBox(tid) {
     b.innerHTML = `
     <textarea maxlength="1000" class="comment-input" id="replyInput-${tid}" placeholder="回复 @${escapeHtml(name)}"></textarea>
     <small class="reply-count"></small>
-    <div class="image-upload-container" data-action="pick" data-id="${tid}">
-        <div class="image-upload-text">🖼️ 点击选择图片（可选）</div>
+    <label class="image-upload-container">
+        <span class="image-upload-text">🖼️ 点击选择图片（可选）</span>
         <input type="file" id="imageUpload-${tid}" class="image-upload-input" accept="image/*" multiple data-id="${tid}">
-    </div>
+    </label>
     <div id="preview-${tid}" class="preview-images"></div>
     <div class="anonymous-checkbox-container">
         <input type="checkbox" id="anonymous-${tid}" class="anonymous-checkbox">
@@ -570,8 +576,6 @@ const actions = {
         copyReplyLink(event.target.closest('a'));
     },
     jump: id => jumpToComment(id),
-    // The hidden file input sits inside the container, so its own click bubbles back here.
-    pick: (id, kind, event) => { if (!event.target.closest('input')) document.getElementById(`imageUpload-${id}`)?.click(); },
     submit: (id, kind) => submitComment(id, kind)
 };
 document.addEventListener('click', event => {

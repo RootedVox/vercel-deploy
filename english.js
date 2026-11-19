@@ -200,7 +200,7 @@ for (const [chinese, english] of [
   ['评论已更新，重新加载', 'Comments updated — reload'],
   ['加载更多评论', 'Load more comments'],
   ['回复图片', 'Reply image'], ['链接指向的回复', 'Linked reply'],
-  ['移除这张图片', 'Remove this image'], ['最多选择 5 张图片', 'Up to 5 images'],
+  ['移除失效图片', 'Remove expired image'], ['最多选择 5 张图片', 'Up to 5 images'],
   ['每张图片不超过 5MB', 'Up to 5 MB per image'], ['仅支持图片文件', 'Images only'],
   ['：仅支持图片文件', ': images only'], ['：超过 5MB', ': over 5 MB'], ['：最多选择 5 张', ': up to 5 images'],
   ['已上传的图片', 'Uploaded images'], ['移除图片 ', 'Remove image '],
