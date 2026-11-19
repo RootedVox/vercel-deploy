@@ -1,5 +1,7 @@
 window.rvEnglish = new Map(Object.entries({
   "收起": "Show less",
+  "RootedVox 4.7.2 · 发布即时刷新与登录续期": "RootedVox 4.7.2 · Instant refresh and session renewal",
+  "留言审核通过后现在会立刻出现在列表里，不用再等缓存过期；转成人工复核时通知红点也会同步更新。同时修复了登录续期响应丢失时被意外退出登录的问题。本次需要执行数据库迁移脚本才能完整生效。": "Approved posts now appear in the list immediately instead of waiting for a cache to expire, and the notification dot updates when a post is sent for human review. We also fixed an issue where a lost session-renewal response could sign you out unexpectedly. A database migration is required for these changes to take full effect.",
   "RootedVox 4.7.1 · 审核判定分级": "RootedVox 4.7.1 · Graded review verdicts",
   "多家审核模型一致判定内容不适宜公开发布时，留言会被直接拒绝并说明原因，作者会收到「留言未通过审核」的站内通知，认为误判可以联系管理员复核。只要模型之间存在分歧，仍然交给人工判断，不会因为一家模型的意见就否掉留言。": "When every review model agrees that a post is unsuitable for public display, it is rejected outright with a stated reason and the author is notified that the post did not pass review; if you believe this is a mistake, contact an administrator to have it re-checked. The moment the models disagree, the decision goes to a human instead — no single model's opinion can reject a post on its own.",
   "RootedVox 4.7.0 · 审核通知与联系方式拦截": "RootedVox 4.7.0 · Review notices and contact-info blocking",
