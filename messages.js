@@ -103,7 +103,7 @@
         function trapModalFocus(event) {
             const modal = [...document.querySelectorAll('.notification-modal')].find(node => node.style.display === 'flex');
             if (!modal) return;
-            const items = [...modal.querySelectorAll('button, input, select, textarea, a[href]')]
+            const items = [...modal.querySelectorAll('button, input, select, textarea, a[href], [tabindex="0"]')]
                 .filter(node => !node.disabled && node.offsetParent !== null);
             if (!items.length) return;
             const first = items[0], last = items.at(-1);
@@ -125,6 +125,15 @@
             if (title.includes('审核通过') || title.includes('已恢复')) return { icon: '✓', pill: '已公开', negative: false };
             if (title.includes('未通过审核') || title.includes('已被删除')) return { icon: '×', pill: title.includes('删除') ? '已删除' : '未通过', negative: true };
             return { icon: '•', pill: '通知', negative: false };
+        }
+
+        function loadMoreNotificationsIfNeeded() {
+            if (!notifyHasMore || notifyLoading) return;
+            const modal = document.getElementById('notificationModal');
+            const list = document.getElementById('notificationList');
+            // Hidden lists have zero height. Only an open dialog can request another page.
+            if (modal.style.display !== 'flex' || !list.clientHeight || !document.getElementById('notificationRetry').hidden) return;
+            if (list.scrollTop + list.clientHeight >= list.scrollHeight - 80) return openNotifications(true);
         }
 
         async function openNotifications(append = false) {
@@ -160,7 +169,6 @@
                     } else {
                         listEl.insertAdjacentHTML('beforeend', `<div style="text-align:center;padding:15px 0;color:var(--muted);font-size:13px;">没有更多通知了</div>`);
                     }
-                    notifyLoading = false;
                     return;
                 }
 
@@ -218,6 +226,8 @@
                 retry.hidden = false;
             } finally {
                 notifyLoading = false;
+                // A full viewport or a scroll during the read receipt may produce no further scroll event.
+                if (notifyHasMore && retry.hidden) requestAnimationFrame(loadMoreNotificationsIfNeeded);
             }
         }
 
@@ -1134,15 +1144,8 @@
             });
 
             const notifyModalBody = document.getElementById("notificationList");
-            notifyModalBody.addEventListener("scroll", async () => {
-                if (!notifyHasMore || notifyLoading) return;
-                const scrollTop = notifyModalBody.scrollTop;
-                const viewHeight = notifyModalBody.clientHeight;
-                const totalHeight = notifyModalBody.scrollHeight;
-                if (scrollTop + viewHeight >= totalHeight - 80) {
-                    await openNotifications(true);
-                }
-            });
+            notifyModalBody.addEventListener('scroll', loadMoreNotificationsIfNeeded);
+            window.addEventListener('resize', loadMoreNotificationsIfNeeded);
 
             if (loggedIn) {
                 initUserExtra().catch(() => showFormStatus('个人资料暂时无法同步，可稍后重新打开页面重试。', 'error'));
