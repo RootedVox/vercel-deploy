@@ -79,6 +79,15 @@ test('the page gives up after four checks, about 45 seconds in all', async () =>
   assert.equal(h.toasts.length, 0);
 });
 
+test('the author’s notification dot is refreshed while a text post is still private', async () => {
+  let probes = 0;
+  const h = setup({ publishedAfter: 99, filters: { refreshNotificationDot: async () => { probes++; } } });
+  h.page.watchForPublication('p1');
+  await h.run();
+  assert.equal(probes, 1);
+  assert.equal(h.container.html.includes('message-p1'), false);
+});
+
 test('a failed read is retried at the next step', async () => {
   const h = setup({ publishedAfter: 2, failFirst: true });
   h.page.watchForPublication('p1');

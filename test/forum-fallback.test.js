@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { processModerationBatch } from '../functions/_lib/moderation-worker.js';
-import { clearPublicReadCache, onRequestGet } from '../functions/api/messages.js';
+import { onRequestGet } from '../functions/api/messages.js';
 
 const env = {
   BUSINESS_SUPABASE_URL: 'https://db.example',
@@ -34,38 +34,20 @@ const feedEnv = { BUSINESS_SUPABASE_URL: 'https://db.example', BUSINESS_SUPABASE
 const feed = query => onRequestGet({ request: new Request('https://rv.celestivast.com/api/messages?' + query), env: feedEnv });
 const feedRows = () => Response.json([{ id: '11111111-1111-4111-8111-111111111111', username: 'a', content: 'b', zone: '日常分享', created_at: '2026-11-13T00:00:00Z', reply_to: null }]);
 
-test('a warm instance answers repeated first-page and overview reads from memory', async t => {
-  clearPublicReadCache();
-  const fetch = t.mock.method(globalThis, 'fetch', async () => feedRows());
-  const first = await feed('limit=20&page=0&sort=newest');
-  const firstCalls = fetch.mock.callCount();
-  // The same view with its parameters in another order, and two visitors at once.
-  const [second, third] = await Promise.all([feed('sort=newest&page=0&limit=20'), feed('limit=20&page=0&sort=newest')]);
-  assert.equal(fetch.mock.callCount(), firstCalls);
-  assert.deepEqual(await second.json(), await first.json());
-  assert.equal(third.headers.get('Cache-Control'), 'no-store, max-age=0');
-  await feed('overview=1');
-  const afterOverview = fetch.mock.callCount();
-  await feed('overview=1');
-  assert.equal(fetch.mock.callCount(), afterOverview);
-  // Another zone is another view.
-  await feed('limit=20&page=0&sort=newest&zone=学习互助');
-  assert.ok(fetch.mock.callCount() > afterOverview);
-});
-
-test('kept answers expire after a few seconds', async t => {
-  clearPublicReadCache();
-  t.mock.timers.enable({ apis: ['Date'] });
-  const fetch = t.mock.method(globalThis, 'fetch', async () => feedRows());
-  await feed('limit=20');
-  const calls = fetch.mock.callCount();
-  t.mock.timers.tick(16_000);
-  await feed('limit=20');
-  assert.ok(fetch.mock.callCount() > calls);
+test('the next feed and overview reads include a newly approved post', async t => {
+  let approved = [];
+  t.mock.method(globalThis, 'fetch', async () => Response.json(approved));
+  for (const query of ['limit=20&page=0&sort=newest', 'overview=1', 'zone=学习互助']) {
+    approved = [];
+    assert.deepEqual((await (await feed(query)).json()).messages, []);
+    approved = [{ id: '123', content: '刚通过审核', zone: '学习互助' }];
+    const response = await feed(query);
+    assert.match(response.headers.get('Cache-Control'), /no-store/);
+    assert.equal((await response.json()).messages[0].id, '123');
+  }
 });
 
 test('searches, later pages, threads and failed reads are never kept', async t => {
-  clearPublicReadCache();
   let fail = false;
   const fetch = t.mock.method(globalThis, 'fetch', async () => fail ? new Response(null, { status: 503 }) : feedRows());
   for (const query of ['limit=20&search=x', 'limit=20&page=1', 'limit=20&cursor=2026-11-13T00:00:00Z|11111111-1111-4111-8111-111111111111', 'thread=11111111-1111-4111-8111-111111111111']) {

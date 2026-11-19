@@ -8,6 +8,8 @@
 
 已有部署请在共享业务库重新执行一次 `supabase/20261116_forum_reply_counts.sql`，让列表计入超过 100 层的可见回复。
 
+在共享业务库执行一次 `supabase/20261118_forum_lexicon_notice.sql`。词库命中后，审核任务和作者的未读通知在同一事务内提交。写入失败时，定时任务可在租约到期后重试。
+
 ### 定时任务示例
 
 若业务库已启用 Supabase Cron、Vault 和 pg_net，在 Vault 创建 `forum_worker_url`（完整 HTTPS 地址）和 `forum_worker_secret` 后，可在 SQL Editor 执行以下语句。定时器只需要在共享库配置一次。它也会回收超过七天仍未被帖子引用的新上传图片。
