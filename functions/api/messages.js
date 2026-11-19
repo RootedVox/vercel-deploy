@@ -152,6 +152,21 @@ async function listMessages(request, env) {
     if (!MESSAGE_ID.test(id)) return json({ error: 'invalid_request' }, 400);
     return readAnonymousImage(env, id, url.searchParams.get('slot'));
   }
+  // A reply notification only knows the reply id. Resolve its root through the public
+  // projection so the client can open the whole thread instead of a single-reply page.
+  // A reply that is still pending (or deleted) is absent from that projection, so the
+  // function returns null and the client reports it rather than opening a wrong thread.
+  if (url.searchParams.has('replyRoot')) {
+    const id = url.searchParams.get('replyRoot');
+    if (!MESSAGE_ID.test(id)) return json({ error: 'invalid_request' }, 400);
+    try {
+      const rootId = await requestPublicData(env, `rpc/public_forum_reply_root?${new URLSearchParams({ target_id: id })}`);
+      return json({ rootId: rootId || null });
+    } catch (error) {
+      if (isMissingRpc(error)) return json({ error: 'reply_root_unavailable' }, 503);
+      throw error;
+    }
+  }
   if (url.searchParams.get('featuredQuota') === '1') {
     const auth = await authenticateApi(request, env);
     if (auth.response) return auth.response;

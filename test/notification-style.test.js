@@ -47,8 +47,8 @@ test('unknown title falls back to generic notice', () => {
 
 test('reply notifications preserve the sender and excerpt while status pills stay translatable', async () => {
   const rows = [];
-  const reply = { type: 'reply', title: '回复 @同学 回复了你', content: '活动社团' };
-  const audit = { type: 'audit', title: '留言审核通过', content: '你的留言、评论或回复已审核通过并公开显示' };
+  const reply = { type: 'reply', title: '回复 @同学 回复了你', content: '活动社团', related_id: 'reply-1' };
+  const audit = { type: 'audit', title: '留言审核通过', content: '你的留言、评论或回复已审核通过并公开显示', related_id: 'msg-9' };
   const list = { querySelector: () => null, appendChild() {} };
   const { openNotifications } = runPageScript('messages.js', {
     ForumUI: { escapeHtml: value => value },
@@ -65,4 +65,30 @@ test('reply notifications preserve the sender and excerpt while status pills sta
   assert.match(rows[0].innerHTML, /<p class="notification-content">活动社团<\/p>/);
   assert.match(rows[0].innerHTML, /<span class="item-pill">新回复<\/span>/);
   assert.doesNotMatch(rows[1].innerHTML, /class="notification-content"/);
+});
+
+// Only a reply has a thread to open. The button carries the reply id; the thread is
+// resolved when it is clicked, so a reply that is still pending can explain itself.
+test('only reply notifications get a view button, and it carries the reply id', async () => {
+  const rows = [];
+  const notes = [
+    { type: 'reply', title: '甲 回复了你', content: '内容一', related_id: 'r-1' },
+    { type: 'audit', title: '留言审核通过', content: '内容二', related_id: 'm-1' },
+    { type: 'reply', title: '乙 回复了你', content: '内容三', related_id: null }
+  ];
+  const list = { querySelector: () => null, appendChild() {} };
+  const { openNotifications } = runPageScript('messages.js', {
+    ForumUI: { escapeHtml: value => value },
+    document: {
+      getElementById: id => id === 'notificationList' ? list : {},
+      createElement: () => ({}),
+      createDocumentFragment: () => ({ appendChild: row => rows.push(row) })
+    },
+    request: async () => Response.json({ notifications: notes })
+  }, { replace: { showModal() {} }, expose: ['openNotifications'] });
+  await openNotifications(true);
+  assert.equal(rows.length, 3);
+  assert.match(rows[0].innerHTML, /class="notification-open" data-reply-id="r-1"/);
+  assert.doesNotMatch(rows[1].innerHTML, /notification-open/);
+  assert.doesNotMatch(rows[2].innerHTML, /notification-open/);
 });

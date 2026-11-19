@@ -1,5 +1,7 @@
 window.rvEnglish = new Map(Object.entries({
   "收起": "Show less",
+  "RootedVox 4.8.0 · 通知直达回复与多项修复": "RootedVox 4.8.0 · Jump to a reply from notifications",
+  "通知中心收到「回复了你」时会出现「查看回复」按钮，点开直接进入完整主帖并滚动到那条回复高亮，不再只能看单条回复页。同时修复了嵌套回复错位、小图上传失败、英文通知误译与审核原因串帖等问题。": "Reply notifications now have a \"View reply\" button that opens the full thread and scrolls to that reply, instead of a page showing a single reply. This release also fixes misplaced nested replies, small-image upload failures, mistranslated English notifications and a moderation reason leaking into the next post.",
   "RootedVox 4.7.3 · 登录与英文界面修复": "RootedVox 4.7.3 · Sign-in and English interface fixes",
   "修复了 D1 模式下无法登录、Vercel 备用站自定义域名下写操作被拒绝、英文界面部分动态文案仍显示中文，以及通知标为已读后列表仍显示未读的问题。": "Fixed sign-in failures in D1 mode, write requests rejected on the Vercel mirror with a custom domain, some runtime text still shown in Chinese in the English interface, and notifications still appearing unread after being marked as read.",
   "RootedVox 4.7.2 · 发布即时刷新与登录续期": "RootedVox 4.7.2 · Instant refresh and session renewal",
@@ -187,6 +189,10 @@ for (const [chinese, english] of [
   ['新回复', 'New reply'], ['人工复核', 'Human review'], ['审核中', 'In review'],
   ['已公开', 'Published'], ['未通过', 'Not approved'], ['通知', 'Notice'],
   ['已删除', 'Deleted'], ['精华', 'Featured'],
+  ['查看回复', 'View reply'], ['正在打开…', 'Opening…'],
+  ['这条回复还没有公开，暂时无法查看。', 'This reply is not public yet, so it cannot be opened.'],
+  ['暂时无法打开这条回复，请稍后再试。', 'Could not open this reply. Please try again later.'],
+  ['这条回复还没有公开，暂时无法定位。', 'This reply is not public yet, so it cannot be located.'],
   ['你的留言已通过审核并公开。', 'Your post has been approved and published.'],
   ['你的回复已通过审核并公开。', 'Your reply has been approved and published.'],
   ['请先写下留言内容。', 'Write something before posting.'],

@@ -16,13 +16,13 @@
   root.lang = language;
   // The translation table is only needed in English. It is written into the document
   // while this script blocks the parser, so the page never paints untranslated first.
-  if (language === 'en') document.write('<script src="/english.js?v=745a59b977"><\/script>');
+  if (language === 'en') document.write('<script src="/english.js?v=d78d285bc2"><\/script>');
   let englishRequested = language === 'en';
   function loadEnglish() {
     if (englishRequested) return;
     englishRequested = true;
     const script = document.createElement('script');
-    script.src = '/english.js?v=745a59b977';
+    script.src = '/english.js?v=d78d285bc2';
     script.onload = () => { localize(document.head.querySelector('title')); localize(document.body); };
     document.head.append(script);
   }

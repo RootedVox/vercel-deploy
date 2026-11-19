@@ -108,6 +108,10 @@ function previewImages(id) {
 const messageIdPattern = /^(?:\d+|[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
 const linkedId = new URLSearchParams(location.search).get('replyId')?.toLowerCase();
 const replyId = linkedId !== getMsgIdFromUrl() && messageIdPattern.test(linkedId || '') ? linkedId : null;
+// `focus` opens the WHOLE thread and scrolls to one reply, unlike `replyId` which shows
+// that reply alone. It is what the notification centre links to.
+const focusParam = new URLSearchParams(location.search).get('focus')?.toLowerCase();
+const focusId = !replyId && focusParam !== getMsgIdFromUrl() && messageIdPattern.test(focusParam || '') ? focusParam : null;
 let replyParentName = null;
 async function loadMainMessage() {
     mainMsgId = getMsgIdFromUrl();
@@ -143,6 +147,7 @@ async function retryThread() {
     document.getElementById('commentContainer').innerHTML = '<div class="loading">加载评论中...</div>';
     if (await loadMainMessage()) {
         if (replyId) jumpToComment(replyId);
+        else if (focusId) focusComment(focusId);
         observeMoreComments();
         const target = new URLSearchParams(location.search).get('compose');
         if (target && await authReady && ForumDrafts.get('reply-' + target) && document.getElementById('reply-box-' + target)) {
@@ -510,6 +515,26 @@ function jumpToComment(targetId) {
     el.scrollIntoView({ behavior: 'smooth' });
     el.classList.add('highlight');
     setTimeout(() => el.classList.remove('highlight'), 2000);
+}
+// `focus` opens the whole thread (unlike `replyId`, which shows one reply alone) and then
+// scrolls to the target. Comments are paged 20 at a time, so keep loading until it appears
+// or the thread is exhausted; a reply that is still pending is not in the public view.
+async function focusComment(targetId) {
+    if (!targetId) return;
+    let guard = 0;
+    while (!document.getElementById(`msg-${targetId}`) && guard++ < 50) {
+        const hasMore = threadCursor || renderedComments < orderedComments.length;
+        if (!hasMore) break;
+        // The infinite-scroll observer may already be fetching the next batch.
+        if (pageLoading) { await new Promise(resolve => setTimeout(resolve, 60)); continue; }
+        if (!await loadMoreComments()) break;
+    }
+    const el = document.getElementById(`msg-${targetId}`);
+    if (!el) {
+        notify('这条回复还没有公开，暂时无法定位。', 'error');
+        return;
+    }
+    jumpToComment(targetId);
 }
 // ==================== 事件委托 ====================
 // The Content-Security-Policy blocks on* attributes, so each rendered control names an

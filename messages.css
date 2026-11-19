@@ -430,6 +430,26 @@
             margin: 2px 0 0 0 !important;
             font-variant-numeric: tabular-nums;
         }
+        .notification-item .notification-open {
+            margin-top: 10px;
+            padding: 6px 12px;
+            border: 1px solid var(--theme-color);
+            border-radius: 999px;
+            background: transparent;
+            color: var(--theme-color);
+            font-size: 12px;
+            cursor: pointer;
+            transition: background .18s, color .18s;
+        }
+        .notification-item .notification-open:hover,
+        .notification-item .notification-open:focus-visible {
+            background: var(--theme-color);
+            color: var(--surface);
+        }
+        .notification-item .notification-open:disabled {
+            opacity: .6;
+            cursor: default;
+        }
         .profile-avatar-row {
             display: flex;
             align-items: center;

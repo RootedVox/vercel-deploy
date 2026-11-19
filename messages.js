@@ -169,6 +169,12 @@
                     const style = notificationStyle(n);
                     // Reply titles contain the sender's name and the body quotes their message.
                     const replyContent = n.type === 'reply' ? ' class="notification-content"' : '';
+                    // A reply carries the reply id in related_id. The thread it belongs to is
+                    // resolved on click, so a reply that is still pending tells the reader so
+                    // instead of opening the wrong post.
+                    const replyAction = n.type === 'reply' && n.related_id
+                        ? `<button type="button" class="notification-open" data-reply-id="${escapeHtml(n.related_id)}">查看回复 <span aria-hidden="true">→</span></button>`
+                        : '';
                     const itemDiv = document.createElement("div");
                     itemDiv.className = 'notification-item' +
                         (style.negative ? ' is-negative' : '') +
@@ -184,6 +190,7 @@
                       </div>
                       <p${replyContent}>${escapeHtml(n.content)}</p>
                       <p class="notification-time">${new Date(n.created_at).toLocaleString()}</p>
+                      ${replyAction}
                     `;
                     htmlFragment.appendChild(itemDiv);
                 });
@@ -1143,6 +1150,33 @@
                 const totalHeight = notifyModalBody.scrollHeight;
                 if (scrollTop + viewHeight >= totalHeight - 80) {
                     await openNotifications(true);
+                }
+            });
+
+            notifyModalBody.addEventListener("click", async event => {
+                const button = event.target.closest('.notification-open');
+                if (!button || button.disabled) return;
+                event.preventDefault();
+                const replyId = button.dataset.replyId;
+                button.disabled = true;
+                const label = button.textContent;
+                button.textContent = '正在打开…';
+                try {
+                    const response = await request(`/api/messages?replyRoot=${encodeURIComponent(replyId)}`, { cache: 'no-store' });
+                    if (!response.ok) throw new Error('reply_root_unavailable');
+                    const { rootId } = await response.json();
+                    // A pending or deleted reply resolves to null: say why instead of
+                    // dropping the reader on an unrelated thread.
+                    if (!rootId) {
+                        notify('这条回复还没有公开，暂时无法查看。', 'error');
+                        return;
+                    }
+                    location.href = `details.html?id=${encodeURIComponent(rootId)}&focus=${encodeURIComponent(replyId)}`;
+                } catch {
+                    notify('暂时无法打开这条回复，请稍后再试。', 'error');
+                } finally {
+                    button.disabled = false;
+                    button.textContent = label;
                 }
             });
 
