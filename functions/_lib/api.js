@@ -4,7 +4,7 @@ import { getBusinessSession } from './session.js';
 import { refreshChecker } from './supabase.js';
 
 export async function authenticateApi(request, env, options = {}) {
-  if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && !sameOriginRequest(request)) {
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && !sameOriginRequest(request, env)) {
     return { response: json({ error: 'invalid_origin' }, 403) };
   }
   let config;

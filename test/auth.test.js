@@ -71,6 +71,22 @@ test('state-changing API requests reject missing or cross-site Origin before rea
   assert.equal(crossSite.response.status, 403);
 });
 
+test('authenticateApi honours configured frontend Origin on state-changing requests', async () => {
+  // The Vercel http.js sameOriginRequest reads CORS_ALLOWED_ORIGINS / BUSINESS_FRONTEND_URL
+  // from env. api.js must forward env or every write under a custom frontend domain 403s
+  // while the CORS preflight still passes (and logout, which does forward env, works).
+  const env = { CORS_ALLOWED_ORIGINS: 'https://frontend.example' };
+  const allowed = await authenticateApi(new Request('https://rv-vc.celestivast.com/api/profile', {
+    method: 'PUT', headers: { Origin: 'https://frontend.example' }
+  }), env);
+  // Passing the Origin gate means it proceeds to session handling, not the 403 gate.
+  assert.notEqual(allowed.response?.status, 403);
+  const stillBlocked = await authenticateApi(new Request('https://rv-vc.celestivast.com/api/profile', {
+    method: 'PUT', headers: { Origin: 'https://evil.example' }
+  }), env);
+  assert.equal(stillBlocked.response.status, 403);
+});
+
 test('production issuer and redirect URI must use HTTPS', () => {
   assert.equal(config().issuer, 'https://auth.example.com');
   assert.equal(config({ AUTH_ISSUER: 'https://auth.example.com/' }).issuer, 'https://auth.example.com/');

@@ -1,5 +1,12 @@
 # 更新日志 / Changelog
 
+## v4.7.3
+- 修复 D1 模式下登录必然失败：补上 `migrations/0003_session_id_token.sql`，为 `business_sessions` 增加 `id_token_raw` 列（此前 `createSession` 写入该列但建表迁移从未定义，未显式配置 `AUTH_STORE=supabase` 的部署会全部登录失败）。
+- 修复 Vercel 端自定义前端域名下所有写操作 403：`api.js` 现在把 `env` 传给 `sameOriginRequest`，`CORS_ALLOWED_ORIGINS` / `BUSINESS_FRONTEND_URL` 的配置真正生效，不再出现预检放行、实际 POST/PATCH 被拒的矛盾。
+- 补全英文界面的动态文案：通知状态胶囊、审核通过提示、发帖与上传状态等运行时插入的文本现在都有对应翻译，不改动用户内容与数据库标题的跳过逻辑。
+- 修复通知标记已读后列表项仍显示未读：PATCH 成功后立即清除当前已渲染条目的未读样式与圆点，不必重新打开通知中心。
+- 新增英文词条完整性测试与 Vercel 端自定义域名 Origin 测试。
+
 ## v4.7.2
 - 移除留言列表的服务端内存缓存：审核通过后新留言会在自动刷新轮询时立即出现，不再被 15~30 秒的旧缓存挡住。
 - 自动刷新轮询同时刷新通知红点，转成人工复核时作者能及时看到通知。

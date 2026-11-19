@@ -201,6 +201,13 @@
                         if (typeof hasUnread !== 'boolean') return;
                         notificationDot.style.display = hasUnread ? 'block' : 'none';
                         dropdownDot.style.display = hasUnread ? 'inline-block' : 'none';
+                        // The rows already on screen were rendered before the PATCH.
+                        // Clear their unread styling now instead of waiting for the
+                        // notification centre to be reopened.
+                        listEl.querySelectorAll('.notification-item.unread').forEach(row => {
+                            row.classList.remove('unread');
+                            row.querySelector('.unread-dot')?.remove();
+                        });
                     }
                 }
 
