@@ -71,17 +71,25 @@
         let currentUserRealName = '';
         let userId = '';
 
-        // known: the answer /auth/session already gave, when it could read it.
+        let unreadRevision = 0;
+        function displayNotificationDots(hasUnread) {
+            notificationDot.style.display = hasUnread ? 'block' : 'none';
+            dropdownDot.style.display = hasUnread ? 'inline-block' : 'none';
+        }
+
+        // known is the unread status already returned by /auth/session.
         async function refreshNotificationDot(known) {
             if (!userId) return;
+            const revision = ++unreadRevision;
             let hasUnread = known;
             if (typeof hasUnread !== 'boolean') {
-                const response = await request('/api/notifications?exists=1', { credentials: 'include', cache: 'no-store' });
-                if (!response.ok) return;
-                ({ hasUnread } = await response.json());
+                try {
+                    const response = await request('/api/notifications?exists=1', { credentials: 'include', cache: 'no-store' });
+                    if (!response.ok) return;
+                    ({ hasUnread } = await response.json());
+                } catch { return; }
             }
-            notificationDot.style.display = hasUnread ? "block" : "none";
-            dropdownDot.style.display = hasUnread ? "inline-block" : "none";
+            if (revision === unreadRevision && typeof hasUnread === 'boolean') displayNotificationDots(hasUnread);
         }
 
         // Dialog focus: move it inside on open, keep Tab inside, and return it on close.
@@ -215,12 +223,16 @@
                 notifyPage++;
                 if (!append) {
                     // Keep the fetched notifications visible when marking them read fails.
+                    const beforeReceipt = unreadRevision;
                     const marked = await request(`/api/notifications?through=${encodeURIComponent(notes[0].id)}`, { method: 'PATCH', credentials: 'include' }).catch(() => null);
                     if (marked?.ok) {
                         const { hasUnread } = await marked.json().catch(() => ({}));
                         if (notificationRequest !== current || typeof hasUnread !== 'boolean') return;
-                        notificationDot.style.display = hasUnread ? 'block' : 'none';
-                        dropdownDot.style.display = hasUnread ? 'inline-block' : 'none';
+                        const overlappingProbe = unreadRevision !== beforeReceipt;
+                        ++unreadRevision;
+                        displayNotificationDots(hasUnread);
+                        // A concurrent probe may have seen a notification newer than the receipt.
+                        if (overlappingProbe) void refreshNotificationDot();
                         // The rows already on screen were rendered before the PATCH.
                         // Clear their unread styling now instead of waiting for the
                         // notification centre to be reopened.
@@ -249,6 +261,7 @@
         }
 
         async function initUserExtra() {
+            void refreshNotificationDot(currentUser?.hasUnread);
             // /auth/session already read the profile row. Only when that read failed (or an
             // older deployment answered) does it leave out avatarUrl, and /api/profile is asked.
             let data;
@@ -279,7 +292,6 @@
                 document.getElementById('profileAvatarFallback').hidden = false;
             }
 
-            refreshNotificationDot(currentUser?.hasUnread);
         }
 
         const pendingAvatarUploads = new WeakMap();
