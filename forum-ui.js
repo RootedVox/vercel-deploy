@@ -105,6 +105,33 @@
   const uploads = new WeakMap();
   const uploadReuseMs = 24 * 60 * 60 * 1000;
   const uploadTypes = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+  async function prepareMessageImage(file) {
+      // Canvas exports a single frame. GIF is already an accepted upload format.
+      if (file.type === 'image/gif' || (file.size < 100 * 1024 && uploadTypes.has(file.type))) return file;
+      if (file.type === 'image/webp') {
+          const header = new Uint8Array(await file.slice(0, 21).arrayBuffer());
+          // Extended WebP stores its animation flag in the VP8X feature byte.
+          if (String.fromCharCode(...header.subarray(12, 16)) === 'VP8X' && (header[20] & 2)) return file;
+      }
+      if (file.type === 'image/png' || file.type === 'image/apng') {
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          const view = new DataView(bytes.buffer);
+          // APNG puts acTL before the first IDAT. Skip chunk payloads so an incidental
+          // match in metadata or compressed pixels cannot disable photo compression.
+          if (bytes.length >= 8 && view.getUint32(0) === 0x89504e47 && view.getUint32(4) === 0x0d0a1a0a) {
+              for (let pos = 8; pos + 12 <= bytes.length;) {
+                  const size = view.getUint32(pos);
+                  const type = String.fromCharCode(...bytes.subarray(pos + 4, pos + 8));
+                  if (pos + 12 + size > bytes.length || type === 'IDAT' || type === 'IEND') break;
+                  if (type === 'acTL' && size === 8) {
+                      return file.type === 'image/png' ? file : new File([file], file.name, { type: 'image/png' });
+                  }
+                  pos += 12 + size;
+              }
+          }
+      }
+      return compressImage(file);
+  }
   function recoverDraftImages(images) {
       for (const image of images) {
           if (image.file) {
@@ -128,8 +155,7 @@
           const form = new FormData();
           form.append('kind', 'message');
           for (const file of missing) {
-              const sendOriginal = file.size < 100 * 1024 && uploadTypes.has(file.type);
-              const image = sendOriginal ? file : await compressImage(file);
+              const image = await prepareMessageImage(file);
               form.append('files', image, image.name);
           }
           const response = await request('/api/uploads', { method: 'POST', credentials: 'include', body: form });
