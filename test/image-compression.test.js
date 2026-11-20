@@ -82,3 +82,22 @@ test('a PNG source keeps PNG (it may be transparent) and never grows', async () 
   assert.equal(smaller.type, 'image/png');
   assert.equal(smaller.size, 900_000);
 });
+
+// Two-frame images with trailing padding to exercise the normal compression threshold.
+const animations = {
+  gif: 'R0lGODlhAgACAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQADwAAACwAAAAAAgACAAAIBgABCAQQEAAh+QQBDwABACwAAAAAAgACAIEAAP8AAAAAAAAAAAAIBgABCAQQEAA7',
+  webp: 'UklGRoQAAABXRUJQVlA4WAoAAAACAAAAAQAAAQAAQU5JTQYAAAAAAAAAAABBTk1GKAAAAAAAAAAAAAEAAAEAAJYAAAJWUDhMDwAAAC8BQAAABxD9j/4HIqL/AQBBTk1GKAAAAAAAAAAAAAEAAAEAAJYAAABWUDhMDwAAAC8BQAAABxDR//4HIqL/AQA=',
+  png: 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAACGFjVEwAAAACAAAAAPONk3AAAAAaZmNUTAAAAAAAAAACAAAAAgAAAAAAAAAAAAMAFAAAhCwBGgAAABBJREFUeJxj/M8AAkxgkgEADR0BA4LJcf8AAAAaZmNUTAAAAAEAAAACAAAAAgAAAAAAAAAAAAMAFAAAH1/rzgAAABZmZEFUAAAAAnicY2Rg+M/AwMDEAAYACx8BAyVgX34AAAAASUVORK5CYII=',
+};
+
+test('message uploads preserve animation above the compression threshold', async () => {
+  for (const [format, data] of Object.entries(animations)) {
+    const types = format === 'png' ? ['image/png', 'image/apng'] : ['image/' + format];
+    for (const type of types) {
+      const file = new File([Buffer.from(data, 'base64'), new Uint8Array(102400)], 'motion.' + format, { type });
+      const sent = await upload(file, () => assert.fail(type + ' was flattened by canvas'));
+      assert.equal(sent.type, 'image/' + format);
+      assert.deepEqual(await sent.arrayBuffer(), await file.arrayBuffer());
+    }
+  }
+});
