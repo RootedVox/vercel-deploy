@@ -15,7 +15,7 @@ test('a failed canvas allocation rejects the upload and releases the preview URL
     URL: { createObjectURL: () => 'blob:photo', revokeObjectURL: url => released.push(url) },
     document: { createElement: () => ({ getContext: () => null }) }
   });
-  await assert.rejects(window.ForumUI.uploadFiles([{ type: 'image/png', size: 150000 }]), /图片压缩失败/);
+  await assert.rejects(window.ForumUI.uploadFiles([new File([new Uint8Array(150000)], 'photo.png', { type: 'image/png' })]), /图片压缩失败/);
   assert.deepEqual(released, ['blob:photo']);
 });
 
