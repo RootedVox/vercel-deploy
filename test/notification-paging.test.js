@@ -3,14 +3,16 @@ import assert from 'node:assert/strict';
 import { runPageScript } from './page-script.js';
 
 function setup(receipt = new Response(null, { status: 503 })) {
-  const frames = [], cursors = [], responses = [], receipts = [];
+  const frames = [], cursors = [], responses = [], receipts = [], probes = [];
+  const dot = { style: {} }, menuDot = { style: {} };
   const list = {
     scrollTop: 0, clientHeight: 500, scrollHeight: 500,
-    querySelector() { return null; }, appendChild() {}
+    querySelector() { return null; }, querySelectorAll: () => [], appendChild() {}
   };
   const modal = { style: { display: 'flex' } }, retry = {};
   const elements = { notificationList: list, notificationModal: modal, notificationRetry: retry };
   const page = runPageScript('messages.js', {
+    notificationDot: dot, dropdownDot: menuDot,
     ForumUI: { escapeHtml: String },
     document: {
       getElementById: id => elements[id],
@@ -18,6 +20,7 @@ function setup(receipt = new Response(null, { status: 503 })) {
     },
     requestAnimationFrame: cb => frames.push(cb),
     request: async (url, options) => {
+      if (url.includes('exists=1')) return probes.shift();
       if (options.method === 'PATCH') {
         receipts.push(new URL(url, 'https://forum.test').searchParams.get('through'));
         return receipt;
@@ -25,8 +28,8 @@ function setup(receipt = new Response(null, { status: 503 })) {
       cursors.push(new URL(url, 'https://forum.test').searchParams.get('cursor'));
       return responses.shift();
     }
-  }, { replace: { showModal() {} }, expose: ['openNotifications', 'loadMoreNotificationsIfNeeded'] });
-  return { page, list, modal, retry, frames, cursors, responses, receipts };
+  }, { replace: { userId: 'user', showModal() {} }, expose: ['refreshNotificationDot', 'openNotifications', 'loadMoreNotificationsIfNeeded'] });
+  return { page, list, modal, retry, frames, cursors, responses, receipts, probes, dot, menuDot };
 }
 
 const batch = nextCursor => Response.json({
@@ -113,4 +116,45 @@ test('reopening refreshes page one while a stale page is still in flight', async
     await h.frames.shift()();
     assert.deepEqual(h.cursors, ['', 'page2', '', 'current']);
   }
+});
+
+test('a late unread probe cannot relight the dots after the notifications were read', async () => {
+  const h = setup(Response.json({ hasUnread: false }));
+  const old = Promise.withResolvers();
+  h.probes.push(old.promise);
+  const probing = h.page.refreshNotificationDot();
+  h.responses.push(batch(null));
+  await h.page.openNotifications();
+  old.resolve(Response.json({ hasUnread: true }));
+  await probing;
+  assert.equal(h.dot.style.display, 'none');
+  assert.equal(h.menuDot.style.display, 'none');
+});
+
+test('out-of-order unread probes keep the latest result', async () => {
+  const h = setup();
+  const old = Promise.withResolvers();
+  h.probes.push(old.promise, Response.json({ hasUnread: true }));
+  const probing = h.page.refreshNotificationDot();
+  await h.page.refreshNotificationDot();
+  old.resolve(Response.json({ hasUnread: false }));
+  await probing;
+  assert.equal(h.dot.style.display, 'block');
+  assert.equal(h.menuDot.style.display, 'inline-block');
+});
+
+test('a probe overlapping the read receipt is reconciled with a fresh unread lookup', async () => {
+  const receipt = Promise.withResolvers();
+  const h = setup(receipt.promise);
+  h.responses.push(batch(null));
+  const opened = h.page.openNotifications();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(h.receipts, ['10']);
+  h.probes.push(Response.json({ hasUnread: false }), Response.json({ hasUnread: true }));
+  await h.page.refreshNotificationDot();
+  receipt.resolve(Response.json({ hasUnread: false }));
+  await opened;
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(h.dot.style.display, 'block');
+  assert.equal(h.probes.length, 0);
 });
